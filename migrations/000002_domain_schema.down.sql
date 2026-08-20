@@ -1,0 +1,13 @@
+ALTER TABLE IF EXISTS "jobs" DROP CONSTRAINT IF EXISTS "fk_job_accepted_offer";
+
+DROP TABLE IF EXISTS "reviews";
+DROP TABLE IF EXISTS "payments";
+DROP TABLE IF EXISTS "attachments";
+DROP TABLE IF EXISTS "offers";
+DROP TABLE IF EXISTS "is_used_in";
+DROP TABLE IF EXISTS "jobs";
+DROP TABLE IF EXISTS "surveys";
+DROP TABLE IF EXISTS "services";
+DROP TABLE IF EXISTS "marketers";
+DROP TABLE IF EXISTS "creators";
+DROP TABLE IF EXISTS "users";
