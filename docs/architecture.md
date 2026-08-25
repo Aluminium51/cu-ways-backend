@@ -4,6 +4,36 @@
 
 This document defines the boundaries and dependency rules for the CU Ways backend. It is intended for maintainers and developers adding domain features such as users, surveys, jobs, offers, payments, and reviews.
 
+## Project structure
+
+The repository combines the standard Go project layout with Hexagonal Architecture (Ports and Adapters). The tree below is representative; feature-specific files should be added only when a real use case requires them.
+
+```text
+cu-ways-backend/
+├── cmd/
+│   └── api/
+│       └── main.go                 # Application entry point and lifecycle owner
+├── docs/                           # OpenAPI contract and architecture documentation
+├── internal/
+│   ├── config/                     # Environment loading and configuration validation
+│   ├── core/
+│   │   ├── domain/                 # Entities and domain types; standard library only, zero external imports
+│   │   └── ports/                  # Consumer-side interfaces required by use cases
+│   ├── handlers/
+│   │   └── http/                   # Fiber HTTP adapters; package httpapi
+│   ├── middleware/                 # Request ID, logging, recovery, and JWT middleware
+│   ├── platform/                   # Technical adapters: database, logging, responses, and utilities
+│   ├── repositories/
+│   │   └── postgres/               # PostgreSQL/GORM implementations of ports
+│   ├── server/                     # Fiber composition, dependency injection, and route registration
+│   └── services/                   # Business logic, use cases, and state transitions
+├── migrations/                     # Raw SQL migrations: .up.sql and .down.sql
+├── Dockerfile                      # Production container image
+├── docker-compose.yml              # Local PostgreSQL infrastructure
+├── Makefile                        # Common development and migration commands
+└── go.mod                          # Module definition and dependency versions
+```
+
 The architecture is layered with hexagonal boundaries:
 
 ```text
@@ -55,7 +85,7 @@ Current models include:
 - `Offer`, `Attachment`, `Payment`, and `Review`
 - Status and type constants used by the database constraints
 
-Domain code must remain independent from Fiber, HTTP request types, and database connection setup. GORM mapping tags are currently retained on persistence models because the project uses these structs for database mapping; business rules should still be kept in services rather than handlers or database adapters.
+Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. Keep domain entities free of external package imports; persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
 
 Request and response DTOs should be defined near the HTTP feature handler, not added to the domain entities solely for transport formatting.
 
@@ -166,6 +196,89 @@ The following rules are mandatory:
 7. `cmd/api` and `server` are allowed to wire concrete implementations together.
 8. No package may introduce an import cycle to bypass these boundaries.
 9. New feature code belongs under `internal`; `pkg` is not used for backend-only implementation details.
+10. Request-scoped work must propagate `context.Context` from the HTTP adapter through services, ports, and repositories.
+11. Services may coordinate transactions through a port, but must never receive or import `*gorm.DB` or `*sql.Tx`.
+12. HTTP handlers validate transport format and syntax; services validate business meaning and invariants.
+13. Repositories enforce persistence concerns and translate database constraint errors; they do not own business decisions.
+
+## Context propagation
+
+Context is part of every application boundary contract. Handlers obtain the request context from Fiber with `c.UserContext()` and pass it unchanged to service methods. Services pass the context to ports, and repositories use it for all database operations.
+
+```go
+func (h *UserHandler) Get(c *fiber.Ctx) error {
+    user, err := h.service.GetUser(c.UserContext(), userID)
+    if err != nil {
+        return err
+    }
+    return response.Success(c, user)
+}
+```
+
+Apply these rules consistently:
+
+- Boundary methods in services, ports, and repositories accept `ctx context.Context`, normally as their first argument after the receiver.
+- Repositories call GORM with `db.WithContext(ctx)` or use the equivalent context-aware SQL APIs.
+- Services may derive child contexts for a narrower deadline or cancellation scope, but must preserve the parent context and call the derived cancel function.
+- Request handlers must not use `context.Background()` or `context.TODO()` for request work.
+- Process-level startup and shutdown code may create a root context with `signal.NotifyContext`; that context must not replace an individual request context.
+- Context values are reserved for request-scoped metadata such as request IDs and authenticated claims, not for passing business parameters.
+
+CPU-only adapters such as JWT verification may not need context internally, but if they are exposed as an application port, the port contract should still accept the request context so future implementations can perform context-aware work without changing service boundaries.
+
+## Transaction management
+
+Transaction boundaries belong to the use case, not to the HTTP handler and not to an individual repository method. A service decides which operations must succeed or fail atomically and asks a transaction-capable port to execute them.
+
+The transaction abstraction must expose domain or application operations, never database handles. For example, a transaction manager may accept `ctx` and a callback receiving transaction-scoped ports or a repository facade:
+
+```text
+service(ctx)
+  → transaction port: WithinTransaction(ctx, callback)
+  → repository adapter starts GORM transaction
+  → callback uses transaction-scoped ports
+  → adapter commits on nil, rolls back on error or cancellation
+```
+
+Implementation rules:
+
+- Define a focused transaction or unit-of-work port in `internal/core/ports` when a feature needs multiple atomic writes.
+- Implement that port in `internal/repositories/postgres` using GORM's transaction support.
+- Do not pass `*gorm.DB`, `*sql.Tx`, or repository implementation types into `internal/services`.
+- The adapter owns begin, commit, rollback, and database-specific error translation.
+- Context cancellation or a returned error must cause rollback; successful completion commits once.
+- Keep one transaction boundary around the complete use case. Nested service calls should join the existing unit of work rather than silently opening independent transactions.
+- A single read or write does not need a transaction solely because it uses a repository; use transactions for atomicity, consistency, or explicitly required isolation.
+
+The current foundation has no multi-write feature use cases. Add the transaction port alongside the first feature that requires atomic state changes rather than introducing a generic transaction abstraction in advance.
+
+## Validation boundary
+
+Validation is intentionally split between transport concerns and business concerns.
+
+### Format and syntax validation in `httpapi`
+
+HTTP handlers validate whether a request can be decoded and understood as an HTTP message:
+
+- JSON syntax and request body decoding.
+- Required transport fields, primitive types, and basic length limits.
+- Path and query parameter parsing.
+- Header, content-type, URL, and email syntax where applicable.
+- Authentication header shape and other protocol-level requirements.
+
+Malformed input should be rejected before calling a service and returned through the standard error envelope with a stable client-safe error code.
+
+### Business and semantic validation in `services`
+
+Services validate whether a well-formed request is allowed and meaningful in the current domain state:
+
+- Authorization and role-based business rules.
+- Ownership and resource relationships.
+- State-machine transitions such as accepting an offer or completing a job.
+- Cross-field rules, uniqueness decisions, limits, and other domain invariants.
+- Preconditions that require repository data.
+
+Service validation must run even when the service is called by a non-HTTP adapter, test, or background worker. Repositories may enforce database constraints as a final integrity safeguard, but they must not be the only place where business rules are checked. Domain types should hold invariants that are intrinsic to the entity regardless of transport.
 
 ## Request flow
 
@@ -174,11 +287,11 @@ A normal feature request follows this path:
 ```text
 Client
   → Fiber middleware
-  → httpapi handler
-  → service/use case
-  → port interface
-  → PostgreSQL repository
-  → GORM/database
+  → httpapi handler (c.UserContext())
+  → service/use case (ctx)
+  → port interface (ctx)
+  → PostgreSQL repository (ctx)
+  → GORM/database (context-aware)
 ```
 
 The response travels back through the same layers. Database errors should be logged with context and translated into safe application errors before reaching the client. Internal SQL details and secrets must never be returned in an API response.
@@ -190,12 +303,13 @@ Use this sequence for a new feature:
 1. Define or update the domain entity and constrained values.
 2. Add the database migration in `migrations` before writing repository queries.
 3. Define the smallest required port in `internal/core/ports`.
-4. Implement the business use case in `internal/services`.
-5. Implement the PostgreSQL repository in `internal/repositories/postgres`.
-6. Add request/response DTOs and handlers in `internal/handlers/http`.
-7. Register routes and inject dependencies through `internal/server`.
-8. Document the endpoint in `docs/openapi.yaml`.
-9. Add tests at the domain, service, repository, and handler levels as appropriate.
+4. Specify context propagation and, if needed, the transaction boundary in the port contract.
+5. Implement the business use case in `internal/services`, including semantic validation.
+6. Implement the PostgreSQL repository in `internal/repositories/postgres`.
+7. Add transport DTOs, syntax validation, and handlers in `internal/handlers/http`.
+8. Register routes and inject dependencies through `internal/server`.
+9. Document the endpoint in `docs/openapi.yaml`.
+10. Add tests at the domain, service, repository, and handler levels as appropriate, including cancellation and rollback cases where relevant.
 
 Do not add a repository, service, or port only because a directory tree anticipates it. Add the boundary when the feature has a real use case and a testable contract.
 
@@ -247,6 +361,8 @@ Use the narrowest test level that gives confidence:
 - **Handler tests** — Use Fiber `app.Test` with mocked service dependencies.
 - **Integration checks** — Run migrations and verify readiness against PostgreSQL.
 
+Boundary tests should also verify that request cancellation reaches the repository and that a failed multi-write use case rolls back all changes. Validation tests should cover both malformed transport input and semantically invalid but well-formed commands.
+
 Before committing, run:
 
 ```powershell
@@ -268,6 +384,10 @@ go list ./...
 - Adding broad `ports.go` interfaces instead of focused feature ports.
 - Adding empty feature packages without a use case or contract.
 - Reusing persistence models as public API responses when their fields or relationships do not match the API contract.
+- Starting request work with `context.Background()` or discarding the context passed by the caller.
+- Leaking `*gorm.DB`, `*sql.Tx`, or GORM-specific transaction callbacks into services.
+- Putting business validation only in a handler or repository, where non-HTTP callers can bypass it.
+- Opening a separate repository transaction for each operation in a use case that must be atomic.
 
 ## Current status
 
