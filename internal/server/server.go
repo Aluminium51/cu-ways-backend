@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
-	"github.com/Aluminium51/cu-way-backend/internal/handlers/system"
+	httpapi "github.com/Aluminium51/cu-way-backend/internal/handlers/http"
 	"github.com/Aluminium51/cu-way-backend/internal/middleware"
-	"github.com/Aluminium51/cu-way-backend/internal/services/health"
-	"github.com/Aluminium51/cu-way-backend/pkg/response"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
+	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
@@ -30,7 +30,7 @@ func New(deps Dependencies) *fiber.App {
 	app.Use(requestid.New())
 	app.Use(middleware.RequestLogger(deps.Logger))
 
-	healthHandler := system.NewHealthHandler(health.NewService(deps.ReadinessChecker, deps.ReadinessTimeout))
+	healthHandler := httpapi.NewHealthHandler(services.NewHealthService(deps.ReadinessChecker, deps.ReadinessTimeout))
 	app.Get("/healthz", healthHandler.Health)
 	app.Get("/readyz", healthHandler.Ready)
 

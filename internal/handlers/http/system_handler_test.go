@@ -1,4 +1,4 @@
-package system
+package httpapi
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aluminium51/cu-way-backend/internal/services/health"
-	"github.com/Aluminium51/cu-way-backend/pkg/response"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
+	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
@@ -24,7 +24,7 @@ func (c checker) Ping(context.Context) error {
 
 func newTestApp(err error) *fiber.App {
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
-	handler := NewHealthHandler(health.NewService(checker{err: err}, time.Second))
+	handler := NewHealthHandler(services.NewHealthService(checker{err: err}, time.Second))
 	app.Get("/healthz", handler.Health)
 	app.Get("/readyz", handler.Ready)
 	return app

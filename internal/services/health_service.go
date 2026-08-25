@@ -1,4 +1,4 @@
-package health
+package services
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 )
 
-type Service struct {
+type HealthService struct {
 	checker ports.ReadinessChecker
 	timeout time.Duration
 }
 
-func NewService(checker ports.ReadinessChecker, timeout time.Duration) *Service {
-	return &Service{checker: checker, timeout: timeout}
+func NewHealthService(checker ports.ReadinessChecker, timeout time.Duration) *HealthService {
+	return &HealthService{checker: checker, timeout: timeout}
 }
 
-func (s *Service) Check(ctx context.Context) error {
+func (s *HealthService) Check(ctx context.Context) error {
 	checkCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	return s.checker.Ping(checkCtx)

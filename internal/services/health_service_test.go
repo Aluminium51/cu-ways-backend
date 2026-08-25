@@ -1,4 +1,4 @@
-package health
+package services
 
 import (
 	"context"
@@ -15,17 +15,17 @@ func (f fakeChecker) Ping(context.Context) error {
 	return f.err
 }
 
-func TestServiceCheckReturnsDatabaseError(t *testing.T) {
+func TestHealthServiceCheckReturnsDatabaseError(t *testing.T) {
 	want := errors.New("database offline")
-	service := NewService(fakeChecker{err: want}, time.Second)
+	service := NewHealthService(fakeChecker{err: want}, time.Second)
 
 	if err := service.Check(context.Background()); !errors.Is(err, want) {
 		t.Fatalf("expected database error, got %v", err)
 	}
 }
 
-func TestServiceCheckHonorsTimeout(t *testing.T) {
-	service := NewService(blockingChecker{}, time.Millisecond)
+func TestHealthServiceCheckHonorsTimeout(t *testing.T) {
+	service := NewHealthService(blockingChecker{}, time.Millisecond)
 
 	if err := service.Check(context.Background()); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)

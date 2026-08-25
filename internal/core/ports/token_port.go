@@ -1,13 +1,6 @@
 package ports
 
-import (
-	"context"
-	"time"
-)
-
-type ReadinessChecker interface {
-	Ping(context.Context) error
-}
+import "time"
 
 type TokenClaims struct {
 	Subject   string

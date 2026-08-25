@@ -1,16 +1,16 @@
-package system
+package httpapi
 
 import (
-	"github.com/Aluminium51/cu-way-backend/internal/services/health"
-	"github.com/Aluminium51/cu-way-backend/pkg/response"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
+	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 )
 
 type HealthHandler struct {
-	service *health.Service
+	service *services.HealthService
 }
 
-func NewHealthHandler(service *health.Service) *HealthHandler {
+func NewHealthHandler(service *services.HealthService) *HealthHandler {
 	return &HealthHandler{service: service}
 }
 

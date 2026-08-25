@@ -1,8 +1,10 @@
 # CU Ways Backend
 
-Go/Fiber backend foundation for CU Ways. It currently provides configuration, PostgreSQL connectivity, migrations, health checks, JWT verification middleware, structured logging, and Docker development services.
+Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-User, survey, job, login, and refresh-token features are not implemented yet.
+The foundation currently provides configuration, PostgreSQL connectivity, migrations, health checks, JWT verification middleware, structured logging, and Docker development services. User, survey, job, login, and refresh-token workflows are not implemented yet.
+
+For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
 ## Requirements
 
@@ -46,6 +48,43 @@ cd D:\test-fullstack\cu-way\backend
    ```
 
 The API runs on `http://localhost:8081` by default.
+
+## Project structure
+
+```text
+cu-ways-backend/
+├── cmd/api/                  # Application entry point
+├── docs/                     # OpenAPI and architecture documentation
+├── internal/                 # Private application code
+│   ├── config/               # Environment and configuration loader
+│   ├── core/
+│   │   ├── domain/           # Entities and persistence/domain models
+│   │   └── ports/            # Interfaces for application boundaries
+│   ├── handlers/http/        # Fiber HTTP transport layer (package httpapi)
+│   ├── middleware/           # Recovery, request ID, logging, and JWT middleware
+│   ├── platform/             # Database, logging, response, and utility adapters
+│   ├── repositories/postgres/ # PostgreSQL repository implementations
+│   ├── server/               # Fiber app composition and route registration
+│   └── services/             # Business logic and use-case orchestration
+├── migrations/               # PostgreSQL .up.sql and .down.sql files
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile                  # Developer command shortcuts
+└── go.mod
+```
+
+## Implementing a new feature
+
+Follow these six steps when adding a feature such as users, surveys, or jobs:
+
+1. **Define the domain** — Add or update entities and business value types in `internal/core/domain`. Keep them independent from Fiber and database connection details.
+2. **Define the port** — Add a focused interface in `internal/core/ports` describing what the service needs from persistence or another external system.
+3. **Implement the service** — Add the use-case and business rules in `internal/services`. Services depend on ports, not concrete PostgreSQL repositories.
+4. **Implement persistence** — Add the PostgreSQL/GORM implementation under `internal/repositories/postgres`. Keep SQL queries, preload choices, and database error mapping here.
+5. **Expose HTTP behavior** — Add request/response DTOs and Fiber handlers under `internal/handlers/http`, then register routes through `internal/server`.
+6. **Verify the feature** — Add or update migrations, tests, OpenAPI documentation, and run the checks below before committing.
+
+Do not call a repository directly from a handler, put business rules in a handler, or make domain packages import Fiber or GORM connection setup. See [docs/architecture.md](docs/architecture.md) for the complete rules.
 
 ## API checks
 
@@ -99,23 +138,6 @@ Change the example passwords before using this setup outside local development.
 | `make migrate-down` | Roll back one migration |
 | `make migrate-version` | Show the current migration version |
 
-## Project layout
-
-```text
-cmd/api              Application entrypoint
-internal/config      Environment configuration
-internal/handlers    HTTP handlers
-internal/middleware  Recovery, logging, request IDs, JWT verification
-internal/server      Fiber app and route setup
-internal/services    Business/service boundaries
-internal/core/ports  Application interfaces
-pkg/database         GORM PostgreSQL connection
-pkg/response          Standard API responses and errors
-pkg/utils             JWT and validation helpers
-migrations            SQL migration files
-docs                  OpenAPI documentation
-```
-
 ## Configuration
 
 `.env.example` contains the supported settings. Important values include:
@@ -136,6 +158,7 @@ Before submitting changes, run:
 go test ./...
 go vet ./...
 go build -trimpath ./cmd/api
+go list ./...
 ```
 
-The current migration is only a foundation baseline; it does not create domain tables.
+The current migrations include a foundation baseline and the domain schema. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.

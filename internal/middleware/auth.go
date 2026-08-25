@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
-	"github.com/Aluminium51/cu-way-backend/pkg/response"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
 	"github.com/gofiber/fiber/v2"
 )
 

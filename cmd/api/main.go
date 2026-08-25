@@ -8,9 +8,9 @@ import (
 	"syscall"
 
 	"github.com/Aluminium51/cu-way-backend/internal/config"
-	"github.com/Aluminium51/cu-way-backend/internal/logging"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/database"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/logging"
 	"github.com/Aluminium51/cu-way-backend/internal/server"
-	"github.com/Aluminium51/cu-way-backend/pkg/database"
 )
 
 func main() {
