@@ -14,25 +14,95 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Dependencies holds shared resources and ports required to build the HTTP server.
 type Dependencies struct {
 	Logger           zerolog.Logger
 	ReadinessChecker ports.ReadinessChecker
 	ReadinessTimeout time.Duration
 }
 
+// New initializes, configures, and wires the Fiber application with middlewares and routes.
 func New(deps Dependencies) *fiber.App {
+	// Initialize Fiber
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler:          response.ErrorHandler(deps.Logger),
 	})
 
+	// global middleware pipeline
 	app.Use(recover.New())
 	app.Use(requestid.New())
-	app.Use(middleware.RequestLogger(deps.Logger))
+	app.Use(middleware.RequestLogger(deps.Logger)) // Logger
 
-	healthHandler := httpapi.NewHealthHandler(services.NewHealthService(deps.ReadinessChecker, deps.ReadinessTimeout))
-	app.Get("/healthz", healthHandler.Health)
-	app.Get("/readyz", healthHandler.Ready)
+	// [FUTURE] Configure CORS for Next.js frontend (e.g., localhost:3000)
+	// app.Use(cors.New(cors.Config{
+	// 	AllowOrigins: "http://localhost:3000",
+	// 	AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	// }))
+
+	// Wire dependencies and register system/health check endpoints
+	healthHandler := httpapi.NewHealthHandler(
+		services.NewHealthService(deps.ReadinessChecker, deps.ReadinessTimeout),
+	)
+	app.Get("/healthz", healthHandler.Health) // 200 = App is running
+	app.Get("/readyz", healthHandler.Ready)   // 200 = Dependencies are healthy
+
+	// =========================================================================
+	// 4. Dependency Injection & Repository Wiring [FUTURE]
+	// =========================================================================
+	// userRepo := postgres.NewUserRepository(deps.DB)
+	// surveyRepo := postgres.NewSurveyRepository(deps.DB)
+	// jobRepo := postgres.NewJobRepository(deps.DB)
+	// paymentRepo := postgres.NewPaymentRepository(deps.DB)
+
+	// =========================================================================
+	// 5. Service Layer Instantiation [FUTURE]
+	// =========================================================================
+	// userService := services.NewUserService(userRepo)
+	// surveyService := services.NewSurveyService(surveyRepo)
+	// jobService := services.NewJobService(jobRepo, surveyRepo) // Handles state machines
+	// paymentService := services.NewPaymentService(paymentRepo, jobRepo)
+
+	// =========================================================================
+	// 6. HTTP Handlers Instantiation [FUTURE]
+	// =========================================================================
+	// authHandler := httpapi.NewAuthHandler(userService, deps.TokenVerifier)
+	// userHandler := httpapi.NewUserHandler(userService)
+	// surveyHandler := httpapi.NewSurveyHandler(surveyService)
+	// jobHandler := httpapi.NewJobHandler(jobService)
+	// paymentHandler := httpapi.NewPaymentHandler(paymentService)
+
+	// =========================================================================
+	// 7. API Routes Registration [FUTURE]
+	// =========================================================================
+	// api := app.Group("/api/v1")
+
+	// --- Public Routes ---
+	// authGroup := api.Group("/auth")
+	// authGroup.Post("/register", authHandler.Register)
+	// authGroup.Post("/login", authHandler.Login)
+
+	// --- Protected Routes (Require JWT Middleware) ---
+	// protected := api.Group("", middleware.Auth(deps.TokenVerifier))
+	//
+	// User / Profile
+	// protected.Get("/users/me", userHandler.GetProfile)
+	// protected.Put("/users/me", userHandler.UpdateProfile)
+	//
+	// Survey Management
+	// protected.Get("/surveys", surveyHandler.ListSurveys)
+	// protected.Post("/surveys", surveyHandler.CreateSurvey)
+	// protected.Get("/surveys/:id", surveyHandler.GetSurveyDetail)
+	//
+	// Job & Offer Flow (State Machine)
+	// protected.Post("/jobs", jobHandler.CreateJob)
+	// protected.Post("/jobs/:id/offers", jobHandler.SubmitOffer)
+	// protected.Put("/jobs/:id/accept", jobHandler.AcceptJob)
+	// protected.Put("/jobs/:id/complete", jobHandler.CompleteJob)
+	//
+	// Payment & Proof of Work
+	// protected.Post("/jobs/:id/payments", paymentHandler.CreatePayment)
+	// protected.Post("/jobs/:id/attachments", jobHandler.UploadProof)
 
 	return app
 }
