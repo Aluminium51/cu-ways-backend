@@ -98,7 +98,12 @@ curl.exe -i http://localhost:8081/readyz
 - Responses use a standard `status` and `data`/`error` envelope.
 - Requests receive an `X-Request-ID` response header.
 
-OpenAPI documentation is available at [docs/openapi.yaml](docs/openapi.yaml).
+API documentation is available at:
+
+- Interactive Scalar reference: [http://localhost:8081/docs](http://localhost:8081/docs)
+- Raw OpenAPI YAML: [http://localhost:8081/docs/openapi.yaml](http://localhost:8081/docs/openapi.yaml)
+
+The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
 
 ## Database tools
 

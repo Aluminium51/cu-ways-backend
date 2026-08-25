@@ -10,7 +10,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
+WORKDIR /app
 COPY --from=build /out/api /api
+COPY --from=build /src/docs ./docs
 
 EXPOSE 8081
 ENTRYPOINT ["/api"]

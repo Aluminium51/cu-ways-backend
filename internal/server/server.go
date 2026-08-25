@@ -19,6 +19,7 @@ type Dependencies struct {
 	Logger           zerolog.Logger
 	ReadinessChecker ports.ReadinessChecker
 	ReadinessTimeout time.Duration
+	DocsPath         string
 }
 
 // New initializes, configures, and wires the Fiber application with middlewares and routes.
@@ -33,6 +34,31 @@ func New(deps Dependencies) *fiber.App {
 	app.Use(recover.New())
 	app.Use(requestid.New())
 	app.Use(middleware.RequestLogger(deps.Logger)) // Logger
+
+	// Serve the OpenAPI contract and the Scalar API Reference UI as public
+	// documentation routes. DocsPath is injectable so tests do not depend on
+	// the package working directory; production defaults to ./docs/openapi.yaml.
+	docsPath := deps.DocsPath
+	if docsPath == "" {
+		docsPath = "./docs/openapi.yaml"
+	}
+	app.Static("/docs/openapi.yaml", docsPath)
+	app.Get("/docs", func(c *fiber.Ctx) error {
+		html := `<!doctype html>
+<html>
+  <head>
+    <title>CU Ways API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" data-url="/docs/openapi.yaml"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`
+		c.Set("Content-Type", "text/html")
+		return c.SendString(html)
+	})
 
 	// [FUTURE] Configure CORS for Next.js frontend (e.g., localhost:3000)
 	// app.Use(cors.New(cors.Config{
