@@ -2,6 +2,8 @@ CREATE TABLE "users" (
     "user_id" integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "name" varchar(100) NOT NULL,
     "email" varchar(255) UNIQUE NOT NULL,
+    "phone" varchar(20),
+    "line_id" varchar(50),
     "created_at" timestamp NOT NULL
 );
 
@@ -11,8 +13,6 @@ CREATE TABLE "creators" (
 
 CREATE TABLE "marketers" (
     "user_id" integer PRIMARY KEY,
-    "phone" varchar(20),
-    "line_id" varchar(50),
     "bio" text,
     "experience" text,
     "availability_text" text

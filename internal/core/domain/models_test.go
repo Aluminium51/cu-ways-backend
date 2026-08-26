@@ -2,6 +2,7 @@ package domain
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,6 +55,40 @@ func TestNullableAndMoneyFieldsMatchSchema(t *testing.T) {
 	}
 	if field, ok := reflect.TypeOf(Offer{}).FieldByName("OfferedPrice"); !ok || field.Type != reflect.TypeOf(decimal.Decimal{}) {
 		t.Fatal("Offer.OfferedPrice must use decimal.Decimal")
+	}
+}
+
+func TestUserContactFieldsMatchSchema(t *testing.T) {
+	userType := reflect.TypeOf(User{})
+	for _, tt := range []struct {
+		field  string
+		column string
+		typeID string
+	}{
+		{field: "Phone", column: "phone", typeID: "varchar(20)"},
+		{field: "LineID", column: "line_id", typeID: "varchar(50)"},
+	} {
+		field, ok := userType.FieldByName(tt.field)
+		if !ok {
+			t.Fatalf("User.%s is missing", tt.field)
+		}
+		if field.Type != reflect.TypeOf((*string)(nil)) {
+			t.Fatalf("User.%s must be a nullable *string", tt.field)
+		}
+		gormTag := field.Tag.Get("gorm")
+		if !strings.Contains(gormTag, "column:"+tt.column) {
+			t.Fatalf("User.%s must map to column %q", tt.field, tt.column)
+		}
+		if !strings.Contains(gormTag, "type:"+tt.typeID) {
+			t.Fatalf("User.%s must map to SQL type %q", tt.field, tt.typeID)
+		}
+	}
+
+	marketerType := reflect.TypeOf(Marketer{})
+	for _, fieldName := range []string{"Phone", "LineID"} {
+		if _, ok := marketerType.FieldByName(fieldName); ok {
+			t.Fatalf("Marketer.%s must not exist after moving contact fields to users", fieldName)
+		}
 	}
 }
 
