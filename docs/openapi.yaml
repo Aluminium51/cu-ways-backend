@@ -68,7 +68,7 @@ paths:
               name: Jane Doe
               email: jane@example.com
               password: correct horse battery staple
-              phone: 0812345678
+              phone: null
               line_id: jane.line
       responses:
         '201':
