@@ -111,6 +111,24 @@ func (r *UserRepository) Update(ctx context.Context, userID int32, patch ports.U
 	return r.FindByID(ctx, userID)
 }
 
+func (r *UserRepository) SetRole(ctx context.Context, userID int32, role string) error {
+	if role != domain.RoleUser && role != domain.RoleAdmin {
+		return domain.ErrInvalidUser
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Update("role", role)
+	if err := result.Error; err != nil {
+		return mapUserDatabaseError(err)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
 func (r *UserRepository) SoftDelete(ctx context.Context, userID int32, deletedAt time.Time) error {
 	result := r.db.WithContext(ctx).
 		Model(&domain.User{}).

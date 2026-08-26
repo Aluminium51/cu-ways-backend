@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ func TestJWTVerifierAcceptsValidToken(t *testing.T) {
 		"exp": time.Now().Add(time.Minute).Unix(),
 	})
 
-	claims, err := verifier.Verify(token)
+	claims, err := verifier.Verify(context.Background(), token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestJWTVerifierRejectsExpiredToken(t *testing.T) {
 		"exp": time.Now().Add(-time.Minute).Unix(),
 	})
 
-	if _, err := verifier.Verify(token); err != ErrInvalidToken {
+	if _, err := verifier.Verify(context.Background(), token); err != ErrInvalidToken {
 		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 }
@@ -40,7 +41,7 @@ func TestJWTVerifierRejectsWrongSignature(t *testing.T) {
 		"exp": time.Now().Add(time.Minute).Unix(),
 	})
 
-	if _, err := verifier.Verify(token); err != ErrInvalidToken {
+	if _, err := verifier.Verify(context.Background(), token); err != ErrInvalidToken {
 		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 }
@@ -51,8 +52,32 @@ func TestJWTVerifierRejectsUnsupportedAlgorithm(t *testing.T) {
 		"exp": time.Now().Add(time.Minute).Unix(),
 	})
 
-	if _, err := verifier.Verify(token); err != ErrInvalidToken {
+	if _, err := verifier.Verify(context.Background(), token); err != ErrInvalidToken {
 		t.Fatalf("expected ErrInvalidToken, got %v", err)
+	}
+}
+
+func TestJWTIssuerRoundTripsWithVerifier(t *testing.T) {
+	issuer := NewJWTIssuer("test-secret", "HS256")
+	verifier := NewJWTVerifier("test-secret", "HS256")
+
+	token, expiresAt, err := issuer.Issue(context.Background(), "7", "admin", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expiresAt.Before(time.Now()) {
+		t.Fatal("expected issued token to expire in the future")
+	}
+
+	claims, err := verifier.Verify(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Subject != "7" {
+		t.Fatalf("expected subject 7, got %q", claims.Subject)
+	}
+	if claims.Values["role"] != "admin" {
+		t.Fatalf("expected admin role, got %#v", claims.Values["role"])
 	}
 }
 

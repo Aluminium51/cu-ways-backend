@@ -15,6 +15,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
 	List(ctx context.Context, query UserListQuery) (UserPage, error)
 	Update(ctx context.Context, userID int32, patch UserPatch) (*domain.User, error)
+	SetRole(ctx context.Context, userID int32, role string) error
 	SoftDelete(ctx context.Context, userID int32, deletedAt time.Time) error
 }
 

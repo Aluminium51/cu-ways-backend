@@ -2,10 +2,12 @@ openapi: 3.0.3
 info:
   title: CU Ways API
   version: 0.1.0
-  description: CU Ways backend foundation and user management API.
+  description: CU Ways backend foundation, authentication, and user management API.
 servers:
   - url: http://localhost:8081
 tags:
+  - name: Authentication
+    description: Public account registration and login.
   - name: Users
     description: User profile management and administration.
 paths:
@@ -50,6 +52,89 @@ paths:
                 error:
                   code: database_unavailable
                   message: service is not ready
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      summary: Register an account
+      description: Creates a user account with the default user role and returns a one-hour access token. The role cannot be supplied by the client.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: Jane Doe
+              email: jane@example.com
+              password: correct horse battery staple
+              phone: 0812345678
+              line_id: jane.line
+      responses:
+        '201':
+          description: Account created and access token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Request validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      summary: Log in with email and password
+      description: Returns a one-hour bearer access token. The API intentionally uses the same error for an unknown email and an incorrect password.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: jane@example.com
+              password: correct horse battery staple
+      responses:
+        '200':
+          description: Login succeeded and an access token was issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Email or password is invalid, or the account is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Request validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users:
     post:
       operationId: createUser
@@ -305,6 +390,69 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        line_id:
+          type: string
+          nullable: true
+          maxLength: 50
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+    AuthenticatedUser:
+      allOf:
+        - $ref: '#/components/schemas/User'
+    AuthResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [access_token, token_type, expires_in, user]
+          properties:
+            access_token:
+              type: string
+            token_type:
+              type: string
+              enum: [Bearer]
+            expires_in:
+              type: integer
+              format: int64
+              example: 3600
+            user:
+              $ref: '#/components/schemas/AuthenticatedUser'
     User:
       type: object
       required: [user_id, name, email, phone, line_id, created_at]

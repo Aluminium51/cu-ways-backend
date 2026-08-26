@@ -102,6 +102,16 @@ func (f *fakeUserRepository) Update(ctx context.Context, userID int32, patch por
 	return &copy, nil
 }
 
+func (f *fakeUserRepository) SetRole(ctx context.Context, userID int32, role string) error {
+	f.lastContext = ctx
+	user, ok := f.users[userID]
+	if !ok || user.DeletedAt != nil {
+		return domain.ErrUserNotFound
+	}
+	user.Role = role
+	return nil
+}
+
 func (f *fakeUserRepository) SoftDelete(ctx context.Context, userID int32, deletedAt time.Time) error {
 	f.lastContext = ctx
 	if f.softDeleteErr != nil {

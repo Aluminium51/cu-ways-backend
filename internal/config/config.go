@@ -14,10 +14,11 @@ import (
 const JWTAlgorithm = "HS256"
 
 type Config struct {
-	App      AppConfig
-	Server   ServerConfig
-	Database DatabaseConfig
-	Auth     AuthConfig
+	App       AppConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Auth      AuthConfig
+	SeedAdmin SeedAdminConfig
 }
 
 type AppConfig struct {
@@ -41,6 +42,12 @@ type DatabaseConfig struct {
 type AuthConfig struct {
 	SecretKey string
 	Algorithm string
+}
+
+type SeedAdminConfig struct {
+	Name     string
+	Email    string
+	Password string
 }
 
 func Load() (Config, error) {
@@ -131,6 +138,11 @@ func fromViper(v *viper.Viper) (Config, error) {
 		Auth: AuthConfig{
 			SecretKey: secretKey,
 			Algorithm: JWTAlgorithm,
+		},
+		SeedAdmin: SeedAdminConfig{
+			Name:     strings.TrimSpace(v.GetString("SEED_ADMIN_NAME")),
+			Email:    strings.TrimSpace(v.GetString("SEED_ADMIN_EMAIL")),
+			Password: v.GetString("SEED_ADMIN_PASSWORD"),
 		},
 	}, nil
 }

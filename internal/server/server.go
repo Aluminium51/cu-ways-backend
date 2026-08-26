@@ -24,6 +24,8 @@ type Dependencies struct {
 	ReadinessTimeout time.Duration
 	DocsPath         string
 	TokenVerifier    ports.TokenVerifier
+	PasswordHasher   ports.PasswordHasher
+	TokenIssuer      ports.TokenIssuer
 }
 
 // New initializes, configures, and wires the Fiber application with middlewares and routes.
@@ -81,7 +83,12 @@ func New(deps Dependencies) *fiber.App {
 	userRepo := postgres.NewUserRepository(deps.DB)
 	userService := services.NewUserService(userRepo)
 	userHandler := httpapi.NewUserHandler(userService)
+	authService := services.NewAuthService(userRepo, deps.PasswordHasher, deps.TokenIssuer)
+	authHandler := httpapi.NewAuthHandler(authService)
 	api := app.Group("/api/v1")
+	auth := api.Group("/auth")
+	auth.Post("/register", authHandler.Register)
+	auth.Post("/login", authHandler.Login)
 	api.Post("/users", userHandler.Create)
 
 	protectedUsers := middleware.RequireJWT(deps.TokenVerifier)
@@ -100,7 +107,6 @@ func New(deps Dependencies) *fiber.App {
 	// =========================================================================
 	// 5. Service Layer Instantiation [FUTURE]
 	// =========================================================================
-	// userService := services.NewUserService(userRepo)
 	// surveyService := services.NewSurveyService(surveyRepo)
 	// jobService := services.NewJobService(jobRepo, surveyRepo) // Handles state machines
 	// paymentService := services.NewPaymentService(paymentRepo, jobRepo)
@@ -108,8 +114,6 @@ func New(deps Dependencies) *fiber.App {
 	// =========================================================================
 	// 6. HTTP Handlers Instantiation [FUTURE]
 	// =========================================================================
-	// authHandler := httpapi.NewAuthHandler(userService, deps.TokenVerifier)
-	// userHandler := httpapi.NewUserHandler(userService)
 	// surveyHandler := httpapi.NewSurveyHandler(surveyService)
 	// jobHandler := httpapi.NewJobHandler(jobService)
 	// paymentHandler := httpapi.NewPaymentHandler(paymentService)
@@ -120,10 +124,6 @@ func New(deps Dependencies) *fiber.App {
 	// api := app.Group("/api/v1")
 
 	// --- Public Routes ---
-	// authGroup := api.Group("/auth")
-	// authGroup.Post("/register", authHandler.Register)
-	// authGroup.Post("/login", authHandler.Login)
-
 	// --- Protected Routes (Require JWT Middleware) ---
 	// protected := api.Group("", middleware.Auth(deps.TokenVerifier))
 	//

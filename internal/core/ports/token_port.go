@@ -1,6 +1,9 @@
 package ports
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type TokenClaims struct {
 	Subject   string
@@ -11,5 +14,14 @@ type TokenClaims struct {
 }
 
 type TokenVerifier interface {
-	Verify(string) (*TokenClaims, error)
+	Verify(ctx context.Context, token string) (*TokenClaims, error)
+}
+
+type TokenIssuer interface {
+	Issue(ctx context.Context, subject, role string, ttl time.Duration) (token string, expiresAt time.Time, err error)
+}
+
+type PasswordHasher interface {
+	Hash(context.Context, string) (string, error)
+	Compare(ctx context.Context, encodedHash, password string) error
 }

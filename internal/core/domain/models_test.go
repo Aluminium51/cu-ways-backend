@@ -92,6 +92,29 @@ func TestUserContactFieldsMatchSchema(t *testing.T) {
 	}
 }
 
+func TestUserAuthenticationFieldsMatchSchema(t *testing.T) {
+	userType := reflect.TypeOf(User{})
+
+	passwordHash, ok := userType.FieldByName("PasswordHash")
+	if !ok || passwordHash.Type != reflect.TypeOf((*string)(nil)) {
+		t.Fatal("User.PasswordHash must be a nullable *string")
+	}
+	if !strings.Contains(passwordHash.Tag.Get("gorm"), "column:password_hash") {
+		t.Fatal("User.PasswordHash must map to password_hash")
+	}
+
+	role, ok := userType.FieldByName("Role")
+	if !ok || role.Type.Kind() != reflect.String {
+		t.Fatal("User.Role must be a string")
+	}
+	if !strings.Contains(role.Tag.Get("gorm"), "column:role") {
+		t.Fatal("User.Role must map to role")
+	}
+	if RoleUser != "user" || RoleAdmin != "admin" {
+		t.Fatal("unexpected user role constants")
+	}
+}
+
 func TestStatusConstantsMatchDatabaseChecks(t *testing.T) {
 	if JobStatusInProgress != "In Progress" || OfferStatusWithdrawn != "Withdrawn" {
 		t.Fatal("job and offer status constants do not match the schema")

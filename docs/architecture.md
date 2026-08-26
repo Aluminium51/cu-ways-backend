@@ -11,8 +11,10 @@ The repository combines the standard Go project layout with Hexagonal Architectu
 ```text
 cu-ways-backend/
 ├── cmd/
-│   └── api/
-│       └── main.go                 # Application entry point and lifecycle owner
+│   ├── api/
+│   │   └── main.go                 # Application entry point and lifecycle owner
+│   └── seed-admin/
+│       └── main.go                 # Explicit development/test admin seeding command
 ├── docs/                           # OpenAPI contract and architecture documentation
 ├── internal/
 │   ├── config/                     # Environment loading and configuration validation
@@ -64,6 +66,15 @@ Process entry point and lifecycle owner.
 
 `cmd/api` is the only place that should own the complete application startup sequence.
 
+### `cmd/seed-admin`
+
+One-shot development/test tooling for creating or promoting an administrator account.
+
+- Reads `SEED_ADMIN_*` credentials from configuration.
+- Refuses to run outside development and test environments.
+- Composes the same database, hashing, and repository adapters as the API.
+- Does not run automatically during API startup or as a migration.
+
 ### `internal/config`
 
 Loads and validates environment configuration.
@@ -96,7 +107,11 @@ Defines interfaces at application boundaries.
 Current ports:
 
 - `ReadinessChecker` for dependency health checks.
+- `UserRepository` for user persistence and soft deletion.
+- `SetRole` on the user persistence boundary for controlled admin seeding.
+- `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
+- `TokenIssuer` for short-lived JWT access-token issuance.
 
 When a feature is introduced, add a focused port describing the capability a service needs. The interface belongs to the consumer side, normally the service/application layer. PostgreSQL repositories implement those interfaces.
 
@@ -106,9 +121,12 @@ Do not create speculative `user_port.go`, `survey_port.go`, or `job_port.go` fil
 
 Contains business logic and use-case orchestration.
 
-Current service:
+Current services:
 
 - `HealthService`, which checks PostgreSQL readiness with a timeout.
+- `UserService`, which validates and authorizes user profile operations.
+- `AuthService`, which registers accounts, verifies passwords, and issues access tokens.
+- `AdminSeedService`, which creates or promotes a development/test admin without overwriting existing credentials.
 
 Feature services should:
 
@@ -132,13 +150,15 @@ Handlers are responsible for:
 - Translating service results to HTTP status codes and response envelopes.
 - Avoiding direct database or repository calls.
 
+Current HTTP handlers include the health probes, User CRUD, and public authentication routes under `/api/v1/auth`.
+
 Handlers should not contain multi-step business rules. A handler should remain thin enough that its behavior can be tested with Fiber requests and mocked service dependencies.
 
 ### `internal/repositories/postgres`
 
 PostgreSQL persistence implementations.
 
-This package currently contains only a boundary marker because feature repositories are not implemented yet. When added, repositories will:
+The package contains the PostgreSQL user repository and is the home for future feature repositories. Repositories will:
 
 - Implement ports from `internal/core/ports`.
 - Use the shared GORM database connection from `internal/platform/database`.
@@ -155,7 +175,7 @@ Infrastructure adapters and reusable technical utilities:
 - `platform/database` — GORM PostgreSQL connection, pool settings, ping, and close.
 - `platform/logging` — Zerolog configuration.
 - `platform/response` — API envelopes, application errors, and Fiber error translation.
-- `platform/utils` — JWT verification and shared validation helpers.
+- `platform/utils` — Argon2id password hashing, JWT verification/issuance, and shared validation helpers.
 
 Platform packages may depend on external libraries and configuration, but should not depend on feature services or HTTP handlers.
 
@@ -320,6 +340,8 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000001_foundation` establishes the migration workflow.
 - `000002_domain_schema` creates the current domain tables, constraints, indexes, and foreign keys.
 - `000003_add_user_soft_delete` adds the nullable `users.deleted_at` column and its index.
+- `000004_authentication` adds nullable `users.password_hash` and constrained `users.role` columns.
+- Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
 - Use `make migrate-version` to inspect the applied version.

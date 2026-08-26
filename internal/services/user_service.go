@@ -78,6 +78,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*domai
 		Email:     email,
 		Phone:     phone,
 		LineID:    lineID,
+		Role:      domain.RoleUser,
 		CreatedAt: s.now().UTC(),
 	}
 	if err := s.repo.Create(ctx, user); err != nil {

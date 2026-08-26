@@ -52,6 +52,8 @@ func run(ctx context.Context) error {
 		ReadinessChecker: db,
 		ReadinessTimeout: cfg.Server.ReadinessTimeout,
 		TokenVerifier:    utils.NewConfiguredJWTVerifier(cfg.Auth),
+		PasswordHasher:   utils.NewArgon2idPasswordHasher(),
+		TokenIssuer:      utils.NewConfiguredJWTIssuer(cfg.Auth),
 	})
 
 	// Start HTTP server

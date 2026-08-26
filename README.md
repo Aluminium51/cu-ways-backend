@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT verification middleware, structured logging, Docker development services, and User CRUD endpoints. Survey, job, login, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, and User CRUD endpoints. Survey, job, refresh-token, and other business workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -53,7 +53,9 @@ The API runs on `http://localhost:8081` by default.
 
 ```text
 cu-ways-backend/
-├── cmd/api/                  # Application entry point
+├── cmd/
+│   ├── api/                  # Application entry point
+│   └── seed-admin/           # Explicit development/test admin seeder
 ├── docs/                     # OpenAPI and architecture documentation
 ├── internal/                 # Private application code
 │   ├── config/               # Environment and configuration loader
@@ -104,6 +106,55 @@ API documentation is available at:
 - Raw OpenAPI YAML: [http://localhost:8081/docs/openapi.yaml](http://localhost:8081/docs/openapi.yaml)
 
 The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
+
+## Authentication API
+
+Register and login are public endpoints:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Create an account and receive an access token |
+| `POST` | `/api/v1/auth/login` | Verify email/password and receive an access token |
+
+Register creates accounts with the `user` role. Passwords are stored as Argon2id hashes and never returned in API responses. Access tokens use `HS256` and expire after one hour.
+
+Register:
+
+```powershell
+curl.exe -X POST http://localhost:8081/api/v1/auth/register `
+  -H "Content-Type: application/json" `
+  -d '{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple"}'
+```
+
+Login:
+
+```powershell
+curl.exe -X POST http://localhost:8081/api/v1/auth/login `
+  -H "Content-Type: application/json" `
+  -d '{"email":"jane@example.com","password":"correct horse battery staple"}'
+```
+
+Use the returned `data.access_token` on protected endpoints:
+
+```powershell
+$token = "<access_token>"
+curl.exe http://localhost:8081/api/v1/users/1 `
+  -H "Authorization: Bearer $token"
+```
+
+To create a local administrator account, configure the seed credentials in `.env` or set them for one PowerShell session:
+
+```powershell
+$env:SEED_ADMIN_NAME = "CU Ways Admin"
+$env:SEED_ADMIN_EMAIL = "admin@example.com"
+$env:SEED_ADMIN_PASSWORD = "local-admin-password-123"
+
+make seed-admin
+```
+
+The seed command is allowed only in development/test environments. It creates the account when missing, or promotes an existing active account without changing its password. It never restores a soft-deleted account or overwrites credentials.
+
+The existing `POST /api/v1/users` endpoint remains a profile-only compatibility endpoint. Use `/auth/register` for normal account registration.
 
 ## User API
 
@@ -166,6 +217,7 @@ Change the example passwords before using this setup outside local development.
 | `make migrate-up` | Apply migrations |
 | `make migrate-down` | Roll back one migration |
 | `make migrate-version` | Show the current migration version |
+| `make seed-admin` | Create or promote the development admin account |
 
 ## Configuration
 
@@ -190,4 +242,4 @@ go build -trimpath ./cmd/api
 go list ./...
 ```
 
-The current migrations include a foundation baseline, the domain schema, and the user soft-delete column. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
+The current migrations include a foundation baseline, the domain schema, the user soft-delete column, and authentication columns. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.

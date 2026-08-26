@@ -17,7 +17,7 @@ func RequireJWT(verifier ports.TokenVerifier) fiber.Handler {
 			return response.NewAppError(fiber.StatusUnauthorized, "unauthorized", "authentication required", nil)
 		}
 
-		claims, err := verifier.Verify(parts[1])
+		claims, err := verifier.Verify(c.UserContext(), parts[1])
 		if err != nil {
 			return response.NewAppError(fiber.StatusUnauthorized, "unauthorized", "invalid authentication token", err)
 		}

@@ -1,0 +1,6 @@
+ALTER TABLE IF EXISTS "users"
+    DROP CONSTRAINT IF EXISTS "chk_user_role";
+
+ALTER TABLE IF EXISTS "users"
+    DROP COLUMN IF EXISTS "role",
+    DROP COLUMN IF EXISTS "password_hash";

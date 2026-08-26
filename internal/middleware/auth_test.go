@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ type fakeVerifier struct {
 	err    error
 }
 
-func (f fakeVerifier) Verify(string) (*ports.TokenClaims, error) {
+func (f fakeVerifier) Verify(context.Context, string) (*ports.TokenClaims, error) {
 	return f.claims, f.err
 }
 
