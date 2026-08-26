@@ -7,19 +7,23 @@ import (
 	httpapi "github.com/Aluminium51/cu-way-backend/internal/handlers/http"
 	"github.com/Aluminium51/cu-way-backend/internal/middleware"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
+	"github.com/Aluminium51/cu-way-backend/internal/repositories/postgres"
 	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/rs/zerolog"
+	"gorm.io/gorm"
 )
 
 // Dependencies holds shared resources and ports required to build the HTTP server.
 type Dependencies struct {
 	Logger           zerolog.Logger
+	DB               *gorm.DB
 	ReadinessChecker ports.ReadinessChecker
 	ReadinessTimeout time.Duration
 	DocsPath         string
+	TokenVerifier    ports.TokenVerifier
 }
 
 // New initializes, configures, and wires the Fiber application with middlewares and routes.
@@ -73,10 +77,22 @@ func New(deps Dependencies) *fiber.App {
 	app.Get("/healthz", healthHandler.Health) // 200 = App is running
 	app.Get("/readyz", healthHandler.Ready)   // 200 = Dependencies are healthy
 
+	// Wire the first feature through the repository, service, and HTTP layers.
+	userRepo := postgres.NewUserRepository(deps.DB)
+	userService := services.NewUserService(userRepo)
+	userHandler := httpapi.NewUserHandler(userService)
+	api := app.Group("/api/v1")
+	api.Post("/users", userHandler.Create)
+
+	protectedUsers := middleware.RequireJWT(deps.TokenVerifier)
+	api.Get("/users", protectedUsers, userHandler.List)
+	api.Get("/users/:id", protectedUsers, userHandler.Get)
+	api.Put("/users/:id", protectedUsers, userHandler.Update)
+	api.Delete("/users/:id", protectedUsers, userHandler.Delete)
+
 	// =========================================================================
 	// 4. Dependency Injection & Repository Wiring [FUTURE]
 	// =========================================================================
-	// userRepo := postgres.NewUserRepository(deps.DB)
 	// surveyRepo := postgres.NewSurveyRepository(deps.DB)
 	// jobRepo := postgres.NewJobRepository(deps.DB)
 	// paymentRepo := postgres.NewPaymentRepository(deps.DB)

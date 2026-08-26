@@ -10,6 +10,7 @@ import (
 	"github.com/Aluminium51/cu-way-backend/internal/config"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/database"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/logging"
+	"github.com/Aluminium51/cu-way-backend/internal/platform/utils"
 	"github.com/Aluminium51/cu-way-backend/internal/server"
 )
 
@@ -47,8 +48,10 @@ func run(ctx context.Context) error {
 	// Compose Fiber app and inject required dependencies
 	app := server.New(server.Dependencies{
 		Logger:           appLogger,
+		DB:               db.GORM(),
 		ReadinessChecker: db,
 		ReadinessTimeout: cfg.Server.ReadinessTimeout,
+		TokenVerifier:    utils.NewConfiguredJWTVerifier(cfg.Auth),
 	})
 
 	// Start HTTP server

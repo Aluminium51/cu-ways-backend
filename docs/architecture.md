@@ -319,6 +319,7 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 
 - `000001_foundation` establishes the migration workflow.
 - `000002_domain_schema` creates the current domain tables, constraints, indexes, and foreign keys.
+- `000003_add_user_soft_delete` adds the nullable `users.deleted_at` column and its index.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
 - Use `make migrate-version` to inspect the applied version.
@@ -391,4 +392,4 @@ go list ./...
 
 ## Current status
 
-The architecture foundation is complete, but feature repositories, services, handlers, authentication endpoints, and domain workflows are still future work. The current live endpoints are `/healthz` and `/readyz`.
+The foundation and User CRUD feature are implemented. Survey, job, offer, payment, review, authentication, and other domain workflows remain future work. The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, and `/api/v1/users`.

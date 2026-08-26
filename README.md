@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The foundation currently provides configuration, PostgreSQL connectivity, migrations, health checks, JWT verification middleware, structured logging, and Docker development services. User, survey, job, login, and refresh-token workflows are not implemented yet.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT verification middleware, structured logging, Docker development services, and User CRUD endpoints. Survey, job, login, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -105,6 +105,30 @@ API documentation is available at:
 
 The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
 
+## User API
+
+User CRUD endpoints are available under `/api/v1/users`:
+
+| Method | Path | Access |
+| --- | --- | --- |
+| `POST` | `/api/v1/users` | Public |
+| `GET` | `/api/v1/users/:id` | JWT owner or admin |
+| `GET` | `/api/v1/users` | JWT admin only |
+| `PUT` | `/api/v1/users/:id` | JWT owner or admin |
+| `DELETE` | `/api/v1/users/:id` | JWT owner or admin |
+
+List requests support `page` and `page_size` query parameters. Pages start at `1`, the default page size is `20`, and the maximum page size is `100`. Deleted users are soft-deleted and excluded from normal reads and lists.
+
+Example create request:
+
+```powershell
+curl.exe -X POST http://localhost:8081/api/v1/users `
+  -H "Content-Type: application/json" `
+  -d '{"name":"Jane Doe","email":"jane@example.com","phone":"0812345678","line_id":"jane.line"}'
+```
+
+Protected requests require a JWT whose `sub` claim is the numeric user ID. The `role` claim must be `admin` for administrator access.
+
 ## Database tools
 
 PostgreSQL:
@@ -166,4 +190,4 @@ go build -trimpath ./cmd/api
 go list ./...
 ```
 
-The current migrations include a foundation baseline and the domain schema. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
+The current migrations include a foundation baseline, the domain schema, and the user soft-delete column. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.

@@ -3,12 +3,13 @@ package domain
 import "time"
 
 type User struct {
-	UserID    int32     `gorm:"column:user_id;primaryKey;autoIncrement"`
-	Name      string    `gorm:"column:name;type:varchar(100);not null"`
-	Email     string    `gorm:"column:email;type:varchar(255);uniqueIndex;not null"`
-	Phone     *string   `gorm:"column:phone;type:varchar(20)"`
-	LineID    *string   `gorm:"column:line_id;type:varchar(50)"`
-	CreatedAt time.Time `gorm:"column:created_at;type:timestamp;not null"`
+	UserID    int32      `gorm:"column:user_id;primaryKey;autoIncrement"`
+	Name      string     `gorm:"column:name;type:varchar(100);not null"`
+	Email     string     `gorm:"column:email;type:varchar(255);uniqueIndex;not null"`
+	Phone     *string    `gorm:"column:phone;type:varchar(20)"`
+	LineID    *string    `gorm:"column:line_id;type:varchar(50)"`
+	CreatedAt time.Time  `gorm:"column:created_at;type:timestamp;not null"`
+	DeletedAt *time.Time `gorm:"column:deleted_at;index"`
 
 	Creator  *Creator  `gorm:"foreignKey:UserID;references:UserID"`
 	Marketer *Marketer `gorm:"foreignKey:UserID;references:UserID"`
