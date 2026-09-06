@@ -66,6 +66,7 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := string(body)
+	spec = strings.ReplaceAll(spec, "\r\n", "\n")
 	if !strings.Contains(spec, "openapi: 3.0.3") {
 		t.Fatal("expected OpenAPI version in served specification")
 	}
@@ -77,6 +78,11 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 		"    get:\n      operationId: getUser",
 		"    put:\n      operationId: updateUser",
 		"    delete:\n      operationId: deleteUser",
+		"  /api/v1/me/marketer-profile:\n    get:",
+		"  /api/v1/me/services:\n    get:",
+		"  /api/v1/marketers:\n    get:",
+		"  /api/v1/surveys:\n    post:",
+		"  /api/v1/surveys/{id}:\n    parameters:",
 	} {
 		if !strings.Contains(spec, expected) {
 			t.Errorf("expected served OpenAPI specification to contain %q", expected)

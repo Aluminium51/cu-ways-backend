@@ -326,6 +326,8 @@ func mapUserError(err error) error {
 		return response.NewAppError(fiber.StatusNotFound, "user_not_found", "user not found", err)
 	case errors.Is(err, domain.ErrEmailAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "email_already_exists", "email already exists", err)
+	case errors.Is(err, domain.ErrPhoneAlreadyExists):
+		return response.NewAppError(fiber.StatusConflict, "phone_already_exists", "phone already exists", err)
 	case errors.Is(err, domain.ErrUserForbidden):
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this user", err)
 	case errors.Is(err, domain.ErrInvalidUser), errors.Is(err, domain.ErrNoUserChanges):

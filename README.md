@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, and User CRUD endpoints. Survey, job, refresh-token, and other business workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, and survey metadata management. Job, offer, payment, review, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -180,6 +180,30 @@ curl.exe -X POST http://localhost:8081/api/v1/users `
 
 Protected requests require a JWT whose `sub` claim is the numeric user ID. The `role` claim must be `admin` for administrator access.
 
+## Marketer and Survey APIs
+
+Marketer profile fields are saved through `PATCH /api/v1/me/marketer-profile`. The core fields `bio`, `experience_years`, `availability_status`, and `availability_text` are required and cannot be empty. Expertise and campus values use the curated catalog; their arrays may be empty.
+
+The initial expertise slugs are `survey-distribution`, `participant-recruitment`, `data-collection`, `quantitative-analysis`, `qualitative-analysis`, and `report-preparation`. The initial campus slugs are `cu-main-campus`, `cu-health-sciences-campus`, `off-campus`, and `online-remote`. Availability is `available`, `limited`, or `unavailable`.
+
+Phone numbers are optional, stored as trimmed digits, and must be unique whenever present. A duplicate phone returns `409 phone_already_exists`.
+
+```powershell
+curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
+  -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" `
+  -d '{"bio":"Survey research specialist","experience_years":4,"availability_status":"available","availability_text":"Available on weekdays","expertise":["data-collection","report-preparation"],"campuses":["cu-main-campus"]}'
+```
+
+Marketers manage their services under `/api/v1/me/services`. Creators and administrators can search marketers with `GET /api/v1/marketers`. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs; the default order is lowest matching service price, then average rating.
+
+```powershell
+curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&expertise=data-collection&campus=cu-main-campus&sort=price_asc" `
+  -H "Authorization: Bearer $token"
+```
+
+Create surveys with `POST /api/v1/surveys`. The first survey created by an account provisions its Creator membership atomically. Survey owners can read, edit, and delete their surveys with `/api/v1/surveys/:id`. A survey referenced by any `is_used_in` row cannot be deleted, even when the related job is no longer active.
+
 ## Database tools
 
 PostgreSQL:
@@ -242,4 +266,4 @@ go build -trimpath ./cmd/api
 go list ./...
 ```
 
-The current migrations include a foundation baseline, the domain schema, the user soft-delete column, and authentication columns. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
+The current migrations include a foundation baseline, the domain schema, the user soft-delete column, authentication columns, and normalized marketer profile/search tables. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.

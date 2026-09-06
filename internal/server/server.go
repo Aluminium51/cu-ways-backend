@@ -97,6 +97,31 @@ func New(deps Dependencies) *fiber.App {
 	api.Put("/users/:id", protectedUsers, userHandler.Update)
 	api.Delete("/users/:id", protectedUsers, userHandler.Delete)
 
+	// Profile, service, survey, and marketer search feature wiring.
+	memberships := postgres.NewMembershipRepository(deps.DB)
+	catalogRepo := postgres.NewCatalogRepository(deps.DB)
+	marketerRepo := postgres.NewMarketerProfileRepository(deps.DB)
+	marketerService := services.NewMarketerService(marketerRepo, catalogRepo, memberships)
+	marketerHandler := httpapi.NewMarketerHandler(marketerService)
+	serviceRepo := postgres.NewServiceRepository(deps.DB)
+	serviceService := services.NewServiceService(serviceRepo, memberships)
+	serviceHandler := httpapi.NewServiceHandler(serviceService)
+	surveyRepo := postgres.NewSurveyRepository(deps.DB)
+	surveyService := services.NewSurveyService(surveyRepo)
+	surveyHandler := httpapi.NewSurveyHandler(surveyService)
+
+	api.Get("/marketers", protectedUsers, marketerHandler.Search)
+	api.Get("/me/marketer-profile", protectedUsers, marketerHandler.GetProfile)
+	api.Patch("/me/marketer-profile", protectedUsers, marketerHandler.SaveProfile)
+	api.Get("/me/services", protectedUsers, serviceHandler.List)
+	api.Post("/me/services", protectedUsers, serviceHandler.Create)
+	api.Patch("/me/services/:id", protectedUsers, serviceHandler.Update)
+	api.Delete("/me/services/:id", protectedUsers, serviceHandler.Delete)
+	api.Post("/surveys", protectedUsers, surveyHandler.Create)
+	api.Get("/surveys/:id", protectedUsers, surveyHandler.Get)
+	api.Patch("/surveys/:id", protectedUsers, surveyHandler.Update)
+	api.Delete("/surveys/:id", protectedUsers, surveyHandler.Delete)
+
 	// =========================================================================
 	// 4. Dependency Injection & Repository Wiring [FUTURE]
 	// =========================================================================

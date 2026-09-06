@@ -22,6 +22,13 @@ func TestMapUserDatabaseErrorMapsDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestMapUserDatabaseErrorMapsDuplicatePhone(t *testing.T) {
+	err := &pgconn.PgError{Code: "23505", ConstraintName: "idx_users_phone_unique"}
+	if !errors.Is(mapUserDatabaseError(err), domain.ErrPhoneAlreadyExists) {
+		t.Fatal("expected unique phone violation to map to domain.ErrPhoneAlreadyExists")
+	}
+}
+
 func TestMapUserDatabaseErrorPreservesUnknownErrors(t *testing.T) {
 	want := errors.New("database unavailable")
 	if !errors.Is(mapUserDatabaseError(want), want) {

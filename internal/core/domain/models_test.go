@@ -115,6 +115,25 @@ func TestUserAuthenticationFieldsMatchSchema(t *testing.T) {
 	}
 }
 
+func TestMarketerProfileFieldsMatchNormalizedSchema(t *testing.T) {
+	marketerType := reflect.TypeOf(Marketer{})
+	for _, fieldName := range []string{"Bio", "AvailabilityText"} {
+		field, ok := marketerType.FieldByName(fieldName)
+		if !ok || field.Type.Kind() != reflect.String {
+			t.Fatalf("Marketer.%s must be a non-null string", fieldName)
+		}
+	}
+	if field, ok := marketerType.FieldByName("ExperienceYears"); !ok || field.Type.Kind() != reflect.Int32 {
+		t.Fatal("Marketer.ExperienceYears must be a non-null int32")
+	}
+	if field, ok := marketerType.FieldByName("AvailabilityStatus"); !ok || field.Type != reflect.TypeOf(AvailabilityStatus("")) {
+		t.Fatal("Marketer.AvailabilityStatus must use AvailabilityStatus")
+	}
+	if AvailabilityAvailable != "available" || AvailabilityLimited != "limited" || AvailabilityUnavailable != "unavailable" {
+		t.Fatal("unexpected availability status constants")
+	}
+}
+
 func TestStatusConstantsMatchDatabaseChecks(t *testing.T) {
 	if JobStatusInProgress != "In Progress" || OfferStatusWithdrawn != "Withdrawn" {
 		t.Fatal("job and offer status constants do not match the schema")

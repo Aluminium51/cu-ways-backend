@@ -59,7 +59,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 	if err := validatePassword(input.Password); err != nil {
 		return nil, err
 	}
-	phone, err := normalizeContact(input.Phone, 20)
+	phone, err := normalizePhone(input.Phone)
 	if err != nil {
 		return nil, err
 	}

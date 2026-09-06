@@ -60,7 +60,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*domai
 	if err != nil {
 		return nil, err
 	}
-	phone, err := normalizeContact(input.Phone, 20)
+	phone, err := normalizePhone(input.Phone)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (s *UserService) Update(ctx context.Context, actor Actor, userID int32, inp
 		patch.Email = &email
 	}
 	if input.PhoneSet {
-		phone, err := normalizeContact(input.Phone, 20)
+		phone, err := normalizePhone(input.Phone)
 		if err != nil {
 			return nil, err
 		}
@@ -221,6 +221,22 @@ func normalizeContact(value *string, maxRunes int) (*string, error) {
 	normalized := strings.TrimSpace(*value)
 	if normalized == "" || utf8.RuneCountInString(normalized) > maxRunes {
 		return nil, domain.ErrInvalidUser
+	}
+	return &normalized, nil
+}
+
+func normalizePhone(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	normalized := strings.TrimSpace(*value)
+	if normalized == "" || utf8.RuneCountInString(normalized) > 20 {
+		return nil, domain.ErrInvalidUser
+	}
+	for _, character := range normalized {
+		if character < '0' || character > '9' {
+			return nil, domain.ErrInvalidUser
+		}
 	}
 	return &normalized, nil
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -153,6 +154,9 @@ func mapUserDatabaseError(err error) error {
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if strings.Contains(strings.ToLower(pgErr.ConstraintName), "phone") {
+			return domain.ErrPhoneAlreadyExists
+		}
 		return domain.ErrEmailAlreadyExists
 	}
 	return err
