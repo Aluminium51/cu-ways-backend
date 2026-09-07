@@ -15,7 +15,7 @@ For the full design rules, see [docs/architecture.md](docs/architecture.md).
 All commands below are run from this directory:
 
 ```powershell
-cd D:\test-fullstack\cu-way\backend
+cd D:\test-fullstack\cu-way\cu-ways-backend
 ```
 
 ## Quick start
@@ -26,12 +26,18 @@ cd D:\test-fullstack\cu-way\backend
    Copy-Item .env.example .env
    ```
 
+    for Mac/Linux:
+
+    ```bash
+    cp .env.example .env
+    ```
+
    Keep an existing `.env`; it contains local credentials and is ignored by Git.
 
 2. Start PostgreSQL and pgAdmin:
 
    ```powershell
-   docker compose up -d postgres pgadmin
+   docker compose up -d --build
    docker compose ps
    ```
 
