@@ -12,10 +12,11 @@ For the full design rules, see [docs/architecture.md](docs/architecture.md).
 - Docker Desktop with Docker Compose
 - GNU Make
 
-All commands below are run from this directory:
+First, Clone the repository
 
 ```powershell
-cd D:\test-fullstack\cu-way\cu-ways-backend
+git clone https://github.com/cu-ways/cu-ways-backend.git
+cd cu-ways-backend
 ```
 
 ## Quick start
