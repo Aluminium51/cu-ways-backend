@@ -23,7 +23,10 @@ func NewServiceRepository(db *gorm.DB) *ServiceRepository {
 
 func (r *ServiceRepository) ListByMarketer(ctx context.Context, userID int32) ([]domain.Service, error) {
 	services := make([]domain.Service, 0)
-	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("service_id ASC").Find(&services).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Order("service_id ASC").
+		Find(&services).Error; err != nil {
 		return nil, err
 	}
 	return services, nil
@@ -58,7 +61,8 @@ func (r *ServiceRepository) Update(ctx context.Context, userID, serviceID int32,
 		return nil, domain.ErrNoServiceChanges
 	}
 	result := r.db.WithContext(ctx).Model(&domain.Service{}).
-		Where("service_id = ? AND user_id = ?", serviceID, userID).Updates(updates)
+		Where("service_id = ? AND user_id = ? AND deleted_at IS NULL", serviceID, userID).
+		Updates(updates)
 	if err := result.Error; err != nil {
 		return nil, err
 	}
@@ -66,7 +70,9 @@ func (r *ServiceRepository) Update(ctx context.Context, userID, serviceID int32,
 		return nil, domain.ErrServiceNotFound
 	}
 	var service domain.Service
-	if err := r.db.WithContext(ctx).Where("service_id = ? AND user_id = ?", serviceID, userID).First(&service).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Where("service_id = ? AND user_id = ? AND deleted_at IS NULL", serviceID, userID).
+		First(&service).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domain.ErrServiceNotFound
 		}
@@ -76,7 +82,10 @@ func (r *ServiceRepository) Update(ctx context.Context, userID, serviceID int32,
 }
 
 func (r *ServiceRepository) Delete(ctx context.Context, userID, serviceID int32) error {
-	result := r.db.WithContext(ctx).Where("service_id = ? AND user_id = ?", serviceID, userID).Delete(&domain.Service{})
+	result := r.db.WithContext(ctx).
+		Model(&domain.Service{}).
+		Where("service_id = ? AND user_id = ? AND deleted_at IS NULL", serviceID, userID).
+		Update("deleted_at", time.Now().UTC())
 	if err := result.Error; err != nil {
 		return err
 	}

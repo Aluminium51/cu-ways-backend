@@ -193,7 +193,7 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
   -d '{"bio":"Survey research specialist","experience_years":4,"availability_status":"available","availability_text":"Available on weekdays","expertise":["data-collection","report-preparation"],"campuses":["cu-main-campus"]}'
 ```
 
-Marketers manage their services under `/api/v1/me/services`. Creators and administrators can search marketers with `GET /api/v1/marketers`. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs; the default order is lowest matching service price, then average rating.
+Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers`. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs; the default order is lowest matching service price, then average rating.
 
 ```powershell
 curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&expertise=data-collection&campus=cu-main-campus&sort=price_asc" `

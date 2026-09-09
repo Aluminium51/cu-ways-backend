@@ -13,6 +13,8 @@ type Service struct {
 	ScopeText   *string         `gorm:"column:scope_text;type:text"`
 	Price       decimal.Decimal `gorm:"column:price;type:decimal(10,2);not null"`
 	CreatedAt   time.Time       `gorm:"column:created_at;type:timestamp;not null"`
+	UpdatedAt   time.Time       `gorm:"column:updated_at;type:timestamp;not null"`
+	DeletedAt   *time.Time      `gorm:"column:deleted_at;type:timestamp;index" json:"-"`
 
 	Marketer *Marketer `gorm:"foreignKey:UserID;references:UserID"`
 }

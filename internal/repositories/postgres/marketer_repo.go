@@ -24,7 +24,9 @@ func (r *MarketerProfileRepository) FindProfile(ctx context.Context, userID int3
 	var profile domain.Marketer
 	if err := r.db.WithContext(ctx).
 		Preload("User", "deleted_at IS NULL").
-		Preload("Services", func(db *gorm.DB) *gorm.DB { return db.Order("service_id ASC") }).
+		Preload("Services", func(db *gorm.DB) *gorm.DB {
+			return db.Where("deleted_at IS NULL").Order("service_id ASC")
+		}).
 		Where("user_id = ? AND EXISTS (SELECT 1 FROM users WHERE users.user_id = marketers.user_id AND users.deleted_at IS NULL)", userID).
 		First(&profile).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,7 +102,8 @@ ON CONFLICT (user_id) DO UPDATE SET
 func (r *MarketerProfileRepository) Search(ctx context.Context, query ports.MarketerSearchQuery) (ports.MarketerPage, error) {
 	servicePrices := r.db.WithContext(ctx).
 		Table("services").
-		Select("user_id, MIN(price) AS lowest_price")
+		Select("user_id, MIN(price) AS lowest_price").
+		Where("deleted_at IS NULL")
 	if query.MinPrice != nil {
 		servicePrices = servicePrices.Where("price >= ?", *query.MinPrice)
 	}

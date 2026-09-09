@@ -45,6 +45,7 @@ type ServiceResponse struct {
 	ScopeText   *string   `json:"scope_text"`
 	Price       string    `json:"price"`
 	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type DeleteServiceResponse struct {
@@ -156,6 +157,7 @@ func toServiceResponse(service *domain.Service) ServiceResponse {
 		ScopeText:   service.ScopeText,
 		Price:       service.Price.StringFixed(2),
 		CreatedAt:   service.CreatedAt,
+		UpdatedAt:   service.UpdatedAt,
 	}
 }
 
