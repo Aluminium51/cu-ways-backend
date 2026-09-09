@@ -567,6 +567,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/statistics:
+    get:
+      operationId: getMyMarketerStatistics
+      summary: Get my completed-job statistics
+      description: Returns statistics for completed jobs whose accepted offer belongs to the authenticated marketer. Earnings include only paid payments, and the average excludes jobs without a review.
+      tags: [Marketers]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Marketer performance statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketerStatisticsResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: A marketer profile is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/marketers:
     get:
       operationId: searchMarketers
@@ -1156,6 +1183,32 @@ components:
               format: int32
             deleted:
               type: boolean
+    MarketerStatisticsResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [total_completed_jobs, average_rating, total_earnings]
+          properties:
+            total_completed_jobs:
+              type: integer
+              format: int64
+              minimum: 0
+            average_rating:
+              type: number
+              format: double
+              minimum: 0
+              maximum: 5
+              nullable: true
+              description: Null when none of the completed jobs has a review.
+            total_earnings:
+              type: string
+              pattern: '^\\d+(\\.\\d{2})$'
+              example: '12500.00'
     CreateSurveyRequest:
       type: object
       required: [title, survey_link]
