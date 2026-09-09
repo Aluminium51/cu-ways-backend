@@ -391,6 +391,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MarketerProfileRequest'
+            example:
+              bio: Experienced survey researcher specializing in data collection and report preparation.
+              experience_years: 3
+              availability_status: available
+              availability_text: Available on weekdays from 09:00 to 17:00.
+              expertise:
+                - data-collection
+                - report-preparation
+              campuses:
+                - cu-main-campus
+                - online-remote
       responses:
         '200':
           description: Marketer profile saved.
