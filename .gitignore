@@ -5,6 +5,7 @@
 /bin/
 /tmp/
 /coverage/
+/.gocache/
 
 *.log
 *.exe

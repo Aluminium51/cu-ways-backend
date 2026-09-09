@@ -106,6 +106,8 @@ func mapAuthError(err error) error {
 		return response.NewAppError(fiber.StatusUnauthorized, "invalid_credentials", "invalid email or password", nil)
 	case errors.Is(err, domain.ErrEmailAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "email_already_exists", "email already exists", err)
+	case errors.Is(err, domain.ErrPhoneAlreadyExists):
+		return response.NewAppError(fiber.StatusConflict, "phone_already_exists", "phone already exists", err)
 	case errors.Is(err, domain.ErrInvalidUser):
 		return validationError(err)
 	default:

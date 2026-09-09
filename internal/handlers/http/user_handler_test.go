@@ -19,18 +19,10 @@ import (
 )
 
 type fakeUserService struct {
-	createFn func(context.Context, services.CreateUserInput) (*domain.User, error)
 	getFn    func(context.Context, services.Actor, int32) (*domain.User, error)
 	listFn   func(context.Context, services.Actor, ports.UserListQuery) (ports.UserPage, error)
 	updateFn func(context.Context, services.Actor, int32, services.UpdateUserInput) (*domain.User, error)
 	deleteFn func(context.Context, services.Actor, int32) (time.Time, error)
-}
-
-func (f *fakeUserService) Create(ctx context.Context, input services.CreateUserInput) (*domain.User, error) {
-	if f.createFn == nil {
-		return nil, errors.New("create function not configured")
-	}
-	return f.createFn(ctx, input)
 }
 
 func (f *fakeUserService) Get(ctx context.Context, actor services.Actor, userID int32) (*domain.User, error) {
@@ -71,71 +63,12 @@ func newUserHandlerTestApp(service userService, claims *ports.TokenClaims) *fibe
 	}
 
 	handler := NewUserHandler(service)
-	app.Post("/users", handler.Create)
 	app.Get("/users", handler.List)
 	app.Get("/users/:id", handler.Get)
 	app.Put("/users/:id", handler.Update)
 	app.Delete("/users/:id", handler.Delete)
 	return app
 }
-func TestUserHandlerCreateReturnsCreatedEnvelope(t *testing.T) {
-	service := &fakeUserService{
-		createFn: func(_ context.Context, input services.CreateUserInput) (*domain.User, error) {
-			if input.Name != "Jane Doe" || input.Email != "jane@example.com" {
-				t.Fatalf("unexpected create input: %+v", input)
-			}
-			return &domain.User{UserID: 1, Name: input.Name, Email: input.Email}, nil
-		},
-	}
-	app := newUserHandlerTestApp(service, nil)
-
-	request := httptest.NewRequest("POST", "/users", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com"}`))
-	request.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != fiber.StatusCreated {
-		t.Fatalf("expected 201, got %d", res.StatusCode)
-	}
-	var envelope struct {
-		Status string       `json:"status"`
-		Data   UserResponse `json:"data"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
-		t.Fatal(err)
-	}
-	if envelope.Status != "success" || envelope.Data.UserID != 1 {
-		t.Fatalf("unexpected response: %+v", envelope)
-	}
-}
-
-func TestUserHandlerCreateRejectsInvalidRequest(t *testing.T) {
-	service := &fakeUserService{}
-	app := newUserHandlerTestApp(service, nil)
-
-	request := httptest.NewRequest("POST", "/users", strings.NewReader(`{"name":"Jane Doe"}`))
-	request.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != fiber.StatusUnprocessableEntity {
-		t.Fatalf("expected 422, got %d", res.StatusCode)
-	}
-	var envelope response.ErrorEnvelope
-	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
-		t.Fatal(err)
-	}
-	if envelope.Error.Code != "validation_error" {
-		t.Fatalf("unexpected error response: %+v", envelope)
-	}
-}
-
 func TestUserHandlerRequiresClaimsForProtectedRoutes(t *testing.T) {
 	service := &fakeUserService{}
 	app := newUserHandlerTestApp(service, nil)
