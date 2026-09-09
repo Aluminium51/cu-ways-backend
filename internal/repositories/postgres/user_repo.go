@@ -18,6 +18,7 @@ type UserRepository struct {
 }
 
 var _ ports.UserRepository = (*UserRepository)(nil)
+var _ ports.RegistrationRepository = (*UserRepository)(nil)
 
 func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
@@ -25,6 +26,32 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
+		return mapUserDatabaseError(err)
+	}
+	return nil
+}
+
+// CreateWithCreator creates a registered user and its Creator membership in a
+// single transaction. Registration must not leave either row behind when one
+// of the writes fails.
+func (r *UserRepository) CreateWithCreator(ctx context.Context, user *domain.User) error {
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return mapUserDatabaseError(tx.Error)
+	}
+
+	rollback := func(err error) error {
+		_ = tx.Rollback().Error
+		return mapUserDatabaseError(err)
+	}
+
+	if err := tx.Create(user).Error; err != nil {
+		return rollback(err)
+	}
+	if err := tx.Exec("INSERT INTO creators (user_id) VALUES (?)", user.UserID).Error; err != nil {
+		return rollback(err)
+	}
+	if err := tx.Commit().Error; err != nil {
 		return mapUserDatabaseError(err)
 	}
 	return nil

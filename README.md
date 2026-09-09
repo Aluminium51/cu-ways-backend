@@ -123,7 +123,7 @@ Register and login are public endpoints:
 | `POST` | `/api/v1/auth/register` | Create an account and receive an access token |
 | `POST` | `/api/v1/auth/login` | Verify email/password and receive an access token |
 
-Register creates accounts with the `user` role. Passwords are stored as Argon2id hashes and never returned in API responses. Access tokens use `HS256` and expire after one hour.
+Register creates accounts with the `user` role and provisions the user's Creator membership atomically. Passwords are stored as Argon2id hashes and never returned in API responses. Access tokens use `HS256` and expire after one hour.
 
 Register:
 
@@ -161,7 +161,7 @@ make seed-admin
 
 The seed command is allowed only in development/test environments. It creates the account when missing, or promotes an existing active account without changing its password. It never restores a soft-deleted account or overwrites credentials.
 
-The existing `POST /api/v1/users` endpoint remains a profile-only compatibility endpoint. Use `/auth/register` for normal account registration.
+Account creation is handled only by `/api/v1/auth/register`, which stores a password and provisions Creator membership. The `/api/v1/users` resource is for reading and updating users after registration.
 
 ## User API
 
@@ -169,21 +169,12 @@ User CRUD endpoints are available under `/api/v1/users`:
 
 | Method | Path | Access |
 | --- | --- | --- |
-| `POST` | `/api/v1/users` | Public |
 | `GET` | `/api/v1/users/:id` | JWT owner or admin |
 | `GET` | `/api/v1/users` | JWT admin only |
 | `PUT` | `/api/v1/users/:id` | JWT owner or admin |
 | `DELETE` | `/api/v1/users/:id` | JWT owner or admin |
 
 List requests support `page` and `page_size` query parameters. Pages start at `1`, the default page size is `20`, and the maximum page size is `100`. Deleted users are soft-deleted and excluded from normal reads and lists.
-
-Example create request:
-
-```powershell
-curl.exe -X POST http://localhost:8081/api/v1/users `
-  -H "Content-Type: application/json" `
-  -d '{"name":"Jane Doe","email":"jane@example.com","phone":"0812345678","line_id":"jane.line"}'
-```
 
 Protected requests require a JWT whose `sub` claim is the numeric user ID. The `role` claim must be `admin` for administrator access.
 
@@ -209,7 +200,7 @@ curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&ex
   -H "Authorization: Bearer $token"
 ```
 
-Create surveys with `POST /api/v1/surveys`. The first survey created by an account provisions its Creator membership atomically. Survey owners can read, edit, and delete their surveys with `/api/v1/surveys/:id`. A survey referenced by any `is_used_in` row cannot be deleted, even when the related job is no longer active.
+Create surveys with `POST /api/v1/surveys`. Registration already provisions the Creator membership; survey creation also uses an idempotent membership insert so existing and legacy accounts can create surveys safely. Survey owners can read, edit, and delete their surveys with `/api/v1/surveys/:id`. A survey referenced by any `is_used_in` row cannot be deleted, even when the related job is no longer active.
 
 ## Database tools
 

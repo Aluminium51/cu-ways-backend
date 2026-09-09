@@ -60,7 +60,7 @@ paths:
     post:
       operationId: register
       summary: Register an account
-      description: Creates a user account with the default user role and returns a one-hour access token. The role cannot be supplied by the client.
+      description: Creates a user account with the default user role, provisions the user's Creator membership atomically, and returns a one-hour access token. The role cannot be supplied by the client.
       tags: [Authentication]
       requestBody:
         required: true
@@ -140,41 +140,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users:
-    post:
-      operationId: createUser
-      summary: Create a user profile
-      tags: [Users]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateUserRequest'
-      responses:
-        '201':
-          description: User profile created.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
-        '422':
-          description: Request validation failed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Email is already registered.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Unexpected server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
     get:
       operationId: listUsers
       summary: List active users
@@ -696,7 +661,7 @@ paths:
     post:
       operationId: createSurvey
       summary: Create a survey
-      description: The authenticated user is provisioned as a Creator when creating their first survey. The creator membership and survey row are created atomically.
+      description: Creates a survey for the authenticated Creator. Registration provisions Creator membership immediately; this operation also uses an idempotent membership insert for existing or legacy accounts.
       tags: [Surveys]
       security:
         - bearerAuth: []
@@ -942,26 +907,6 @@ components:
         created_at:
           type: string
           format: date-time
-    CreateUserRequest:
-      type: object
-      required: [name, email]
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 100
-        email:
-          type: string
-          format: email
-          maxLength: 255
-        phone:
-          type: string
-          nullable: true
-          maxLength: 20
-        line_id:
-          type: string
-          nullable: true
-          maxLength: 50
     UpdateUserRequest:
       type: object
       minProperties: 1

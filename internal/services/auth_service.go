@@ -37,13 +37,13 @@ type AuthResult struct {
 }
 
 type AuthService struct {
-	repo   ports.UserRepository
+	repo   ports.RegistrationRepository
 	hasher ports.PasswordHasher
 	issuer ports.TokenIssuer
 	now    func() time.Time
 }
 
-func NewAuthService(repo ports.UserRepository, hasher ports.PasswordHasher, issuer ports.TokenIssuer) *AuthService {
+func NewAuthService(repo ports.RegistrationRepository, hasher ports.PasswordHasher, issuer ports.TokenIssuer) *AuthService {
 	return &AuthService{repo: repo, hasher: hasher, issuer: issuer, now: time.Now}
 }
 
@@ -85,7 +85,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 		Role:         domain.RoleUser,
 		CreatedAt:    s.now().UTC(),
 	}
-	if err := s.repo.Create(ctx, user); err != nil {
+	if err := s.repo.CreateWithCreator(ctx, user); err != nil {
 		return nil, err
 	}
 

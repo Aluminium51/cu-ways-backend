@@ -23,13 +23,6 @@ type Actor struct {
 	IsAdmin bool
 }
 
-type CreateUserInput struct {
-	Name   string
-	Email  string
-	Phone  *string
-	LineID *string
-}
-
 // UpdateUserInput uses Set flags for nullable fields so the service can
 // distinguish an omitted field from an explicit null that clears it.
 type UpdateUserInput struct {
@@ -49,42 +42,6 @@ type UserService struct {
 
 func NewUserService(repo ports.UserRepository) *UserService {
 	return &UserService{repo: repo, now: time.Now}
-}
-
-func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*domain.User, error) {
-	name, err := normalizeName(input.Name)
-	if err != nil {
-		return nil, err
-	}
-	email, err := normalizeEmail(input.Email)
-	if err != nil {
-		return nil, err
-	}
-	phone, err := normalizePhone(input.Phone)
-	if err != nil {
-		return nil, err
-	}
-	lineID, err := normalizeContact(input.LineID, 50)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.ensureEmailAvailable(ctx, email, 0); err != nil {
-		return nil, err
-	}
-
-	user := &domain.User{
-		Name:      name,
-		Email:     email,
-		Phone:     phone,
-		LineID:    lineID,
-		Role:      domain.RoleUser,
-		CreatedAt: s.now().UTC(),
-	}
-	if err := s.repo.Create(ctx, user); err != nil {
-		return nil, err
-	}
-	return user, nil
 }
 
 func (s *UserService) Get(ctx context.Context, actor Actor, userID int32) (*domain.User, error) {

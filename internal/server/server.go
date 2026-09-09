@@ -89,7 +89,6 @@ func New(deps Dependencies) *fiber.App {
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
-	api.Post("/users", userHandler.Create)
 
 	protectedUsers := middleware.RequireJWT(deps.TokenVerifier)
 	api.Get("/users", protectedUsers, userHandler.List)
