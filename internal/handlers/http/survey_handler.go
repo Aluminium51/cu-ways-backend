@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -107,7 +108,7 @@ func (h *SurveyHandler) Create(c *fiber.Ctx) error {
 		return err
 	}
 	var dto CreateSurveyDTO
-	if err := c.BodyParser(&dto); err != nil {
+	if err := decodeStrictJSON(c, &dto); err != nil {
 		return validationError(err)
 	}
 	if err := utils.Validate(dto); err != nil {
@@ -156,7 +157,7 @@ func (h *SurveyHandler) Update(c *fiber.Ctx) error {
 		return validationError(err)
 	}
 	var dto UpdateSurveyDTO
-	if err := c.BodyParser(&dto); err != nil {
+	if err := decodeStrictJSON(c, &dto); err != nil {
 		return validationError(err)
 	}
 	if !dto.Title.Set && !dto.Description.Set && !dto.SurveyLink.Set && !dto.TargetGroup.Set && !dto.DesiredResponses.Set && !dto.Deadline.Set {
@@ -190,6 +191,24 @@ func (h *SurveyHandler) Update(c *fiber.Ctx) error {
 		return mapSurveyError(err)
 	}
 	return response.Success(c, fiber.StatusOK, toSurveyResponse(survey))
+}
+
+func decodeStrictJSON(c *fiber.Ctx, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(c.Body()))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return errors.New("request body must contain a single JSON value")
+		}
+		return err
+	}
+	return nil
 }
 
 func (h *SurveyHandler) Delete(c *fiber.Ctx) error {

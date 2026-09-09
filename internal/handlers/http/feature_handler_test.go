@@ -110,29 +110,35 @@ func TestServiceHandlerReturnsServiceEnvelope(t *testing.T) {
 	}
 }
 
-type fakeFeatureSurveyService struct{}
+type fakeFeatureSurveyService struct {
+	createCalls int
+	updateCalls int
+}
 
-func (fakeFeatureSurveyService) Create(context.Context, services.Actor, services.CreateSurveyInput) (*domain.Survey, error) {
+func (f *fakeFeatureSurveyService) Create(context.Context, services.Actor, services.CreateSurveyInput) (*domain.Survey, error) {
+	f.createCalls++
 	return &domain.Survey{SurveyID: 1, UserID: 1, Title: "Survey", SurveyLink: "https://example.com", CreatedAt: time.Now()}, nil
 }
 
-func (fakeFeatureSurveyService) Get(context.Context, services.Actor, int32) (*domain.Survey, error) {
+func (f *fakeFeatureSurveyService) Get(context.Context, services.Actor, int32) (*domain.Survey, error) {
 	return nil, errors.New("not configured")
 }
 
-func (fakeFeatureSurveyService) Update(context.Context, services.Actor, int32, services.UpdateSurveyInput) (*domain.Survey, error) {
+func (f *fakeFeatureSurveyService) Update(context.Context, services.Actor, int32, services.UpdateSurveyInput) (*domain.Survey, error) {
+	f.updateCalls++
 	return nil, errors.New("not configured")
 }
 
-func (fakeFeatureSurveyService) Delete(context.Context, services.Actor, int32) error { return nil }
+func (f *fakeFeatureSurveyService) Delete(context.Context, services.Actor, int32) error { return nil }
 
 func TestSurveyHandlerCreatesSurveyWithAuthenticatedContext(t *testing.T) {
+	service := &fakeFeatureSurveyService{}
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
 		return c.Next()
 	})
-	app.Post("/surveys", NewSurveyHandler(fakeFeatureSurveyService{}).Create)
+	app.Post("/surveys", NewSurveyHandler(service).Create)
 	request := httptest.NewRequest("POST", "/surveys", strings.NewReader(`{"title":"Survey","survey_link":"https://example.com"}`))
 	request.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(request)
@@ -142,5 +148,56 @@ func TestSurveyHandlerCreatesSurveyWithAuthenticatedContext(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("expected 201, got %d", res.StatusCode)
+	}
+	if service.createCalls != 1 {
+		t.Fatalf("expected create service to be called once, got %d", service.createCalls)
+	}
+}
+
+func TestSurveyHandlerRejectsUnknownCreateFields(t *testing.T) {
+	service := &fakeFeatureSurveyService{}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Post("/surveys", NewSurveyHandler(service).Create)
+	request := httptest.NewRequest("POST", "/surveys", strings.NewReader(`{"title":"Survey","survey_link":"https://example.com","questions":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+	if service.createCalls != 0 {
+		t.Fatalf("expected create service not to be called, got %d calls", service.createCalls)
+	}
+}
+
+func TestSurveyHandlerRejectsUnknownUpdateFields(t *testing.T) {
+	service := &fakeFeatureSurveyService{}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Patch("/surveys/:id", NewSurveyHandler(service).Update)
+	request := httptest.NewRequest("PATCH", "/surveys/1", strings.NewReader(`{"title":"Updated Survey","answers":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+	if service.updateCalls != 0 {
+		t.Fatalf("expected update service not to be called, got %d calls", service.updateCalls)
 	}
 }
