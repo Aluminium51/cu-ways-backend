@@ -130,7 +130,7 @@ func (s *MarketerService) Search(ctx context.Context, actor Actor, query ports.M
 	if query.AvailabilityStatus != nil && !validAvailability(*query.AvailabilityStatus) {
 		return ports.MarketerPage{}, domain.ErrInvalidAvailability
 	}
-	if query.Sort != "" && query.Sort != "price_asc" && query.Sort != "rating_desc" {
+	if query.Sort != "" && query.Sort != "price_asc" && query.Sort != "price_desc" && query.Sort != "rating_asc" && query.Sort != "rating_desc" {
 		return ports.MarketerPage{}, domain.ErrInvalidMarketerProfile
 	}
 

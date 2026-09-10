@@ -193,12 +193,20 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
   -d '{"bio":"Survey research specialist","experience_years":4,"availability_status":"available","availability_text":"Available on weekdays","expertise":["data-collection","report-preparation"],"campuses":["cu-main-campus"]}'
 ```
 
-Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers`. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs; the default order is lowest matching service price, then average rating.
+Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers`. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by `user_id` ascending.
 
 Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
 
 ```powershell
 curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&expertise=data-collection&campus=cu-main-campus&sort=price_asc" `
+  -H "Authorization: Bearer $token"
+```
+
+```powershell
+curl.exe "http://localhost:8081/api/v1/marketers?sort=price_desc" `
+  -H "Authorization: Bearer $token"
+
+curl.exe "http://localhost:8081/api/v1/marketers?sort=rating_asc" `
   -H "Authorization: Bearer $token"
 ```
 

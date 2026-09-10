@@ -175,6 +175,10 @@ sp.lowest_price,
 rt.average_rating,
 COALESCE(rt.review_count, 0) AS review_count`)
 	switch query.Sort {
+	case "price_desc":
+		selectQuery = selectQuery.Order("sp.lowest_price IS NULL ASC, sp.lowest_price DESC, rt.average_rating IS NULL ASC, rt.average_rating DESC, m.user_id ASC")
+	case "rating_asc":
+		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating ASC, sp.lowest_price IS NULL ASC, sp.lowest_price ASC, m.user_id ASC")
 	case "rating_desc":
 		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating DESC, sp.lowest_price IS NULL ASC, sp.lowest_price ASC, m.user_id ASC")
 	default:

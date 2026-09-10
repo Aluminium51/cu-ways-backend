@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -94,6 +95,71 @@ func TestMarketerSearchExcludesSoftDeletedService(t *testing.T) {
 	if page.Total != 0 || len(page.Items) != 0 {
 		t.Fatalf("soft-deleted service made marketer match price search: %+v", page)
 	}
+}
+
+func TestMarketerSearchSupportsAllSortDirectionsAndDeterministicOrdering(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	creatorID := createIntegrationCreator(t, db, "sort-creator")
+	cheapHighRatingID := createIntegrationMarketer(t, db, "sort-cheap-high")
+	cheapHighRatingTieID := createIntegrationMarketer(t, db, "sort-cheap-high-tie")
+	expensiveLowRatingID := createIntegrationMarketer(t, db, "sort-expensive-low")
+	mediumUnreviewedID := createIntegrationMarketer(t, db, "sort-medium-unreviewed")
+	withoutServiceID := createIntegrationMarketer(t, db, "sort-without-service")
+
+	createIntegrationService(t, db, cheapHighRatingID, "Cheap high-rated service", "100.00")
+	createIntegrationService(t, db, cheapHighRatingTieID, "Cheap high-rated tie", "100.00")
+	createIntegrationService(t, db, expensiveLowRatingID, "Expensive low-rated service", "300.00")
+	createIntegrationService(t, db, mediumUnreviewedID, "Medium unreviewed service", "200.00")
+
+	createStatisticsReview(t, db, createStatisticsJob(t, db, creatorID, cheapHighRatingID, domain.JobStatusCompleted), 4)
+	createStatisticsReview(t, db, createStatisticsJob(t, db, creatorID, cheapHighRatingTieID, domain.JobStatusCompleted), 4)
+	createStatisticsReview(t, db, createStatisticsJob(t, db, creatorID, expensiveLowRatingID, domain.JobStatusCompleted), 2)
+
+	repo := NewMarketerProfileRepository(db)
+	tests := []struct {
+		name string
+		sort string
+		want []int32
+	}{
+		{name: "price ascending", sort: "price_asc", want: []int32{cheapHighRatingID, cheapHighRatingTieID, mediumUnreviewedID, expensiveLowRatingID, withoutServiceID}},
+		{name: "price descending", sort: "price_desc", want: []int32{expensiveLowRatingID, mediumUnreviewedID, cheapHighRatingID, cheapHighRatingTieID, withoutServiceID}},
+		{name: "rating ascending", sort: "rating_asc", want: []int32{expensiveLowRatingID, cheapHighRatingID, cheapHighRatingTieID, mediumUnreviewedID, withoutServiceID}},
+		{name: "rating descending", sort: "rating_desc", want: []int32{cheapHighRatingID, cheapHighRatingTieID, expensiveLowRatingID, mediumUnreviewedID, withoutServiceID}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page, err := repo.Search(context.Background(), ports.MarketerSearchQuery{Page: 1, PageSize: 20, Sort: tt.sort})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != int64(len(tt.want)) {
+				t.Fatalf("expected total %d, got %d", len(tt.want), page.Total)
+			}
+			if got := marketerSearchResultIDs(page); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("expected order %v, got %v", tt.want, got)
+			}
+		})
+	}
+
+	page, err := repo.Search(context.Background(), ports.MarketerSearchQuery{Page: 2, PageSize: 2, Sort: "price_desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 5 || page.Page != 2 || page.PageSize != 2 {
+		t.Fatalf("unexpected pagination metadata: %+v", page)
+	}
+	if got, want := marketerSearchResultIDs(page), []int32{mediumUnreviewedID, cheapHighRatingID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected page 2 order %v, got %v", want, got)
+	}
+}
+
+func marketerSearchResultIDs(page ports.MarketerPage) []int32 {
+	ids := make([]int32, 0, len(page.Items))
+	for _, item := range page.Items {
+		ids = append(ids, item.Marketer.UserID)
+	}
+	return ids
 }
 
 func TestServiceRepositoryUpdateAdvancesUpdatedAt(t *testing.T) {

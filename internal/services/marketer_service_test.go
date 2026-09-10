@@ -53,9 +53,9 @@ func (f *fakeCatalogRepository) FindCampusesBySlugs(_ context.Context, slugs []s
 }
 
 type fakeMarketerProfileRepository struct {
-	profile       *domain.Marketer
-	searchQuery   ports.MarketerSearchQuery
-	searchResult  ports.MarketerPage
+	profile        *domain.Marketer
+	searchQuery    ports.MarketerSearchQuery
+	searchResult   ports.MarketerPage
 	savedExpertise []int32
 	savedCampuses  []int32
 }
@@ -137,5 +137,34 @@ func TestMarketerServiceSearchRequiresCreatorAndAppliesDefaults(t *testing.T) {
 	service = NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
 	if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{}); !errors.Is(err, domain.ErrCreatorRequired) {
 		t.Fatalf("expected creator requirement, got %v", err)
+	}
+}
+
+func TestMarketerServiceSearchAcceptsSupportedSorts(t *testing.T) {
+	sorts := []string{"price_asc", "price_desc", "rating_asc", "rating_desc"}
+	for _, sort := range sorts {
+		t.Run(sort, func(t *testing.T) {
+			repo := &fakeMarketerProfileRepository{}
+			service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+			if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{Sort: sort}); err != nil {
+				t.Fatalf("expected sort %q to be accepted, got %v", sort, err)
+			}
+			if repo.searchQuery.Sort != sort {
+				t.Fatalf("expected sort %q to reach repository, got %q", sort, repo.searchQuery.Sort)
+			}
+		})
+	}
+}
+
+func TestMarketerServiceSearchRejectsUnsupportedSort(t *testing.T) {
+	repo := &fakeMarketerProfileRepository{}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+	if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{Sort: "price_random"}); !errors.Is(err, domain.ErrInvalidMarketerProfile) {
+		t.Fatalf("expected unsupported sort to be rejected, got %v", err)
+	}
+	if repo.searchQuery.Sort != "" {
+		t.Fatalf("expected repository not to be called, got query %+v", repo.searchQuery)
 	}
 }

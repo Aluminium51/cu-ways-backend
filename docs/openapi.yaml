@@ -665,10 +665,10 @@ paths:
             enum: [available, limited, unavailable]
         - name: sort
           in: query
-          description: Defaults to lowest matching service price, then rating.
+          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by user ID ascending. Defaults to lowest matching service price.
           schema:
             type: string
-            enum: [price_asc, rating_desc]
+            enum: [price_asc, price_desc, rating_asc, rating_desc]
             default: price_asc
       responses:
         '200':
