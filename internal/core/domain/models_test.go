@@ -53,6 +53,12 @@ func TestNullableAndMoneyFieldsMatchSchema(t *testing.T) {
 	if field, ok := reflect.TypeOf(Service{}).FieldByName("Price"); !ok || field.Type != reflect.TypeOf(decimal.Decimal{}) {
 		t.Fatal("Service.Price must use decimal.Decimal")
 	}
+	if field, ok := reflect.TypeOf(Service{}).FieldByName("UpdatedAt"); !ok || field.Type != reflect.TypeOf(time.Time{}) {
+		t.Fatal("Service.UpdatedAt must be time.Time")
+	}
+	if field, ok := reflect.TypeOf(Service{}).FieldByName("DeletedAt"); !ok || field.Type != reflect.TypeOf((*time.Time)(nil)) {
+		t.Fatal("Service.DeletedAt must be a nullable *time.Time")
+	}
 	if field, ok := reflect.TypeOf(Offer{}).FieldByName("OfferedPrice"); !ok || field.Type != reflect.TypeOf(decimal.Decimal{}) {
 		t.Fatal("Offer.OfferedPrice must use decimal.Decimal")
 	}
