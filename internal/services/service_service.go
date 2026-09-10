@@ -92,10 +92,11 @@ func (s *ServiceService) Update(ctx context.Context, actor Actor, serviceID int3
 		Price:          input.Price,
 	}
 	if input.ServiceTypeSet {
-		patch.ServiceType, _ = normalizeServiceType(input.ServiceType)
-		if patch.ServiceType == "" {
-			return nil, domain.ErrInvalidService
+		serviceType, err := normalizeServiceType(input.ServiceType)
+		if err != nil {
+			return nil, err
 		}
+		patch.ServiceType = serviceType
 	}
 	if input.ScopeTextSet {
 		var err error

@@ -2,13 +2,13 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ServiceRepository struct {
@@ -60,7 +60,10 @@ func (r *ServiceRepository) Update(ctx context.Context, userID, serviceID int32,
 	if len(updates) == 0 {
 		return nil, domain.ErrNoServiceChanges
 	}
-	result := r.db.WithContext(ctx).Model(&domain.Service{}).
+	var service domain.Service
+	result := r.db.WithContext(ctx).
+		Model(&service).
+		Clauses(clause.Returning{}).
 		Where("service_id = ? AND user_id = ? AND deleted_at IS NULL", serviceID, userID).
 		Updates(updates)
 	if err := result.Error; err != nil {
@@ -68,15 +71,6 @@ func (r *ServiceRepository) Update(ctx context.Context, userID, serviceID int32,
 	}
 	if result.RowsAffected == 0 {
 		return nil, domain.ErrServiceNotFound
-	}
-	var service domain.Service
-	if err := r.db.WithContext(ctx).
-		Where("service_id = ? AND user_id = ? AND deleted_at IS NULL", serviceID, userID).
-		First(&service).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domain.ErrServiceNotFound
-		}
-		return nil, err
 	}
 	return &service, nil
 }
