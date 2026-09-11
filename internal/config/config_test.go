@@ -36,7 +36,6 @@ func TestLoadFromFileAppliesDefaults(t *testing.T) {
 
 	for _, key := range []string{"APP_ENV", "PORT", "SHUTDOWN_TIMEOUT", "READINESS_TIMEOUT", "DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME", "DATABASE_URL", "SECRET_KEY", "SEED_ADMIN_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"} {
 		t.Setenv(key, "")
-		t.Cleanup(func() { os.Unsetenv(key) })
 	}
 
 	cfg, err := LoadFromFile(path)
