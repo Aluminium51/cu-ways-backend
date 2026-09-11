@@ -140,6 +140,18 @@ func TestMarketerServiceSearchRequiresCreatorAndAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestMarketerServiceSearchTrimsKeyword(t *testing.T) {
+	repo := &fakeMarketerProfileRepository{searchResult: ports.MarketerPage{Page: 1, PageSize: 20}}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+	if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{Keyword: "  Data Collection  "}); err != nil {
+		t.Fatal(err)
+	}
+	if repo.searchQuery.Keyword != "Data Collection" {
+		t.Fatalf("expected trimmed keyword %q, got %q", "Data Collection", repo.searchQuery.Keyword)
+	}
+}
+
 func TestMarketerServiceSearchAcceptsSupportedSorts(t *testing.T) {
 	sorts := []string{"price_asc", "price_desc", "rating_asc", "rating_desc"}
 	for _, sort := range sorts {

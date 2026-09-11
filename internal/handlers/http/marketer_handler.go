@@ -151,7 +151,7 @@ func parseMarketerSearchQuery(c *fiber.Ctx) (ports.MarketerSearchQuery, error) {
 	if err != nil {
 		return ports.MarketerSearchQuery{}, err
 	}
-	query := ports.MarketerSearchQuery{Page: page, PageSize: pageSize, Sort: strings.TrimSpace(c.Query("sort"))}
+	query := ports.MarketerSearchQuery{Page: page, PageSize: pageSize, Keyword: strings.TrimSpace(c.Query("keyword")), Sort: strings.TrimSpace(c.Query("sort"))}
 	if raw := strings.TrimSpace(c.Query("min_price")); raw != "" {
 		price, err := decimal.NewFromString(raw)
 		if err != nil {
