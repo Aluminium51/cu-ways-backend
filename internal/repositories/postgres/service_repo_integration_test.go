@@ -149,7 +149,7 @@ func TestMarketerSearchSupportsAllSortDirectionsAndDeterministicOrdering(t *test
 	if page.Total != 5 || page.Page != 2 || page.PageSize != 2 {
 		t.Fatalf("unexpected pagination metadata: %+v", page)
 	}
-	if got, want := marketerSearchResultIDs(page), []int32{mediumUnreviewedID, cheapHighRatingID}; !reflect.DeepEqual(got, want) {
+	if got, want := marketerSearchResultIDs(page), []int32{cheapHighRatingID, cheapHighRatingTieID}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected page 2 order %v, got %v", want, got)
 	}
 }

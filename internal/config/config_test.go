@@ -72,6 +72,7 @@ func TestLoadFromFileRequiresDatabaseURL(t *testing.T) {
 	if err := os.WriteFile(path, []byte("SECRET_KEY=local-secret\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("DATABASE_URL", "")
 
 	_, err := LoadFromFile(path)
 	if err == nil || err.Error() != "DATABASE_URL is required" {
