@@ -53,7 +53,7 @@ func (v *JWTVerifier) Verify(ctx context.Context, tokenString string) (*ports.To
 	}
 
 	expiresAt, err := claims.GetExpirationTime()
-	if err != nil || expiresAt == nil || expiresAt.Time.Before(time.Now()) {
+	if err != nil || expiresAt == nil || expiresAt.Before(time.Now()) {
 		return nil, ErrInvalidToken
 	}
 

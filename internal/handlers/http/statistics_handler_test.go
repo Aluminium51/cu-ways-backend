@@ -50,7 +50,7 @@ func TestStatisticsHandlerReturnsStatisticsEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200, got %d", res.StatusCode)
 	}
@@ -72,7 +72,7 @@ func TestStatisticsHandlerRejectsNonMarketer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusForbidden {
 		t.Fatalf("expected 403, got %d", res.StatusCode)
 	}
@@ -84,7 +84,7 @@ func TestStatisticsHandlerRequiresAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", res.StatusCode)
 	}

@@ -53,7 +53,7 @@ func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
 	}
@@ -92,7 +92,7 @@ func TestServiceHandlerReturnsServiceEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusCreated || !service.created {
 		t.Fatalf("expected created service response, status=%d created=%v", res.StatusCode, service.created)
 	}
@@ -145,7 +145,7 @@ func TestSurveyHandlerCreatesSurveyWithAuthenticatedContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("expected 201, got %d", res.StatusCode)
 	}
@@ -168,7 +168,7 @@ func TestSurveyHandlerRejectsUnknownCreateFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
@@ -192,7 +192,7 @@ func TestSurveyHandlerRejectsUnknownUpdateFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
