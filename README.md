@@ -274,4 +274,19 @@ go build -trimpath ./cmd/api
 go list ./...
 ```
 
+## Pull requests and commit messages
+
+Pull requests into `dev` or `main` run the backend CI checks. Use a lightweight Conventional
+Commit subject for the pull request title and for every commit included in the pull request:
+
+```text
+<type>: <description>
+<type>(<scope>): <description>
+```
+
+Accepted types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
+`chore`, and `revert`. A breaking-change marker is also accepted, for example
+`feat(auth)!: replace the token format`. Issue IDs, capitalization rules, and commit bodies are
+not required. Branch names are not validated by CI.
+
 The current migrations include a foundation baseline, the domain schema, the user soft-delete column, authentication columns, and normalized marketer profile/search tables. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
