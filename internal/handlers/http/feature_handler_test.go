@@ -201,3 +201,56 @@ func TestSurveyHandlerRejectsUnknownUpdateFields(t *testing.T) {
 		t.Fatalf("expected update service not to be called, got %d calls", service.updateCalls)
 	}
 }
+
+// TestSurveyHandlerRejectsMissingTitle covers US-009 AC2: creating a survey
+// without a title must be rejected and must not reach the service layer.
+func TestSurveyHandlerRejectsMissingTitle(t *testing.T) {
+	service := &fakeFeatureSurveyService{}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Post("/surveys", NewSurveyHandler(service).Create)
+	request := httptest.NewRequest("POST", "/surveys", strings.NewReader(`{"survey_link":"https://example.com"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+	if service.createCalls != 0 {
+		t.Fatalf("expected create service not to be called, got %d calls", service.createCalls)
+	}
+}
+
+// TestSurveyHandlerRejectsMissingSurveyLink covers US-009 AC2: creating a
+// survey without a survey_link must be rejected and must not reach the
+// service layer.
+func TestSurveyHandlerRejectsMissingSurveyLink(t *testing.T) {
+	service := &fakeFeatureSurveyService{}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Post("/surveys", NewSurveyHandler(service).Create)
+	request := httptest.NewRequest("POST", "/surveys", strings.NewReader(`{"title":"Survey"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+	if service.createCalls != 0 {
+		t.Fatalf("expected create service not to be called, got %d calls", service.createCalls)
+	}
+}
