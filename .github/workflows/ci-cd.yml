@@ -1,41 +1,78 @@
-name: CI/CD Pipeline
+name: Backend CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main ]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [main, dev]
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
-  # ----------------------------------------------------
-  # 1. Lint & Static Analysis
-  # ----------------------------------------------------
+  governance:
+    name: PR title and commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate PR title and commit subjects
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([A-Za-z0-9._/-]+\))?!?: .+'
+
+          validate_subject() {
+            local label="$1"
+            local subject="$2"
+
+            if [[ "$subject" =~ $pattern || "$subject" =~ ^Revert\  ]]; then
+              echo "$label: $subject"
+              return
+            fi
+
+            echo "Invalid $label: $subject"
+            echo "Use <type>: <description> or <type>(<scope>): <description>."
+            echo "Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert."
+            exit 1
+          }
+
+          validate_subject "PR title" "$PR_TITLE"
+
+          while IFS= read -r commit_sha; do
+            [[ -z "$commit_sha" ]] && continue
+            commit_subject="$(git show --quiet --format=%s "$commit_sha")"
+            validate_subject "commit $commit_sha" "$commit_subject"
+          done < <(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")
+
   lint:
-    name: Lint & Code Style
+    name: Lint & Static Analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2
           args: --timeout=5m
 
-  # ----------------------------------------------------
-  # 2. Automated Tests (Unit & Integration Tests)
-  # ----------------------------------------------------
+      - name: Run go vet
+        run: go vet ./...
+
   test:
     name: Unit & Integration Tests
     runs-on: ubuntu-latest
@@ -56,15 +93,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
           cache: true
 
-      - name: Run Database Migrations
+      - name: Run database migrations
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/cuways_test?sslmode=disable
         run: |
@@ -72,99 +109,13 @@ jobs:
             -path ./migrations \
             -database "$DATABASE_URL" up
 
-      - name: Run Tests with Coverage
+      - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/cuways_test?sslmode=disable
           SECRET_KEY: test-secret-key-for-ci
-        run: |
-          go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
 
-      - name: Check Build Targets
+      - name: Check build targets
         run: |
           go build -v -o /dev/null ./cmd/api
           go build -v -o /dev/null ./cmd/seed-admin
-
-  # ----------------------------------------------------
-  # 3. Build & Push Docker Image
-  # ----------------------------------------------------
-  build-and-push:
-    name: Build & Push Docker Image
-    needs: [lint, test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ----------------------------------------------------
-  # 4. Continuous Deployment (CD)
-  # ----------------------------------------------------
-  deploy:
-    name: Deploy to Server
-    needs: [build-and-push]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code (for migration files)
-        uses: actions/checkout@v4
-
-      - name: Run Database Migrations
-        run: |
-          # ติดตั้ง golang-migrate CLI และรัน Migration ก่อนเริ่ม Container ใหม่
-          set -euo pipefail
-          curl -fsSL https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
-          ./migrate -path migrations/ -database "${{ secrets.PROD_DATABASE_URL }}" up
-
-      - name: Deploy Service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            
-            # Restart Application Container
-            docker stop cu-ways-api || true
-            docker rm cu-ways-api || true
-            docker run -d \
-              --name cu-ways-api \
-              --restart unless-stopped \
-              --network host \
-              --env-file /etc/cu-ways/.env \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
