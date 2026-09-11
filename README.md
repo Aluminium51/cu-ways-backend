@@ -62,7 +62,8 @@ The API runs on `http://localhost:8081` by default.
 cu-ways-backend/
 ├── cmd/
 │   ├── api/                  # Application entry point
-│   └── seed-admin/           # Explicit development/test admin seeder
+│   ├── seed-admin/           # Explicit development/test admin seeder
+│   └── seed-mock-users/      # Explicit development/test fixture seeder
 ├── docs/                     # OpenAPI and architecture documentation
 ├── internal/                 # Private application code
 │   ├── config/               # Environment and configuration loader
@@ -161,6 +162,18 @@ make seed-admin
 
 The seed command is allowed only in development/test environments. It creates the account when missing, or promotes an existing active account without changing its password. It never restores a soft-deleted account or overwrites credentials.
 
+To create 20 deterministic mock users for search and filter testing, configure one shared local/test password and run the explicit mock-data seed command:
+
+```powershell
+$env:MOCK_USER_PASSWORD = "mock-user-password-123"
+
+make seed-mock-users
+```
+
+The command creates 6 creator-only users, 6 marketer-only users, and 8 users with both memberships. Marketer fixtures include profiles, expertise, campus coverage, active services with varied prices, one archived service, and completed jobs with reviews for rating filters. Mock emails use the `@example.test` domain, for example `mock.both.01@example.test`. The password is read from `MOCK_USER_PASSWORD` and is never printed. This command is limited to development/test environments and is idempotent for the generated fixtures.
+
+For marketer search, log in as `mock.creator-only.01@example.test` or `mock.both.01@example.test`; both accounts have Creator membership and can call `GET /api/v1/marketers`. To test marketer-owned endpoints, log in as `mock.marketer-only.01@example.test` or `mock.both.01@example.test`.
+
 Account creation is handled only by `/api/v1/auth/register`, which stores a password and provisions Creator membership. The `/api/v1/users` resource is for reading and updating users after registration.
 
 ## User API
@@ -250,6 +263,7 @@ Change the example passwords before using this setup outside local development.
 | `make migrate-down` | Roll back one migration |
 | `make migrate-version` | Show the current migration version |
 | `make seed-admin` | Create or promote the development admin account |
+| `make seed-mock-users` | Create the deterministic development/test user and marketer fixtures |
 
 ## Configuration
 
