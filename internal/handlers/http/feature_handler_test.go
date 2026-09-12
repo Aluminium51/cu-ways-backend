@@ -47,7 +47,7 @@ func featureHandlerApp(handler fiber.Handler) *fiber.App {
 
 func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	app := featureHandlerApp(NewMarketerHandler(&fakeMarketerService{}).SaveProfile)
-	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"bio":"","experience_years":2,"availability_status":"available","availability_text":"weekdays","expertise":[],"campuses":[]}`))
+	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"bio":"","experience_years":2,"availability_status":"","availability_text":"weekdays","expertise":[],"campuses":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(request)
 	if err != nil {
