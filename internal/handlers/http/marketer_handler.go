@@ -18,6 +18,7 @@ import (
 
 type marketerService interface {
 	GetProfile(context.Context, services.Actor) (*domain.Marketer, error)
+	GetDetail(context.Context, services.Actor, int32) (*domain.MarketerDetail, error)
 	SaveProfile(context.Context, services.Actor, services.MarketerProfileInput) (*domain.Marketer, error)
 	Search(context.Context, services.Actor, ports.MarketerSearchQuery) (ports.MarketerPage, error)
 }
@@ -74,6 +75,13 @@ type MarketerSearchResponse struct {
 	Total    int64                `json:"total"`
 }
 
+type MarketerDetailResponse struct {
+	Profile            MarketerProfileResponse `json:"profile"`
+	Services           []ServiceResponse       `json:"services"`
+	TotalCompletedJobs int64                   `json:"total_completed_jobs"`
+	AverageRating      *float64                `json:"average_rating"`
+}
+
 func (h *MarketerHandler) GetProfile(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -84,6 +92,31 @@ func (h *MarketerHandler) GetProfile(c *fiber.Ctx) error {
 		return mapMarketerError(err)
 	}
 	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile))
+}
+
+func (h *MarketerHandler) GetDetail(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	marketerID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return mapMarketerError(domain.ErrMarketerProfileNotFound)
+	}
+	detail, err := h.service.GetDetail(c.UserContext(), actor, marketerID)
+	if err != nil {
+		return mapMarketerError(err)
+	}
+	serviceResponses := make([]ServiceResponse, 0, len(detail.Marketer.Services))
+	for index := range detail.Marketer.Services {
+		serviceResponses = append(serviceResponses, toServiceResponse(&detail.Marketer.Services[index]))
+	}
+	return response.Success(c, fiber.StatusOK, MarketerDetailResponse{
+		Profile:            toMarketerProfileResponse(&detail.Marketer),
+		Services:           serviceResponses,
+		TotalCompletedJobs: detail.TotalCompletedJobs,
+		AverageRating:      detail.AverageRating,
+	})
 }
 
 func (h *MarketerHandler) SaveProfile(c *fiber.Ctx) error {

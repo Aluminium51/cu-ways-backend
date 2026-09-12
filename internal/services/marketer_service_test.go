@@ -53,9 +53,11 @@ func (f *fakeCatalogRepository) FindCampusesBySlugs(_ context.Context, slugs []s
 }
 
 type fakeMarketerProfileRepository struct {
-	profile       *domain.Marketer
-	searchQuery   ports.MarketerSearchQuery
-	searchResult  ports.MarketerPage
+	profile        *domain.Marketer
+	detail         *domain.MarketerDetail
+	detailUserID   int32
+	searchQuery    ports.MarketerSearchQuery
+	searchResult   ports.MarketerPage
 	savedExpertise []int32
 	savedCampuses  []int32
 }
@@ -65,6 +67,15 @@ func (f *fakeMarketerProfileRepository) FindProfile(context.Context, int32) (*do
 		return nil, domain.ErrMarketerProfileNotFound
 	}
 	copy := *f.profile
+	return &copy, nil
+}
+
+func (f *fakeMarketerProfileRepository) FindDetail(_ context.Context, userID int32) (*domain.MarketerDetail, error) {
+	f.detailUserID = userID
+	if f.detail == nil {
+		return nil, domain.ErrMarketerProfileNotFound
+	}
+	copy := *f.detail
 	return &copy, nil
 }
 
@@ -136,6 +147,24 @@ func TestMarketerServiceSearchRequiresCreatorAndAppliesDefaults(t *testing.T) {
 
 	service = NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
 	if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{}); !errors.Is(err, domain.ErrCreatorRequired) {
+		t.Fatalf("expected creator requirement, got %v", err)
+	}
+}
+
+func TestMarketerServiceDetailRequiresCreatorAndScopesLookup(t *testing.T) {
+	repo := &fakeMarketerProfileRepository{detail: &domain.MarketerDetail{TotalCompletedJobs: 3}}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+	detail, err := service.GetDetail(context.Background(), Actor{UserID: 7}, 18)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.detailUserID != 18 || detail.TotalCompletedJobs != 3 {
+		t.Fatalf("unexpected detail lookup: marketer=%d detail=%+v", repo.detailUserID, detail)
+	}
+
+	service = NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
+	if _, err := service.GetDetail(context.Background(), Actor{UserID: 7}, 18); !errors.Is(err, domain.ErrCreatorRequired) {
 		t.Fatalf("expected creator requirement, got %v", err)
 	}
 }

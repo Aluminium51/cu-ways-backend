@@ -81,6 +81,7 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 		"  /api/v1/me/marketer-profile:\n    get:",
 		"  /api/v1/me/services:\n    get:",
 		"  /api/v1/marketers:\n    get:",
+		"  /api/v1/marketers/{id}:\n    get:",
 		"  /api/v1/surveys:\n    post:",
 		"  /api/v1/surveys/{id}:\n    parameters:",
 	} {

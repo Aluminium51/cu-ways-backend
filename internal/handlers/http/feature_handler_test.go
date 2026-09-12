@@ -21,10 +21,15 @@ import (
 
 type fakeMarketerService struct {
 	profile *domain.Marketer
+	detail  *domain.MarketerDetail
 }
 
 func (f *fakeMarketerService) GetProfile(context.Context, services.Actor) (*domain.Marketer, error) {
 	return f.profile, nil
+}
+
+func (f *fakeMarketerService) GetDetail(context.Context, services.Actor, int32) (*domain.MarketerDetail, error) {
+	return f.detail, nil
 }
 
 func (f *fakeMarketerService) SaveProfile(_ context.Context, _ services.Actor, input services.MarketerProfileInput) (*domain.Marketer, error) {
@@ -56,6 +61,45 @@ func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+}
+
+func TestMarketerHandlerReturnsDetailedProfileAndPerformance(t *testing.T) {
+	average := 4.5
+	service := &fakeMarketerService{detail: &domain.MarketerDetail{
+		Marketer: domain.Marketer{
+			UserID: 18,
+			Bio:    "Survey specialist",
+			Services: []domain.Service{{
+				ServiceID: 3, ServiceType: "Collection", Price: decimal.NewFromInt(500),
+			}},
+		},
+		TotalCompletedJobs: 2,
+		AverageRating:      &average,
+	}}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Get("/marketers/:id", NewMarketerHandler(service).GetDetail)
+
+	res, err := app.Test(httptest.NewRequest("GET", "/marketers/18", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data MarketerDetailResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.Profile.UserID != 18 || len(envelope.Data.Services) != 1 || envelope.Data.TotalCompletedJobs != 2 || envelope.Data.AverageRating == nil || *envelope.Data.AverageRating != 4.5 {
+		t.Fatalf("unexpected detail response: %+v", envelope.Data)
 	}
 }
 

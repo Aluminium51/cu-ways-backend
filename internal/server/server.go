@@ -113,6 +113,7 @@ func New(deps Dependencies) *fiber.App {
 	surveyHandler := httpapi.NewSurveyHandler(surveyService)
 
 	api.Get("/marketers", protectedUsers, marketerHandler.Search)
+	api.Get("/marketers/:id", protectedUsers, marketerHandler.GetDetail)
 	api.Get("/me/marketer-profile", protectedUsers, marketerHandler.GetProfile)
 	api.Patch("/me/marketer-profile", protectedUsers, marketerHandler.SaveProfile)
 	api.Get("/me/services", protectedUsers, serviceHandler.List)
