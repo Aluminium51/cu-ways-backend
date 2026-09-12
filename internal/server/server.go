@@ -89,13 +89,42 @@ func New(deps Dependencies) *fiber.App {
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
-	api.Post("/users", userHandler.Create)
 
 	protectedUsers := middleware.RequireJWT(deps.TokenVerifier)
 	api.Get("/users", protectedUsers, userHandler.List)
 	api.Get("/users/:id", protectedUsers, userHandler.Get)
 	api.Put("/users/:id", protectedUsers, userHandler.Update)
 	api.Delete("/users/:id", protectedUsers, userHandler.Delete)
+
+	// Profile, service, survey, and marketer search feature wiring.
+	memberships := postgres.NewMembershipRepository(deps.DB)
+	catalogRepo := postgres.NewCatalogRepository(deps.DB)
+	marketerRepo := postgres.NewMarketerProfileRepository(deps.DB)
+	marketerService := services.NewMarketerService(marketerRepo, catalogRepo, memberships)
+	marketerHandler := httpapi.NewMarketerHandler(marketerService)
+	serviceRepo := postgres.NewServiceRepository(deps.DB)
+	serviceService := services.NewServiceService(serviceRepo, memberships)
+	serviceHandler := httpapi.NewServiceHandler(serviceService)
+	statisticsRepo := postgres.NewMarketerStatisticsRepository(deps.DB)
+	statisticsService := services.NewStatisticsService(statisticsRepo, memberships)
+	statisticsHandler := httpapi.NewStatisticsHandler(statisticsService)
+	surveyRepo := postgres.NewSurveyRepository(deps.DB)
+	surveyService := services.NewSurveyService(surveyRepo)
+	surveyHandler := httpapi.NewSurveyHandler(surveyService)
+
+	api.Get("/marketers", protectedUsers, marketerHandler.Search)
+	api.Get("/marketers/:id", protectedUsers, marketerHandler.GetDetail)
+	api.Get("/me/marketer-profile", protectedUsers, marketerHandler.GetProfile)
+	api.Patch("/me/marketer-profile", protectedUsers, marketerHandler.SaveProfile)
+	api.Get("/me/services", protectedUsers, serviceHandler.List)
+	api.Post("/me/services", protectedUsers, serviceHandler.Create)
+	api.Patch("/me/services/:id", protectedUsers, serviceHandler.Update)
+	api.Delete("/me/services/:id", protectedUsers, serviceHandler.Delete)
+	api.Get("/me/statistics", protectedUsers, statisticsHandler.GetMyStatistics)
+	api.Post("/surveys", protectedUsers, surveyHandler.Create)
+	api.Get("/surveys/:id", protectedUsers, surveyHandler.Get)
+	api.Patch("/surveys/:id", protectedUsers, surveyHandler.Update)
+	api.Delete("/surveys/:id", protectedUsers, surveyHandler.Delete)
 
 	// =========================================================================
 	// 4. Dependency Injection & Repository Wiring [FUTURE]
