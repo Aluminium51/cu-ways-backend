@@ -22,22 +22,14 @@ func NewMockDataRepository(db *gorm.DB) *MockDataRepository {
 }
 
 func (r *MockDataRepository) SeedMockData(ctx context.Context, seed ports.MockDataSeed) error {
-	tx := r.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-	rollback := func(err error) error {
-		_ = tx.Rollback().Error
-		return err
-	}
-
-	userIDs := make(map[string]int32, len(seed.Users))
-	for _, user := range seed.Users {
-		var row struct {
-			UserID    int32      `gorm:"column:user_id"`
-			DeletedAt *time.Time `gorm:"column:deleted_at"`
-		}
-		if err := tx.Raw(`
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		userIDs := make(map[string]int32, len(seed.Users))
+		for _, user := range seed.Users {
+			var row struct {
+				UserID    int32      `gorm:"column:user_id"`
+				DeletedAt *time.Time `gorm:"column:deleted_at"`
+			}
+			if err := tx.Raw(`
 INSERT INTO users (name, email, phone, line_id, password_hash, role, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (email) DO UPDATE SET
@@ -45,42 +37,43 @@ ON CONFLICT (email) DO UPDATE SET
   phone = COALESCE(users.phone, EXCLUDED.phone),
   line_id = COALESCE(users.line_id, EXCLUDED.line_id)
 RETURNING user_id, deleted_at`,
-			user.Name, user.Email, user.Phone, user.LineID, user.PasswordHash, user.Role, user.CreatedAt,
-		).Scan(&row).Error; err != nil {
-			return rollback(err)
-		}
-		if row.DeletedAt != nil {
-			return rollback(fmt.Errorf("mock user %s is soft-deleted", user.Email))
-		}
-		userIDs[user.Email] = row.UserID
+				user.Name, user.Email, user.Phone, user.LineID, user.PasswordHash, user.Role, user.CreatedAt,
+			).Scan(&row).Error; err != nil {
+				return err
+			}
+			if row.DeletedAt != nil {
+				return fmt.Errorf("mock user %s is soft-deleted", user.Email)
+			}
+			userIDs[user.Email] = row.UserID
 
-		if user.Creator {
-			if err := tx.Exec(`INSERT INTO creators (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING`, row.UserID).Error; err != nil {
-				return rollback(err)
+			if user.Creator {
+				if err := tx.Exec(`INSERT INTO creators (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING`, row.UserID).Error; err != nil {
+					return err
+				}
+			}
+			if user.Marketer != nil {
+				if err := r.seedMarketer(tx, row.UserID, *user.Marketer); err != nil {
+					return err
+				}
 			}
 		}
-		if user.Marketer != nil {
-			if err := r.seedMarketer(tx, row.UserID, *user.Marketer); err != nil {
-				return rollback(err)
+
+		for _, job := range seed.Jobs {
+			creatorID, ok := userIDs[job.CreatorEmail]
+			if !ok {
+				return fmt.Errorf("mock job references unknown creator %s", job.CreatorEmail)
+			}
+			marketerID, ok := userIDs[job.MarketerEmail]
+			if !ok {
+				return fmt.Errorf("mock job references unknown marketer %s", job.MarketerEmail)
+			}
+			if err := r.seedCompletedJob(tx, creatorID, marketerID, job); err != nil {
+				return err
 			}
 		}
-	}
 
-	for _, job := range seed.Jobs {
-		creatorID, ok := userIDs[job.CreatorEmail]
-		if !ok {
-			return rollback(fmt.Errorf("mock job references unknown creator %s", job.CreatorEmail))
-		}
-		marketerID, ok := userIDs[job.MarketerEmail]
-		if !ok {
-			return rollback(fmt.Errorf("mock job references unknown marketer %s", job.MarketerEmail))
-		}
-		if err := r.seedCompletedJob(tx, creatorID, marketerID, job); err != nil {
-			return rollback(err)
-		}
-	}
-
-	return tx.Commit().Error
+		return nil
+	})
 }
 
 func (r *MockDataRepository) seedMarketer(tx *gorm.DB, userID int32, seed ports.MockMarketerSeed) error {
