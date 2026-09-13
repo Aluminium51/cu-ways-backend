@@ -134,6 +134,7 @@ func (s *MarketerService) Search(ctx context.Context, actor Actor, query ports.M
 		return ports.MarketerPage{}, domain.ErrInvalidMarketerProfile
 	}
 
+	query.Keyword = strings.TrimSpace(query.Keyword)
 	query.ExpertiseSlugs = normalizeSlugs(query.ExpertiseSlugs)
 	query.CampusSlugs = normalizeSlugs(query.CampusSlugs)
 	return s.profiles.Search(ctx, query)

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -153,6 +154,25 @@ WHERE mc_filter.user_id = m.user_id AND co_filter.slug IN ?
 GROUP BY mc_filter.user_id
 HAVING COUNT(DISTINCT co_filter.slug) = ?
 )`, query.CampusSlugs, len(query.CampusSlugs))
+	}
+	if query.Keyword != "" {
+		// US-013 AC2: a marketer matches when the keyword is a case-insensitive
+		// partial match for the marketer's name, bio, or any of their (non
+		// soft-deleted) service listings' type or scope text. Matching against
+		// services via EXISTS keeps one row per marketer even when several of
+		// their services match (US-013 AC3 de-duplication).
+		pattern := "%" + strings.ToLower(query.Keyword) + "%"
+		base = base.Where(`(
+LOWER(u.name) LIKE ?
+OR LOWER(m.bio) LIKE ?
+OR EXISTS (
+SELECT 1
+FROM services AS s_kw
+WHERE s_kw.user_id = m.user_id
+  AND s_kw.deleted_at IS NULL
+  AND (LOWER(s_kw.service_type) LIKE ? OR LOWER(s_kw.scope_text) LIKE ?)
+)
+)`, pattern, pattern, pattern, pattern)
 	}
 
 	var total int64

@@ -20,7 +20,8 @@ import (
 )
 
 type fakeMarketerService struct {
-	profile *domain.Marketer
+	profile         *domain.Marketer
+	lastSearchQuery ports.MarketerSearchQuery
 }
 
 func (f *fakeMarketerService) GetProfile(context.Context, services.Actor) (*domain.Marketer, error) {
@@ -31,7 +32,8 @@ func (f *fakeMarketerService) SaveProfile(_ context.Context, _ services.Actor, i
 	return &domain.Marketer{UserID: 1, Bio: input.Bio, ExperienceYears: input.ExperienceYears, AvailabilityStatus: domain.AvailabilityStatus(input.AvailabilityStatus), AvailabilityText: input.AvailabilityText}, nil
 }
 
-func (f *fakeMarketerService) Search(context.Context, services.Actor, ports.MarketerSearchQuery) (ports.MarketerPage, error) {
+func (f *fakeMarketerService) Search(_ context.Context, _ services.Actor, query ports.MarketerSearchQuery) (ports.MarketerPage, error) {
+	f.lastSearchQuery = query
 	return ports.MarketerPage{}, nil
 }
 
@@ -252,5 +254,31 @@ func TestSurveyHandlerRejectsMissingSurveyLink(t *testing.T) {
 	}
 	if service.createCalls != 0 {
 		t.Fatalf("expected create service not to be called, got %d calls", service.createCalls)
+	}
+}
+
+// TestMarketerHandlerParsesKeywordQueryParam covers US-013 AC2: the search
+// handler must read the `keyword` query parameter and pass it through to the
+// service so it can be applied as a case-insensitive partial match.
+func TestMarketerHandlerParsesKeywordQueryParam(t *testing.T) {
+	service := &fakeMarketerService{}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Get("/marketers/search", NewMarketerHandler(service).Search)
+	request := httptest.NewRequest("GET", "/marketers/search?keyword=%20Data%20Collection%20", nil)
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	if service.lastSearchQuery.Keyword != "Data Collection" {
+		t.Fatalf("expected trimmed keyword %q, got %q", "Data Collection", service.lastSearchQuery.Keyword)
 	}
 }
