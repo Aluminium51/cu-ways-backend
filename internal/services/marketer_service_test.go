@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -149,6 +150,16 @@ func TestMarketerServiceSearchTrimsKeyword(t *testing.T) {
 	}
 	if repo.searchQuery.Keyword != "Data Collection" {
 		t.Fatalf("expected trimmed keyword %q, got %q", "Data Collection", repo.searchQuery.Keyword)
+	}
+}
+
+func TestMarketerServiceSearchRejectsOverlongKeyword(t *testing.T) {
+	repo := &fakeMarketerProfileRepository{}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+	_, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{Keyword: strings.Repeat("a", MaxKeywordLength+1)})
+	if !errors.Is(err, domain.ErrInvalidMarketerProfile) {
+		t.Fatalf("expected invalid profile for overlong keyword, got %v", err)
 	}
 }
 

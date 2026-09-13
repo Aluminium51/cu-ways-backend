@@ -16,6 +16,7 @@ const (
 	MaxMarketerPageSize     = 100
 	MaxExperienceYears      = 80
 	MaxProfileTextLength    = 5000
+	MaxKeywordLength        = 100
 )
 
 type MarketerProfileInput struct {
@@ -135,6 +136,9 @@ func (s *MarketerService) Search(ctx context.Context, actor Actor, query ports.M
 	}
 
 	query.Keyword = strings.TrimSpace(query.Keyword)
+	if utf8.RuneCountInString(query.Keyword) > MaxKeywordLength {
+		return ports.MarketerPage{}, domain.ErrInvalidMarketerProfile
+	}
 	query.ExpertiseSlugs = normalizeSlugs(query.ExpertiseSlugs)
 	query.CampusSlugs = normalizeSlugs(query.CampusSlugs)
 	return s.profiles.Search(ctx, query)
