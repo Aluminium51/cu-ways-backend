@@ -53,6 +53,12 @@ func TestNullableAndMoneyFieldsMatchSchema(t *testing.T) {
 	if field, ok := reflect.TypeOf(Service{}).FieldByName("Price"); !ok || field.Type != reflect.TypeOf(decimal.Decimal{}) {
 		t.Fatal("Service.Price must use decimal.Decimal")
 	}
+	if field, ok := reflect.TypeOf(Service{}).FieldByName("UpdatedAt"); !ok || field.Type != reflect.TypeOf(time.Time{}) {
+		t.Fatal("Service.UpdatedAt must be time.Time")
+	}
+	if field, ok := reflect.TypeOf(Service{}).FieldByName("DeletedAt"); !ok || field.Type != reflect.TypeOf((*time.Time)(nil)) {
+		t.Fatal("Service.DeletedAt must be a nullable *time.Time")
+	}
 	if field, ok := reflect.TypeOf(Offer{}).FieldByName("OfferedPrice"); !ok || field.Type != reflect.TypeOf(decimal.Decimal{}) {
 		t.Fatal("Offer.OfferedPrice must use decimal.Decimal")
 	}
@@ -112,6 +118,25 @@ func TestUserAuthenticationFieldsMatchSchema(t *testing.T) {
 	}
 	if RoleUser != "user" || RoleAdmin != "admin" {
 		t.Fatal("unexpected user role constants")
+	}
+}
+
+func TestMarketerProfileFieldsMatchNormalizedSchema(t *testing.T) {
+	marketerType := reflect.TypeOf(Marketer{})
+	for _, fieldName := range []string{"Bio", "AvailabilityText"} {
+		field, ok := marketerType.FieldByName(fieldName)
+		if !ok || field.Type.Kind() != reflect.String {
+			t.Fatalf("Marketer.%s must be a non-null string", fieldName)
+		}
+	}
+	if field, ok := marketerType.FieldByName("ExperienceYears"); !ok || field.Type.Kind() != reflect.Int32 {
+		t.Fatal("Marketer.ExperienceYears must be a non-null int32")
+	}
+	if field, ok := marketerType.FieldByName("AvailabilityStatus"); !ok || field.Type != reflect.TypeOf(AvailabilityStatus("")) {
+		t.Fatal("Marketer.AvailabilityStatus must use AvailabilityStatus")
+	}
+	if AvailabilityAvailable != "available" || AvailabilityLimited != "limited" || AvailabilityUnavailable != "unavailable" {
+		t.Fatal("unexpected availability status constants")
 	}
 }
 

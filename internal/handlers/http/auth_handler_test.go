@@ -17,6 +17,15 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type authHandlerContextKey struct{}
+
+func closeResponseBody(t *testing.T, body io.Closer) {
+	t.Helper()
+	if err := body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
 type fakeAuthService struct {
 	registerResult *services.AuthResult
 	registerErr    error
@@ -59,14 +68,14 @@ func TestAuthHandlerRegisterReturnsTokenAndSanitizedUser(t *testing.T) {
 	}}
 	app := newAuthHandlerTestApp(service)
 
-	requestContext := context.WithValue(context.Background(), struct{}{}, "request-value")
+	requestContext := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
 	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple"}`)).WithContext(requestContext)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("expected 201, got %d", res.StatusCode)
@@ -96,7 +105,7 @@ func TestAuthHandlerLoginReturnsUnauthorizedForInvalidCredentials(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", res.StatusCode)
 	}
@@ -126,7 +135,7 @@ func TestAuthHandlerRejectsInvalidRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
 	}
@@ -149,7 +158,7 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 
 func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	service := &fakeAuthService{loginErr: errors.New("stop after context capture")}
-	ctx := context.WithValue(context.Background(), struct{}{}, "request-value")
+	ctx := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	app.Use(func(c *fiber.Ctx) error {
 		c.SetUserContext(ctx)
@@ -163,7 +172,7 @@ func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if service.loginCtx == nil || service.loginCtx.Value(struct{}{}) != "request-value" {
+	if service.loginCtx == nil || service.loginCtx.Value(authHandlerContextKey{}) != "request-value" {
 		t.Fatal("expected request context to reach auth service")
 	}
 }

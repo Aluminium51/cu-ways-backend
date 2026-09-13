@@ -7,7 +7,7 @@ endif
 DATABASE_URL ?= postgresql://myuser:mypassword@localhost:5432/cuway_database?sslmode=disable
 MIGRATE := go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
 
-.PHONY: run build test vet fmt db-up db-down migrate-up migrate-down migrate-version seed-admin
+.PHONY: run build test vet fmt db-up db-down migrate-up migrate-down migrate-version seed-admin seed-mock-users
 
 run:
 	go run ./cmd/api
@@ -41,3 +41,6 @@ migrate-version:
 
 seed-admin:
 	go run ./cmd/seed-admin
+
+seed-mock-users:
+	go run ./cmd/seed-mock-users
