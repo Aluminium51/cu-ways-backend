@@ -55,7 +55,7 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 
 	if res.StatusCode != 200 {
 		t.Fatalf("expected status 200, got %d", res.StatusCode)
@@ -101,7 +101,7 @@ func TestNewDoesNotRegisterLegacyCreateUserRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 
 	if res.StatusCode != fiber.StatusMethodNotAllowed {
 		t.Fatalf("expected legacy POST /api/v1/users to return 405, got %d", res.StatusCode)
@@ -115,7 +115,7 @@ func TestNewServesScalarReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 
 	if res.StatusCode != 200 {
 		t.Fatalf("expected status 200, got %d", res.StatusCode)

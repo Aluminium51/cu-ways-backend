@@ -36,7 +36,6 @@ func TestLoadFromFileAppliesDefaults(t *testing.T) {
 
 	for _, key := range []string{"APP_ENV", "PORT", "SHUTDOWN_TIMEOUT", "READINESS_TIMEOUT", "DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME", "DATABASE_URL", "SECRET_KEY", "SEED_ADMIN_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"} {
 		t.Setenv(key, "")
-		t.Cleanup(func() { os.Unsetenv(key) })
 	}
 
 	cfg, err := LoadFromFile(path)
@@ -72,6 +71,7 @@ func TestLoadFromFileRequiresDatabaseURL(t *testing.T) {
 	if err := os.WriteFile(path, []byte("SECRET_KEY=local-secret\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("DATABASE_URL", "")
 
 	_, err := LoadFromFile(path)
 	if err == nil || err.Error() != "DATABASE_URL is required" {

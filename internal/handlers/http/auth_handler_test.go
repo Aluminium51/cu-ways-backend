@@ -26,6 +26,8 @@ type fakeAuthService struct {
 	loginCtx       context.Context
 }
 
+type authHandlerContextKey struct{}
+
 func (f *fakeAuthService) Register(ctx context.Context, _ services.RegisterInput) (*services.AuthResult, error) {
 	f.registerCtx = ctx
 	return f.registerResult, f.registerErr
@@ -59,14 +61,14 @@ func TestAuthHandlerRegisterReturnsTokenAndSanitizedUser(t *testing.T) {
 	}}
 	app := newAuthHandlerTestApp(service)
 
-	requestContext := context.WithValue(context.Background(), struct{}{}, "request-value")
+	requestContext := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
 	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple"}`)).WithContext(requestContext)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 
 	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("expected 201, got %d", res.StatusCode)
@@ -96,7 +98,7 @@ func TestAuthHandlerLoginReturnsUnauthorizedForInvalidCredentials(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 	if res.StatusCode != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", res.StatusCode)
 	}
@@ -126,7 +128,7 @@ func TestAuthHandlerRejectsInvalidRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	t.Cleanup(func() { _ = res.Body.Close() })
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
 	}
@@ -142,6 +144,7 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = res.Body.Close() })
 	if res.StatusCode != fiber.StatusConflict {
 		t.Fatalf("expected 409, got %d", res.StatusCode)
 	}
@@ -149,7 +152,7 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 
 func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	service := &fakeAuthService{loginErr: errors.New("stop after context capture")}
-	ctx := context.WithValue(context.Background(), struct{}{}, "request-value")
+	ctx := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	app.Use(func(c *fiber.Ctx) error {
 		c.SetUserContext(ctx)
@@ -159,11 +162,12 @@ func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"email":"jane@example.com","password":"correct horse battery staple"}`)).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 
-	_, err := app.Test(req)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if service.loginCtx == nil || service.loginCtx.Value(struct{}{}) != "request-value" {
+	t.Cleanup(func() { _ = res.Body.Close() })
+	if service.loginCtx == nil || service.loginCtx.Value(authHandlerContextKey{}) != "request-value" {
 		t.Fatal("expected request context to reach auth service")
 	}
 }
