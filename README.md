@@ -180,7 +180,7 @@ Protected requests require a JWT whose `sub` claim is the numeric user ID. The `
 
 ## Marketer and Survey APIs
 
-Marketer profile fields are saved through `PATCH /api/v1/me/marketer-profile`. The core fields `bio`, `experience_years`, `availability_status`, and `availability_text` are required and cannot be empty. Expertise and campus values use the curated catalog; their arrays may be empty.
+Marketer profile fields are saved through `PATCH /api/v1/me/marketer-profile`. Only `availability_status` is required; `bio`, `experience_years`, and `availability_text` are optional and default to an empty string/0 when omitted (the columns are `NOT NULL`, so omitted values are stored as empty rather than SQL `NULL`). Expertise and campus values use the curated catalog; their arrays may be empty.
 
 The initial expertise slugs are `survey-distribution`, `participant-recruitment`, `data-collection`, `quantitative-analysis`, `qualitative-analysis`, and `report-preparation`. The initial campus slugs are `cu-main-campus`, `cu-health-sciences-campus`, `off-campus`, and `online-remote`. Availability is `available`, `limited`, or `unavailable`.
 

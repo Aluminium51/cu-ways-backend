@@ -59,6 +59,32 @@ func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	}
 }
 
+// TestMarketerHandlerDefaultsOmittedFieldsToEmpty covers US-005: a request
+// with only availability_status must succeed, with bio/availability_text
+// defaulting to "" and experience_years defaulting to 0.
+func TestMarketerHandlerDefaultsOmittedFieldsToEmpty(t *testing.T) {
+	app := featureHandlerApp(NewMarketerHandler(&fakeMarketerService{}).SaveProfile)
+	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"availability_status":"available"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data MarketerProfileResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.Bio != "" || envelope.Data.ExperienceYears != 0 || envelope.Data.AvailabilityText != "" {
+		t.Fatalf("expected empty defaults, got %+v", envelope.Data)
+	}
+}
+
 type fakeFeatureServiceService struct {
 	created bool
 }
