@@ -17,6 +17,15 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type authHandlerContextKey struct{}
+
+func closeResponseBody(t *testing.T, body io.Closer) {
+	t.Helper()
+	if err := body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
 type fakeAuthService struct {
 	registerResult *services.AuthResult
 	registerErr    error
@@ -25,8 +34,6 @@ type fakeAuthService struct {
 	registerCtx    context.Context
 	loginCtx       context.Context
 }
-
-type authHandlerContextKey struct{}
 
 func (f *fakeAuthService) Register(ctx context.Context, _ services.RegisterInput) (*services.AuthResult, error) {
 	f.registerCtx = ctx
@@ -68,7 +75,7 @@ func TestAuthHandlerRegisterReturnsTokenAndSanitizedUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("expected 201, got %d", res.StatusCode)
@@ -98,7 +105,7 @@ func TestAuthHandlerLoginReturnsUnauthorizedForInvalidCredentials(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", res.StatusCode)
 	}
@@ -128,7 +135,7 @@ func TestAuthHandlerRejectsInvalidRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
 	}
@@ -144,7 +151,7 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusConflict {
 		t.Fatalf("expected 409, got %d", res.StatusCode)
 	}
@@ -166,7 +173,7 @@ func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 	if service.loginCtx == nil || service.loginCtx.Value(authHandlerContextKey{}) != "request-value" {
 		t.Fatal("expected request context to reach auth service")
 	}

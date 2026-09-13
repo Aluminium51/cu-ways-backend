@@ -62,7 +62,8 @@ The API runs on `http://localhost:8081` by default.
 cu-ways-backend/
 ├── cmd/
 │   ├── api/                  # Application entry point
-│   └── seed-admin/           # Explicit development/test admin seeder
+│   ├── seed-admin/           # Explicit development/test admin seeder
+│   └── seed-mock-users/      # Explicit development/test fixture seeder
 ├── docs/                     # OpenAPI and architecture documentation
 ├── internal/                 # Private application code
 │   ├── config/               # Environment and configuration loader
@@ -161,6 +162,18 @@ make seed-admin
 
 The seed command is allowed only in development/test environments. It creates the account when missing, or promotes an existing active account without changing its password. It never restores a soft-deleted account or overwrites credentials.
 
+To create 20 deterministic mock users for search and filter testing, configure one shared local/test password and run the explicit mock-data seed command:
+
+```powershell
+$env:MOCK_USER_PASSWORD = "mock-user-password-123"
+
+make seed-mock-users
+```
+
+The command creates 6 creator-only users, 6 marketer-only users, and 8 users with both memberships. Marketer fixtures include profiles, expertise, campus coverage, active services with varied prices, one archived service, and completed jobs with reviews for rating filters. Mock emails use the `@example.test` domain, for example `mock.both.01@example.test`. The password is read from `MOCK_USER_PASSWORD` and is never printed. This command is limited to development/test environments and is idempotent for the generated fixtures.
+
+For marketer search, log in as `mock.creator-only.01@example.test` or `mock.both.01@example.test`; both accounts have Creator membership and can call `GET /api/v1/marketers`. To test marketer-owned endpoints, log in as `mock.marketer-only.01@example.test` or `mock.both.01@example.test`.
+
 Account creation is handled only by `/api/v1/auth/register`, which stores a password and provisions Creator membership. The `/api/v1/users` resource is for reading and updating users after registration.
 
 ## User API
@@ -193,12 +206,20 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
   -d '{"bio":"Survey research specialist","experience_years":4,"availability_status":"available","availability_text":"Available on weekdays","expertise":["data-collection","report-preparation"],"campuses":["cu-main-campus"]}'
 ```
 
-Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs; the default order is lowest matching service price, then average rating.
+Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by `user_id` ascending.
 
 Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
 
 ```powershell
 curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&expertise=data-collection&campus=cu-main-campus&sort=price_asc" `
+  -H "Authorization: Bearer $token"
+```
+
+```powershell
+curl.exe "http://localhost:8081/api/v1/marketers?sort=price_desc" `
+  -H "Authorization: Bearer $token"
+
+curl.exe "http://localhost:8081/api/v1/marketers?sort=rating_asc" `
   -H "Authorization: Bearer $token"
 ```
 
@@ -242,6 +263,7 @@ Change the example passwords before using this setup outside local development.
 | `make migrate-down` | Roll back one migration |
 | `make migrate-version` | Show the current migration version |
 | `make seed-admin` | Create or promote the development admin account |
+| `make seed-mock-users` | Create the deterministic development/test user and marketer fixtures |
 
 ## Configuration
 
@@ -265,5 +287,20 @@ go vet ./...
 go build -trimpath ./cmd/api
 go list ./...
 ```
+
+## Pull requests and commit messages
+
+Pull requests into `dev` or `main` run the backend CI checks. Use a lightweight Conventional
+Commit subject for the pull request title and for every commit included in the pull request:
+
+```text
+<type>: <description>
+<type>(<scope>): <description>
+```
+
+Accepted types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
+`chore`, and `revert`. A breaking-change marker is also accepted, for example
+`feat(auth)!: replace the token format`. Issue IDs, capitalization rules, and commit bodies are
+not required. Branch names are not validated by CI.
 
 The current migrations include a foundation baseline, the domain schema, the user soft-delete column, authentication columns, and normalized marketer profile/search tables. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.

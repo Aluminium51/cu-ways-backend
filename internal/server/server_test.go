@@ -16,6 +16,13 @@ import (
 
 type checker struct{}
 
+func closeResponseBody(t *testing.T, body io.Closer) {
+	t.Helper()
+	if err := body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
 func (checker) Ping(context.Context) error {
 	return nil
 }
@@ -55,7 +62,7 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != 200 {
 		t.Fatalf("expected status 200, got %d", res.StatusCode)
@@ -101,7 +108,7 @@ func TestNewDoesNotRegisterLegacyCreateUserRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != fiber.StatusMethodNotAllowed {
 		t.Fatalf("expected legacy POST /api/v1/users to return 405, got %d", res.StatusCode)
@@ -115,7 +122,7 @@ func TestNewServesScalarReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = res.Body.Close() })
+	defer closeResponseBody(t, res.Body)
 
 	if res.StatusCode != 200 {
 		t.Fatalf("expected status 200, got %d", res.StatusCode)
