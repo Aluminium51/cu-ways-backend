@@ -49,7 +49,7 @@ jobs:
             [[ -z "$commit_sha" ]] && continue
             commit_subject="$(git show --quiet --format=%s "$commit_sha")"
             validate_subject "commit $commit_sha" "$commit_subject"
-          done < <(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")
+          done < <(git rev-list --no-merges --reverse "$BASE_SHA..$HEAD_SHA")
 
   lint:
     name: Lint & Static Analysis
