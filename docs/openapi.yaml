@@ -1016,23 +1016,24 @@ components:
               type: boolean
     MarketerProfileRequest:
       type: object
-      required: [bio, experience_years, availability_status, availability_text]
+      required: [availability_status]
       properties:
         bio:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         experience_years:
           type: integer
           minimum: 0
           maximum: 80
+          description: Optional. Defaults to 0 when omitted.
         availability_status:
           type: string
           enum: [available, limited, unavailable]
         availability_text:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         expertise:
           type: array
           items:
