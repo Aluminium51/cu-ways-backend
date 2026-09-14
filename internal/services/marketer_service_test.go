@@ -55,6 +55,8 @@ func (f *fakeCatalogRepository) FindCampusesBySlugs(_ context.Context, slugs []s
 
 type fakeMarketerProfileRepository struct {
 	profile        *domain.Marketer
+	detail         *domain.MarketerDetail
+	detailUserID   int32
 	searchQuery    ports.MarketerSearchQuery
 	searchResult   ports.MarketerPage
 	savedExpertise []int32
@@ -66,6 +68,15 @@ func (f *fakeMarketerProfileRepository) FindProfile(context.Context, int32) (*do
 		return nil, domain.ErrMarketerProfileNotFound
 	}
 	copy := *f.profile
+	return &copy, nil
+}
+
+func (f *fakeMarketerProfileRepository) FindDetail(_ context.Context, userID int32) (*domain.MarketerDetail, error) {
+	f.detailUserID = userID
+	if f.detail == nil {
+		return nil, domain.ErrMarketerProfileNotFound
+	}
+	copy := *f.detail
 	return &copy, nil
 }
 
@@ -109,11 +120,24 @@ func TestMarketerServiceSavesRequiredProfileAndNormalizesCatalogs(t *testing.T) 
 	}
 }
 
-func TestMarketerServiceRejectsEmptyCoreProfileAndUnknownCatalog(t *testing.T) {
+func TestMarketerServiceAllowsEmptyBioAndAvailabilityText(t *testing.T) {
+	// US-005 AC: leaving bio/experience/availability_text empty must still save.
+	repo := &fakeMarketerProfileRepository{}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
+	profile, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{AvailabilityStatus: "available"})
+	if err != nil {
+		t.Fatalf("expected empty bio/experience/availability_text to be allowed, got %v", err)
+	}
+	if profile.Bio != "" || profile.AvailabilityText != "" || profile.ExperienceYears != 0 {
+		t.Fatalf("unexpected profile: %+v", profile)
+	}
+}
+
+func TestMarketerServiceRejectsOversizedFieldsAndUnknownCatalog(t *testing.T) {
 	service := NewMarketerService(&fakeMarketerProfileRepository{}, &fakeCatalogRepository{}, &fakeMembershipRepository{})
-	_, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{ExperienceYears: 1, AvailabilityStatus: "available"})
+	_, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{Bio: strings.Repeat("a", MaxProfileTextLength+1), AvailabilityStatus: "available"})
 	if !errors.Is(err, domain.ErrInvalidMarketerProfile) {
-		t.Fatalf("expected invalid profile, got %v", err)
+		t.Fatalf("expected invalid profile for oversized bio, got %v", err)
 	}
 	_, err = service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{
 		Bio: "bio", ExperienceYears: 1, AvailabilityStatus: "available", AvailabilityText: "now", ExpertiseSlugs: []string{"missing"},
@@ -137,6 +161,23 @@ func TestMarketerServiceSearchRequiresCreatorAndAppliesDefaults(t *testing.T) {
 
 	service = NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
 	if _, err := service.Search(context.Background(), Actor{UserID: 3}, ports.MarketerSearchQuery{}); !errors.Is(err, domain.ErrCreatorRequired) {
+		t.Fatalf("expected creator requirement, got %v", err)
+	}
+}
+func TestMarketerServiceDetailRequiresCreatorAndScopesLookup(t *testing.T) {
+	repo := &fakeMarketerProfileRepository{detail: &domain.MarketerDetail{TotalCompletedJobs: 3}}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{creator: true})
+
+	detail, err := service.GetDetail(context.Background(), Actor{UserID: 7}, 18)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.detailUserID != 18 || detail.TotalCompletedJobs != 3 {
+		t.Fatalf("unexpected detail lookup: marketer=%d detail=%+v", repo.detailUserID, detail)
+	}
+
+	service = NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
+	if _, err := service.GetDetail(context.Background(), Actor{UserID: 7}, 18); !errors.Is(err, domain.ErrCreatorRequired) {
 		t.Fatalf("expected creator requirement, got %v", err)
 	}
 }

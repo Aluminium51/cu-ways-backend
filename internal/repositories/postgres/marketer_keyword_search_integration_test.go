@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -12,25 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// createIntegrationMarketerNamed inserts a user/marketer pair with a
-// caller-chosen display name, so keyword-search tests can match against it.
-func createIntegrationMarketerNamed(t *testing.T, db *gorm.DB, name, label string) int32 {
-	t.Helper()
-	var userID int32
-	email := fmt.Sprintf("marketer-keyword-%s-%d@example.invalid", label, time.Now().UnixNano())
-	if err := db.Raw(`
-INSERT INTO users (name, email, created_at)
-VALUES (?, ?, ?)
-RETURNING user_id`, name, email, time.Now().UTC()).Scan(&userID).Error; err != nil {
-		t.Fatalf("create user fixture: %v", err)
-	}
-	if err := db.Exec(`
-INSERT INTO marketers (user_id, bio, experience_years, availability_status, availability_text)
-VALUES (?, ?, ?, ?, ?)`, userID, "Test marketer", 1, domain.AvailabilityAvailable, "Available").Error; err != nil {
-		t.Fatalf("create marketer fixture: %v", err)
-	}
-	return userID
-}
+// createIntegrationMarketerNamed is defined in marketer_repo_integration_test.go
+// (added by PR#12) and reused here.
 
 // createIntegrationServiceWithScope inserts a service with an optional
 // scope_text, and an optional deleted_at so keyword-search tests can cover

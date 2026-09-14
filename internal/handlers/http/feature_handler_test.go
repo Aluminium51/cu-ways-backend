@@ -21,11 +21,16 @@ import (
 
 type fakeMarketerService struct {
 	profile         *domain.Marketer
+	detail          *domain.MarketerDetail
 	lastSearchQuery ports.MarketerSearchQuery
 }
 
 func (f *fakeMarketerService) GetProfile(context.Context, services.Actor) (*domain.Marketer, error) {
 	return f.profile, nil
+}
+
+func (f *fakeMarketerService) GetDetail(context.Context, services.Actor, int32) (*domain.MarketerDetail, error) {
+	return f.detail, nil
 }
 
 func (f *fakeMarketerService) SaveProfile(_ context.Context, _ services.Actor, input services.MarketerProfileInput) (*domain.Marketer, error) {
@@ -49,7 +54,7 @@ func featureHandlerApp(handler fiber.Handler) *fiber.App {
 
 func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	app := featureHandlerApp(NewMarketerHandler(&fakeMarketerService{}).SaveProfile)
-	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"bio":"","experience_years":2,"availability_status":"available","availability_text":"weekdays","expertise":[],"campuses":[]}`))
+	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"bio":"","experience_years":2,"availability_status":"","availability_text":"weekdays","expertise":[],"campuses":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(request)
 	if err != nil {
@@ -58,6 +63,71 @@ func TestMarketerHandlerValidatesProfileBeforeCallingService(t *testing.T) {
 	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", res.StatusCode)
+	}
+}
+
+func TestMarketerHandlerReturnsDetailedProfileAndPerformance(t *testing.T) {
+	average := 4.5
+	service := &fakeMarketerService{detail: &domain.MarketerDetail{
+		Marketer: domain.Marketer{
+			UserID: 18,
+			Bio:    "Survey specialist",
+			Services: []domain.Service{{
+				ServiceID: 3, ServiceType: "Collection", Price: decimal.NewFromInt(500),
+			}},
+		},
+		TotalCompletedJobs: 2,
+		AverageRating:      &average,
+	}}
+	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "1", Values: map[string]any{}})
+		return c.Next()
+	})
+	app.Get("/marketers/:id", NewMarketerHandler(service).GetDetail)
+
+	res, err := app.Test(httptest.NewRequest("GET", "/marketers/18", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data MarketerDetailResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.Profile.UserID != 18 || len(envelope.Data.Services) != 1 || envelope.Data.TotalCompletedJobs != 2 || envelope.Data.AverageRating == nil || *envelope.Data.AverageRating != 4.5 {
+		t.Fatalf("unexpected detail response: %+v", envelope.Data)
+	}
+}
+
+// TestMarketerHandlerDefaultsOmittedFieldsToEmpty covers US-005: a request
+// with only availability_status must succeed, with bio/availability_text
+// defaulting to "" and experience_years defaulting to 0.
+func TestMarketerHandlerDefaultsOmittedFieldsToEmpty(t *testing.T) {
+	app := featureHandlerApp(NewMarketerHandler(&fakeMarketerService{}).SaveProfile)
+	request := httptest.NewRequest("PATCH", "/profile", strings.NewReader(`{"availability_status":"available"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data MarketerProfileResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.Bio != "" || envelope.Data.ExperienceYears != 0 || envelope.Data.AvailabilityText != "" {
+		t.Fatalf("expected empty defaults, got %+v", envelope.Data)
 	}
 }
 

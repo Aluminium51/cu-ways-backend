@@ -19,6 +19,7 @@ type Config struct {
 	Database  DatabaseConfig
 	Auth      AuthConfig
 	SeedAdmin SeedAdminConfig
+	MockData  MockDataConfig
 }
 
 type AppConfig struct {
@@ -48,6 +49,10 @@ type SeedAdminConfig struct {
 	Name     string
 	Email    string
 	Password string
+}
+
+type MockDataConfig struct {
+	UserPassword string
 }
 
 func Load() (Config, error) {
@@ -143,6 +148,9 @@ func fromViper(v *viper.Viper) (Config, error) {
 			Name:     strings.TrimSpace(v.GetString("SEED_ADMIN_NAME")),
 			Email:    strings.TrimSpace(v.GetString("SEED_ADMIN_EMAIL")),
 			Password: v.GetString("SEED_ADMIN_PASSWORD"),
+		},
+		MockData: MockDataConfig{
+			UserPassword: v.GetString("MOCK_USER_PASSWORD"),
 		},
 	}, nil
 }

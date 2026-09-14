@@ -671,7 +671,7 @@ paths:
             enum: [available, limited, unavailable]
         - name: sort
           in: query
-          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by user ID ascending. Defaults to lowest matching service price.
+          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by marketer name (case-sensitive, ascending), then by user ID ascending as a final deterministic fallback for marketers sharing the same name. Defaults to lowest matching service price.
           schema:
             type: string
             enum: [price_asc, price_desc, rating_asc, rating_desc]
@@ -697,6 +697,47 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Search parameters are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/marketers/{id}:
+    get:
+      operationId: getMarketerDetail
+      summary: Get a marketer's detailed profile
+      description: Returns the marketer profile, active service listings, completed-job count, and average rating. Completed jobs are matched through the marketer's accepted offers. The average uses only ratings from 1 to 5 and is null when no qualifying review exists.
+      tags: [Marketers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Detailed marketer profile and verified performance summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketerDetailResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: A creator profile or administrator role is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The marketer profile does not exist or belongs to a deleted user.
           content:
             application/json:
               schema:
@@ -1022,23 +1063,24 @@ components:
               type: boolean
     MarketerProfileRequest:
       type: object
-      required: [bio, experience_years, availability_status, availability_text]
+      required: [availability_status]
       properties:
         bio:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         experience_years:
           type: integer
           minimum: 0
           maximum: 80
+          description: Optional. Defaults to 0 when omitted.
         availability_status:
           type: string
           enum: [available, limited, unavailable]
         availability_text:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         expertise:
           type: array
           items:
@@ -1368,6 +1410,35 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Service'
+    MarketerDetailResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [profile, services, total_completed_jobs, average_rating]
+          properties:
+            profile:
+              $ref: '#/components/schemas/MarketerProfile'
+            services:
+              type: array
+              description: Active service listings only.
+              items:
+                $ref: '#/components/schemas/Service'
+            total_completed_jobs:
+              type: integer
+              format: int64
+              minimum: 0
+            average_rating:
+              type: number
+              format: double
+              minimum: 1
+              maximum: 5
+              nullable: true
+              description: Null when the marketer has no qualifying review on an accepted-offer completed job.
     SuccessResponse:
       type: object
       required: [status, data]

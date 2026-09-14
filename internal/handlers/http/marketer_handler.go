@@ -18,6 +18,7 @@ import (
 
 type marketerService interface {
 	GetProfile(context.Context, services.Actor) (*domain.Marketer, error)
+	GetDetail(context.Context, services.Actor, int32) (*domain.MarketerDetail, error)
 	SaveProfile(context.Context, services.Actor, services.MarketerProfileInput) (*domain.Marketer, error)
 	Search(context.Context, services.Actor, ports.MarketerSearchQuery) (ports.MarketerPage, error)
 }
@@ -31,10 +32,10 @@ func NewMarketerHandler(service marketerService) *MarketerHandler {
 }
 
 type MarketerProfileDTO struct {
-	Bio                string   `json:"bio" validate:"required,max=5000"`
-	ExperienceYears    *int32   `json:"experience_years" validate:"required,gte=0,lte=80"`
+	Bio                string   `json:"bio" validate:"max=5000"`
+	ExperienceYears    *int32   `json:"experience_years" validate:"omitempty,gte=0,lte=80"`
 	AvailabilityStatus string   `json:"availability_status" validate:"required,oneof=available limited unavailable"`
-	AvailabilityText   string   `json:"availability_text" validate:"required,max=5000"`
+	AvailabilityText   string   `json:"availability_text" validate:"max=5000"`
 	Expertise          []string `json:"expertise" validate:"dive,max=80"`
 	Campuses           []string `json:"campuses" validate:"dive,max=80"`
 }
@@ -74,6 +75,13 @@ type MarketerSearchResponse struct {
 	Total    int64                `json:"total"`
 }
 
+type MarketerDetailResponse struct {
+	Profile            MarketerProfileResponse `json:"profile"`
+	Services           []ServiceResponse       `json:"services"`
+	TotalCompletedJobs int64                   `json:"total_completed_jobs"`
+	AverageRating      *float64                `json:"average_rating"`
+}
+
 func (h *MarketerHandler) GetProfile(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -84,6 +92,31 @@ func (h *MarketerHandler) GetProfile(c *fiber.Ctx) error {
 		return mapMarketerError(err)
 	}
 	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile))
+}
+
+func (h *MarketerHandler) GetDetail(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	marketerID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return mapMarketerError(domain.ErrMarketerProfileNotFound)
+	}
+	detail, err := h.service.GetDetail(c.UserContext(), actor, marketerID)
+	if err != nil {
+		return mapMarketerError(err)
+	}
+	serviceResponses := make([]ServiceResponse, 0, len(detail.Marketer.Services))
+	for index := range detail.Marketer.Services {
+		serviceResponses = append(serviceResponses, toServiceResponse(&detail.Marketer.Services[index]))
+	}
+	return response.Success(c, fiber.StatusOK, MarketerDetailResponse{
+		Profile:            toMarketerProfileResponse(&detail.Marketer),
+		Services:           serviceResponses,
+		TotalCompletedJobs: detail.TotalCompletedJobs,
+		AverageRating:      detail.AverageRating,
+	})
 }
 
 func (h *MarketerHandler) SaveProfile(c *fiber.Ctx) error {
@@ -98,12 +131,13 @@ func (h *MarketerHandler) SaveProfile(c *fiber.Ctx) error {
 	if err := utils.Validate(dto); err != nil {
 		return validationError(err)
 	}
-	if dto.ExperienceYears == nil {
-		return validationError(domain.ErrInvalidMarketerProfile)
+	var experienceYears int32
+	if dto.ExperienceYears != nil {
+		experienceYears = *dto.ExperienceYears
 	}
 	input := services.MarketerProfileInput{
 		Bio:                dto.Bio,
-		ExperienceYears:    *dto.ExperienceYears,
+		ExperienceYears:    experienceYears,
 		AvailabilityStatus: dto.AvailabilityStatus,
 		AvailabilityText:   dto.AvailabilityText,
 		ExpertiseSlugs:     dto.Expertise,
