@@ -31,10 +31,10 @@ func NewMarketerHandler(service marketerService) *MarketerHandler {
 }
 
 type MarketerProfileDTO struct {
-	Bio                string   `json:"bio" validate:"required,max=5000"`
-	ExperienceYears    *int32   `json:"experience_years" validate:"required,gte=0,lte=80"`
+	Bio                string   `json:"bio" validate:"max=5000"`
+	ExperienceYears    *int32   `json:"experience_years" validate:"omitempty,gte=0,lte=80"`
 	AvailabilityStatus string   `json:"availability_status" validate:"required,oneof=available limited unavailable"`
-	AvailabilityText   string   `json:"availability_text" validate:"required,max=5000"`
+	AvailabilityText   string   `json:"availability_text" validate:"max=5000"`
 	Expertise          []string `json:"expertise" validate:"dive,max=80"`
 	Campuses           []string `json:"campuses" validate:"dive,max=80"`
 }
@@ -98,12 +98,13 @@ func (h *MarketerHandler) SaveProfile(c *fiber.Ctx) error {
 	if err := utils.Validate(dto); err != nil {
 		return validationError(err)
 	}
-	if dto.ExperienceYears == nil {
-		return validationError(domain.ErrInvalidMarketerProfile)
+	var experienceYears int32
+	if dto.ExperienceYears != nil {
+		experienceYears = *dto.ExperienceYears
 	}
 	input := services.MarketerProfileInput{
 		Bio:                dto.Bio,
-		ExperienceYears:    *dto.ExperienceYears,
+		ExperienceYears:    experienceYears,
 		AvailabilityStatus: dto.AvailabilityStatus,
 		AvailabilityText:   dto.AvailabilityText,
 		ExpertiseSlugs:     dto.Expertise,

@@ -151,7 +151,7 @@ type normalizedMarketerProfile struct {
 func normalizeMarketerProfile(input MarketerProfileInput) (normalizedMarketerProfile, error) {
 	bio := strings.TrimSpace(input.Bio)
 	availabilityText := strings.TrimSpace(input.AvailabilityText)
-	if bio == "" || availabilityText == "" || utf8.RuneCountInString(bio) > MaxProfileTextLength || utf8.RuneCountInString(availabilityText) > MaxProfileTextLength {
+	if utf8.RuneCountInString(bio) > MaxProfileTextLength || utf8.RuneCountInString(availabilityText) > MaxProfileTextLength {
 		return normalizedMarketerProfile{}, domain.ErrInvalidMarketerProfile
 	}
 	if input.ExperienceYears < 0 || input.ExperienceYears > MaxExperienceYears {

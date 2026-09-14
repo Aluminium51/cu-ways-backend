@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -108,11 +109,24 @@ func TestMarketerServiceSavesRequiredProfileAndNormalizesCatalogs(t *testing.T) 
 	}
 }
 
-func TestMarketerServiceRejectsEmptyCoreProfileAndUnknownCatalog(t *testing.T) {
+func TestMarketerServiceAllowsEmptyBioAndAvailabilityText(t *testing.T) {
+	// US-005 AC: leaving bio/experience/availability_text empty must still save.
+	repo := &fakeMarketerProfileRepository{}
+	service := NewMarketerService(repo, &fakeCatalogRepository{}, &fakeMembershipRepository{})
+	profile, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{AvailabilityStatus: "available"})
+	if err != nil {
+		t.Fatalf("expected empty bio/experience/availability_text to be allowed, got %v", err)
+	}
+	if profile.Bio != "" || profile.AvailabilityText != "" || profile.ExperienceYears != 0 {
+		t.Fatalf("unexpected profile: %+v", profile)
+	}
+}
+
+func TestMarketerServiceRejectsOversizedFieldsAndUnknownCatalog(t *testing.T) {
 	service := NewMarketerService(&fakeMarketerProfileRepository{}, &fakeCatalogRepository{}, &fakeMembershipRepository{})
-	_, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{ExperienceYears: 1, AvailabilityStatus: "available"})
+	_, err := service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{Bio: strings.Repeat("a", MaxProfileTextLength+1), AvailabilityStatus: "available"})
 	if !errors.Is(err, domain.ErrInvalidMarketerProfile) {
-		t.Fatalf("expected invalid profile, got %v", err)
+		t.Fatalf("expected invalid profile for oversized bio, got %v", err)
 	}
 	_, err = service.SaveProfile(context.Background(), Actor{UserID: 1}, MarketerProfileInput{
 		Bio: "bio", ExperienceYears: 1, AvailabilityStatus: "available", AvailabilityText: "now", ExpertiseSlugs: []string{"missing"},
