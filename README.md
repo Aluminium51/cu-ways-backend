@@ -12,7 +12,7 @@ For the full design rules, see [docs/architecture.md](docs/architecture.md).
 - Docker Desktop with Docker Compose
 - GNU Make
 
-First, Clone the repository
+Clone the repository:
 
 ```powershell
 git clone https://github.com/cu-ways/cu-ways-backend.git
@@ -27,7 +27,7 @@ cd cu-ways-backend
    Copy-Item .env.example .env
    ```
 
-    for Mac/Linux:
+   For macOS/Linux:
 
     ```bash
     cp .env.example .env
