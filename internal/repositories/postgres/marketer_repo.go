@@ -56,6 +56,38 @@ func (r *MarketerProfileRepository) FindProfile(ctx context.Context, userID int3
 	return &profile, nil
 }
 
+func (r *MarketerProfileRepository) FindDetail(ctx context.Context, userID int32) (*domain.MarketerDetail, error) {
+	profile, err := r.FindProfile(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var performance struct {
+		TotalCompletedJobs int64
+		AverageRating      *float64
+	}
+	if err := r.db.WithContext(ctx).Raw(`
+SELECT
+    COUNT(*) AS total_completed_jobs,
+    AVG(review.rating) FILTER (WHERE review.rating BETWEEN 1 AND 5)::float8 AS average_rating
+FROM jobs AS job
+JOIN offers AS accepted_offer
+  ON accepted_offer.job_id = job.job_id
+ AND accepted_offer.offer_id = job.accepted_offer_id
+LEFT JOIN reviews AS review
+  ON review.job_id = job.job_id
+WHERE job.job_status = ?
+  AND accepted_offer.user_id = ?`, domain.JobStatusCompleted, userID).Scan(&performance).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.MarketerDetail{
+		Marketer:           *profile,
+		TotalCompletedJobs: performance.TotalCompletedJobs,
+		AverageRating:      performance.AverageRating,
+	}, nil
+}
+
 func (r *MarketerProfileRepository) SaveProfile(ctx context.Context, profile *domain.Marketer, expertiseIDs, campusIDs []int32) error {
 	tx := r.db.WithContext(ctx).Begin()
 	if tx.Error != nil {

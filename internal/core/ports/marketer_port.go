@@ -9,6 +9,7 @@ import (
 
 type MarketerProfileRepository interface {
 	FindProfile(ctx context.Context, userID int32) (*domain.Marketer, error)
+	FindDetail(ctx context.Context, userID int32) (*domain.MarketerDetail, error)
 	SaveProfile(ctx context.Context, profile *domain.Marketer, expertiseIDs, campusIDs []int32) error
 	Search(ctx context.Context, query MarketerSearchQuery) (MarketerPage, error)
 }

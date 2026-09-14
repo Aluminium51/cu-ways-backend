@@ -151,6 +151,7 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusConflict {
 		t.Fatalf("expected 409, got %d", res.StatusCode)
 	}
@@ -168,10 +169,11 @@ func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"email":"jane@example.com","password":"correct horse battery staple"}`)).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 
-	_, err := app.Test(req)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer closeResponseBody(t, res.Body)
 	if service.loginCtx == nil || service.loginCtx.Value(authHandlerContextKey{}) != "request-value" {
 		t.Fatal("expected request context to reach auth service")
 	}

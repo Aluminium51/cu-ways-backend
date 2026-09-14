@@ -44,6 +44,22 @@ func (s *MarketerService) GetProfile(ctx context.Context, actor Actor) (*domain.
 	return s.profiles.FindProfile(ctx, actor.UserID)
 }
 
+func (s *MarketerService) GetDetail(ctx context.Context, actor Actor, marketerID int32) (*domain.MarketerDetail, error) {
+	if actor.UserID < 1 || marketerID < 1 {
+		return nil, domain.ErrMarketerProfileNotFound
+	}
+	if !actor.IsAdmin {
+		isCreator, err := s.memberships.IsCreator(ctx, actor.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if !isCreator {
+			return nil, domain.ErrCreatorRequired
+		}
+	}
+	return s.profiles.FindDetail(ctx, marketerID)
+}
+
 func (s *MarketerService) SaveProfile(ctx context.Context, actor Actor, input MarketerProfileInput) (*domain.Marketer, error) {
 	if actor.UserID < 1 {
 		return nil, domain.ErrUserForbidden

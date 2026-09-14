@@ -80,3 +80,10 @@ type MarketerSearchResult struct {
 	AverageRating *float64
 	ReviewCount   int64
 }
+
+// MarketerDetail combines a public marketer profile with verified performance.
+type MarketerDetail struct {
+	Marketer           Marketer
+	TotalCompletedJobs int64
+	AverageRating      *float64
+}
