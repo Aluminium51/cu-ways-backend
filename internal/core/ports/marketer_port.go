@@ -17,6 +17,7 @@ type MarketerProfileRepository interface {
 type MarketerSearchQuery struct {
 	Page               int
 	PageSize           int
+	Keyword            string
 	MinPrice           *decimal.Decimal
 	MaxPrice           *decimal.Decimal
 	ExpertiseSlugs     []string
