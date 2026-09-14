@@ -665,7 +665,7 @@ paths:
             enum: [available, limited, unavailable]
         - name: sort
           in: query
-          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by user ID ascending. Defaults to lowest matching service price.
+          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by marketer name (case-sensitive, ascending), then by user ID ascending as a final deterministic fallback for marketers sharing the same name. Defaults to lowest matching service price.
           schema:
             type: string
             enum: [price_asc, price_desc, rating_asc, rating_desc]
@@ -1057,23 +1057,24 @@ components:
               type: boolean
     MarketerProfileRequest:
       type: object
-      required: [bio, experience_years, availability_status, availability_text]
+      required: [availability_status]
       properties:
         bio:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         experience_years:
           type: integer
           minimum: 0
           maximum: 80
+          description: Optional. Defaults to 0 when omitted.
         availability_status:
           type: string
           enum: [available, limited, unavailable]
         availability_text:
           type: string
-          minLength: 1
           maxLength: 5000
+          description: Optional. Defaults to an empty string when omitted.
         expertise:
           type: array
           items:
