@@ -665,7 +665,7 @@ paths:
             enum: [available, limited, unavailable]
         - name: sort
           in: query
-          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by user ID ascending. Defaults to lowest matching service price.
+          description: Sort by matching service price or completed-job rating. NULL prices and ratings are always placed last; ties are resolved by marketer name (case-sensitive, ascending), then by user ID ascending as a final deterministic fallback for marketers sharing the same name. Defaults to lowest matching service price.
           schema:
             type: string
             enum: [price_asc, price_desc, rating_asc, rating_desc]
