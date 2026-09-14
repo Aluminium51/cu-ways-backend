@@ -35,14 +35,55 @@ type Creator struct {
 func (Creator) TableName() string { return "creators" }
 
 type Marketer struct {
-	UserID           int32   `gorm:"column:user_id;primaryKey"`
-	Bio              *string `gorm:"column:bio;type:text"`
-	Experience       *string `gorm:"column:experience;type:text"`
-	AvailabilityText *string `gorm:"column:availability_text;type:text"`
-	User             *User   `gorm:"foreignKey:UserID;references:UserID"`
+	UserID             int32              `gorm:"column:user_id;primaryKey"`
+	Bio                string             `gorm:"column:bio;type:text;not null"`
+	ExperienceYears    int32              `gorm:"column:experience_years;not null"`
+	AvailabilityStatus AvailabilityStatus `gorm:"column:availability_status;type:varchar(20);not null"`
+	AvailabilityText   string             `gorm:"column:availability_text;type:text;not null"`
+	User               *User              `gorm:"foreignKey:UserID;references:UserID"`
+	Expertise          []Expertise        `gorm:"many2many:marketer_expertise;joinForeignKey:UserID;joinReferences:ExpertiseID"`
+	Campuses           []Campus           `gorm:"many2many:marketer_campuses;joinForeignKey:UserID;joinReferences:CampusID"`
 
 	Services []Service `gorm:"foreignKey:UserID;references:UserID"`
 	Offers   []Offer   `gorm:"foreignKey:UserID;references:UserID"`
 }
 
 func (Marketer) TableName() string { return "marketers" }
+
+type AvailabilityStatus string
+
+const (
+	AvailabilityAvailable   AvailabilityStatus = "available"
+	AvailabilityLimited     AvailabilityStatus = "limited"
+	AvailabilityUnavailable AvailabilityStatus = "unavailable"
+)
+
+type Expertise struct {
+	ExpertiseID int32  `gorm:"column:expertise_id;primaryKey;autoIncrement"`
+	Slug        string `gorm:"column:slug;type:varchar(80);uniqueIndex;not null"`
+	Name        string `gorm:"column:name;type:varchar(120);not null"`
+}
+
+func (Expertise) TableName() string { return "expertise_options" }
+
+type Campus struct {
+	CampusID int32  `gorm:"column:campus_id;primaryKey;autoIncrement"`
+	Slug     string `gorm:"column:slug;type:varchar(80);uniqueIndex;not null"`
+	Name     string `gorm:"column:name;type:varchar(120);not null"`
+}
+
+func (Campus) TableName() string { return "campus_options" }
+
+type MarketerSearchResult struct {
+	Marketer      Marketer
+	LowestPrice   *string
+	AverageRating *float64
+	ReviewCount   int64
+}
+
+// MarketerDetail combines a public marketer profile with verified performance.
+type MarketerDetail struct {
+	Marketer           Marketer
+	TotalCompletedJobs int64
+	AverageRating      *float64
+}

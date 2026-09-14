@@ -34,9 +34,8 @@ func TestLoadFromFileAppliesDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, key := range []string{"APP_ENV", "PORT", "SHUTDOWN_TIMEOUT", "READINESS_TIMEOUT", "DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME", "DATABASE_URL", "SECRET_KEY", "SEED_ADMIN_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"} {
+	for _, key := range []string{"APP_ENV", "PORT", "SHUTDOWN_TIMEOUT", "READINESS_TIMEOUT", "DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME", "DATABASE_URL", "SECRET_KEY", "SEED_ADMIN_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD", "MOCK_USER_PASSWORD"} {
 		t.Setenv(key, "")
-		t.Cleanup(func() { os.Unsetenv(key) })
 	}
 
 	cfg, err := LoadFromFile(path)
@@ -50,13 +49,14 @@ func TestLoadFromFileAppliesDefaults(t *testing.T) {
 
 func TestLoadFromFileLoadsSeedAdminAndEnvironmentOverrides(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".env")
-	if err := os.WriteFile(path, []byte("DATABASE_URL=postgresql://localhost:5432/cuways\nSECRET_KEY=local-secret\nSEED_ADMIN_NAME=File Admin\nSEED_ADMIN_EMAIL=file@example.com\nSEED_ADMIN_PASSWORD=file-password\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("DATABASE_URL=postgresql://localhost:5432/cuways\nSECRET_KEY=local-secret\nSEED_ADMIN_NAME=File Admin\nSEED_ADMIN_EMAIL=file@example.com\nSEED_ADMIN_PASSWORD=file-password\nMOCK_USER_PASSWORD=file-mock-password\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Setenv("SEED_ADMIN_NAME", "Environment Admin")
 	t.Setenv("SEED_ADMIN_EMAIL", "env@example.com")
 	t.Setenv("SEED_ADMIN_PASSWORD", "environment-password")
+	t.Setenv("MOCK_USER_PASSWORD", "environment-mock-password")
 
 	cfg, err := LoadFromFile(path)
 	if err != nil {
@@ -65,6 +65,9 @@ func TestLoadFromFileLoadsSeedAdminAndEnvironmentOverrides(t *testing.T) {
 	if cfg.SeedAdmin.Name != "Environment Admin" || cfg.SeedAdmin.Email != "env@example.com" || cfg.SeedAdmin.Password != "environment-password" {
 		t.Fatalf("expected environment seed admin settings to override file, got %+v", cfg.SeedAdmin)
 	}
+	if cfg.MockData.UserPassword != "environment-mock-password" {
+		t.Fatalf("expected environment mock password to override file, got %q", cfg.MockData.UserPassword)
+	}
 }
 
 func TestLoadFromFileRequiresDatabaseURL(t *testing.T) {
@@ -72,6 +75,7 @@ func TestLoadFromFileRequiresDatabaseURL(t *testing.T) {
 	if err := os.WriteFile(path, []byte("SECRET_KEY=local-secret\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("DATABASE_URL", "")
 
 	_, err := LoadFromFile(path)
 	if err == nil || err.Error() != "DATABASE_URL is required" {

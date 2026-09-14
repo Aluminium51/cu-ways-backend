@@ -23,13 +23,6 @@ type Actor struct {
 	IsAdmin bool
 }
 
-type CreateUserInput struct {
-	Name   string
-	Email  string
-	Phone  *string
-	LineID *string
-}
-
 // UpdateUserInput uses Set flags for nullable fields so the service can
 // distinguish an omitted field from an explicit null that clears it.
 type UpdateUserInput struct {
@@ -49,42 +42,6 @@ type UserService struct {
 
 func NewUserService(repo ports.UserRepository) *UserService {
 	return &UserService{repo: repo, now: time.Now}
-}
-
-func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*domain.User, error) {
-	name, err := normalizeName(input.Name)
-	if err != nil {
-		return nil, err
-	}
-	email, err := normalizeEmail(input.Email)
-	if err != nil {
-		return nil, err
-	}
-	phone, err := normalizeContact(input.Phone, 20)
-	if err != nil {
-		return nil, err
-	}
-	lineID, err := normalizeContact(input.LineID, 50)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.ensureEmailAvailable(ctx, email, 0); err != nil {
-		return nil, err
-	}
-
-	user := &domain.User{
-		Name:      name,
-		Email:     email,
-		Phone:     phone,
-		LineID:    lineID,
-		Role:      domain.RoleUser,
-		CreatedAt: s.now().UTC(),
-	}
-	if err := s.repo.Create(ctx, user); err != nil {
-		return nil, err
-	}
-	return user, nil
 }
 
 func (s *UserService) Get(ctx context.Context, actor Actor, userID int32) (*domain.User, error) {
@@ -144,7 +101,7 @@ func (s *UserService) Update(ctx context.Context, actor Actor, userID int32, inp
 		patch.Email = &email
 	}
 	if input.PhoneSet {
-		phone, err := normalizeContact(input.Phone, 20)
+		phone, err := normalizePhone(input.Phone)
 		if err != nil {
 			return nil, err
 		}
@@ -221,6 +178,22 @@ func normalizeContact(value *string, maxRunes int) (*string, error) {
 	normalized := strings.TrimSpace(*value)
 	if normalized == "" || utf8.RuneCountInString(normalized) > maxRunes {
 		return nil, domain.ErrInvalidUser
+	}
+	return &normalized, nil
+}
+
+func normalizePhone(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	normalized := strings.TrimSpace(*value)
+	if normalized == "" || utf8.RuneCountInString(normalized) > 20 {
+		return nil, domain.ErrInvalidUser
+	}
+	for _, character := range normalized {
+		if character < '0' || character > '9' {
+			return nil, domain.ErrInvalidUser
+		}
 	}
 	return &normalized, nil
 }

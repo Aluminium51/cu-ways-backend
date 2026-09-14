@@ -15,13 +15,11 @@ import (
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"github.com/Aluminium51/cu-way-backend/internal/middleware"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
-	"github.com/Aluminium51/cu-way-backend/internal/platform/utils"
 	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 )
 
 type userService interface {
-	Create(context.Context, services.CreateUserInput) (*domain.User, error)
 	Get(context.Context, services.Actor, int32) (*domain.User, error)
 	List(context.Context, services.Actor, ports.UserListQuery) (ports.UserPage, error)
 	Update(context.Context, services.Actor, int32, services.UpdateUserInput) (*domain.User, error)
@@ -34,13 +32,6 @@ type UserHandler struct {
 
 func NewUserHandler(service userService) *UserHandler {
 	return &UserHandler{service: service}
-}
-
-type CreateUserDTO struct {
-	Name   string  `json:"name" validate:"required,max=100"`
-	Email  string  `json:"email" validate:"required,email,max=255"`
-	Phone  *string `json:"phone" validate:"omitempty,max=20"`
-	LineID *string `json:"line_id" validate:"omitempty,max=50"`
 }
 
 // OptionalString preserves whether a JSON field was omitted or explicitly
@@ -92,33 +83,6 @@ type UserListResponse struct {
 type DeleteUserResponse struct {
 	UserID  int32 `json:"user_id"`
 	Deleted bool  `json:"deleted"`
-}
-
-func (h *UserHandler) Create(c *fiber.Ctx) error {
-	var dto CreateUserDTO
-	if err := c.BodyParser(&dto); err != nil {
-		return validationError(err)
-	}
-	if err := utils.Validate(dto); err != nil {
-		return validationError(err)
-	}
-	if err := validateContactDTO(dto.Phone, 20); err != nil {
-		return validationError(err)
-	}
-	if err := validateContactDTO(dto.LineID, 50); err != nil {
-		return validationError(err)
-	}
-
-	user, err := h.service.Create(c.UserContext(), services.CreateUserInput{
-		Name:   dto.Name,
-		Email:  dto.Email,
-		Phone:  dto.Phone,
-		LineID: dto.LineID,
-	})
-	if err != nil {
-		return mapUserError(err)
-	}
-	return response.Success(c, fiber.StatusCreated, toUserResponse(user))
 }
 
 func (h *UserHandler) Get(c *fiber.Ctx) error {
@@ -326,6 +290,8 @@ func mapUserError(err error) error {
 		return response.NewAppError(fiber.StatusNotFound, "user_not_found", "user not found", err)
 	case errors.Is(err, domain.ErrEmailAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "email_already_exists", "email already exists", err)
+	case errors.Is(err, domain.ErrPhoneAlreadyExists):
+		return response.NewAppError(fiber.StatusConflict, "phone_already_exists", "phone already exists", err)
 	case errors.Is(err, domain.ErrUserForbidden):
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this user", err)
 	case errors.Is(err, domain.ErrInvalidUser), errors.Is(err, domain.ErrNoUserChanges):

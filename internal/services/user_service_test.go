@@ -11,17 +11,19 @@ import (
 )
 
 type fakeUserRepository struct {
-	users map[int32]*domain.User
+	users      map[int32]*domain.User
+	creatorIDs map[int32]bool
 
-	findByEmailErr error
-	listErr        error
-	updateErr      error
-	softDeleteErr  error
-	lastContext    context.Context
+	findByEmailErr       error
+	createWithCreatorErr error
+	listErr              error
+	updateErr            error
+	softDeleteErr        error
+	lastContext          context.Context
 }
 
 func newFakeUserRepository(users ...*domain.User) *fakeUserRepository {
-	repo := &fakeUserRepository{users: make(map[int32]*domain.User)}
+	repo := &fakeUserRepository{users: make(map[int32]*domain.User), creatorIDs: make(map[int32]bool)}
 	for _, user := range users {
 		copy := *user
 		repo.users[user.UserID] = &copy
@@ -36,6 +38,23 @@ func (f *fakeUserRepository) Create(ctx context.Context, user *domain.User) erro
 	}
 	copy := *user
 	f.users[user.UserID] = &copy
+	return nil
+}
+
+func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain.User) error {
+	f.lastContext = ctx
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if f.createWithCreatorErr != nil {
+		return f.createWithCreatorErr
+	}
+	if user.UserID == 0 {
+		user.UserID = int32(len(f.users) + 1)
+	}
+	copy := *user
+	f.users[user.UserID] = &copy
+	f.creatorIDs[user.UserID] = true
 	return nil
 }
 
@@ -123,37 +142,6 @@ func (f *fakeUserRepository) SoftDelete(ctx context.Context, userID int32, delet
 	}
 	user.DeletedAt = &deletedAt
 	return nil
-}
-
-func TestUserServiceCreateNormalizesAndCreates(t *testing.T) {
-	repo := newFakeUserRepository()
-	service := NewUserService(repo)
-	phone := "0812345678"
-
-	user, err := service.Create(context.Background(), CreateUserInput{
-		Name:  " Jane Doe ",
-		Email: " JANE@EXAMPLE.COM ",
-		Phone: &phone,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if user.Name != "Jane Doe" || user.Email != "jane@example.com" {
-		t.Fatalf("expected normalized user, got %+v", user)
-	}
-	if user.Phone == nil || *user.Phone != phone || user.CreatedAt.IsZero() {
-		t.Fatalf("expected contact field and created timestamp, got %+v", user)
-	}
-}
-
-func TestUserServiceCreateRejectsDuplicateEmail(t *testing.T) {
-	repo := newFakeUserRepository(&domain.User{UserID: 1, Email: "jane@example.com"})
-	service := NewUserService(repo)
-
-	_, err := service.Create(context.Background(), CreateUserInput{Name: "Jane", Email: "JANE@example.com"})
-	if !errors.Is(err, domain.ErrEmailAlreadyExists) {
-		t.Fatalf("expected duplicate email error, got %v", err)
-	}
 }
 
 func TestUserServiceAuthorization(t *testing.T) {
@@ -248,9 +236,10 @@ func TestUserServicePropagatesContext(t *testing.T) {
 	service := NewUserService(repo)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	repo.findByEmailErr = context.Canceled
+	repo.updateErr = context.Canceled
 
-	_, err := service.Create(ctx, CreateUserInput{Name: "Jane", Email: "jane@example.com"})
+	name := "Jane"
+	_, err := service.Update(ctx, Actor{UserID: 1}, 1, UpdateUserInput{Name: &name})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", err)
 	}

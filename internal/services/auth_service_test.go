@@ -83,6 +83,9 @@ func TestAuthServiceRegisterCreatesUserAndIssuesUserToken(t *testing.T) {
 	if result.User.Role != domain.RoleUser || result.User.PasswordHash == nil || *result.User.PasswordHash != "argon2id-hash" {
 		t.Fatalf("expected user role and password hash, got %+v", result.User)
 	}
+	if !repo.creatorIDs[result.User.UserID] {
+		t.Fatalf("expected Creator membership for user %d", result.User.UserID)
+	}
 	if result.Token != "test-token" || issuer.subject != "1" || issuer.role != domain.RoleUser || issuer.ttl != AccessTokenTTL {
 		t.Fatalf("unexpected issued token: %+v, issuer=%+v", result, issuer)
 	}
@@ -102,6 +105,27 @@ func TestAuthServiceRegisterRejectsDuplicateEmail(t *testing.T) {
 	})
 	if !errors.Is(err, domain.ErrEmailAlreadyExists) {
 		t.Fatalf("expected duplicate email error, got %v", err)
+	}
+	if len(repo.creatorIDs) != 0 {
+		t.Fatal("duplicate registration must not create a Creator membership")
+	}
+}
+
+func TestAuthServiceRegisterPropagatesRegistrationRepositoryError(t *testing.T) {
+	repo := newFakeUserRepository()
+	repo.createWithCreatorErr = errors.New("registration persistence failed")
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	_, err := service.Register(context.Background(), RegisterInput{
+		Name:     "Jane",
+		Email:    "jane@example.com",
+		Password: "correct horse battery staple",
+	})
+	if !errors.Is(err, repo.createWithCreatorErr) {
+		t.Fatalf("expected registration repository error, got %v", err)
+	}
+	if len(repo.users) != 0 || len(repo.creatorIDs) != 0 {
+		t.Fatal("failed registration must not persist user or Creator membership")
 	}
 }
 

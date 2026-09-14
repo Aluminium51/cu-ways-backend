@@ -94,6 +94,7 @@ Current models include:
 - `Service` and `Survey`
 - `Job` and `JobSurvey`
 - `Offer`, `Attachment`, `Payment`, and `Review`
+- normalized marketer expertise, campus, experience, availability, service, and survey metadata types
 - Status and type constants used by the database constraints
 
 Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. Keep domain entities free of external package imports; persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
@@ -109,6 +110,11 @@ Current ports:
 - `ReadinessChecker` for dependency health checks.
 - `UserRepository` for user persistence and soft deletion.
 - `SetRole` on the user persistence boundary for controlled admin seeding.
+- `MembershipRepository` for Creator/Marketer profile membership checks.
+- `CatalogRepository` for curated expertise and campus values.
+- `MarketerProfileRepository` for atomic profile replacement and filtered search.
+- `ServiceRepository` for marketer-owned service offerings.
+- `SurveyRepository` for survey metadata and atomic Creator provisioning/deletion checks.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
@@ -127,6 +133,9 @@ Current services:
 - `UserService`, which validates and authorizes user profile operations.
 - `AuthService`, which registers accounts, verifies passwords, and issues access tokens.
 - `AdminSeedService`, which creates or promotes a development/test admin without overwriting existing credentials.
+- `MarketerService`, which saves professional profiles and applies creator/admin search rules.
+- `ServiceService`, which manages marketer-owned service offerings.
+- `SurveyService`, which manages survey metadata and ownership rules.
 
 Feature services should:
 
@@ -150,7 +159,7 @@ Handlers are responsible for:
 - Translating service results to HTTP status codes and response envelopes.
 - Avoiding direct database or repository calls.
 
-Current HTTP handlers include the health probes, User CRUD, and public authentication routes under `/api/v1/auth`.
+Current HTTP handlers include the health probes, User CRUD, public authentication routes under `/api/v1/auth`, marketer profile/service/search routes, and survey metadata routes.
 
 Handlers should not contain multi-step business rules. A handler should remain thin enough that its behavior can be tested with Fiber requests and mocked service dependencies.
 
@@ -158,7 +167,7 @@ Handlers should not contain multi-step business rules. A handler should remain t
 
 PostgreSQL persistence implementations.
 
-The package contains the PostgreSQL user repository and is the home for future feature repositories. Repositories will:
+The package contains PostgreSQL repositories for users, memberships, catalogs, marketers, services, and surveys. Repositories will:
 
 - Implement ports from `internal/core/ports`.
 - Use the shared GORM database connection from `internal/platform/database`.
@@ -270,7 +279,7 @@ Implementation rules:
 - Keep one transaction boundary around the complete use case. Nested service calls should join the existing unit of work rather than silently opening independent transactions.
 - A single read or write does not need a transaction solely because it uses a repository; use transactions for atomicity, consistency, or explicitly required isolation.
 
-The current foundation has no multi-write feature use cases. Add the transaction port alongside the first feature that requires atomic state changes rather than introducing a generic transaction abstraction in advance.
+Current multi-write use cases such as first-survey creation and marketer profile replacement expose atomic operations through feature ports. Their PostgreSQL adapters own the GORM transaction and commit/rollback behavior; add a focused transaction-capable port for future multi-write workflows instead of exposing a generic database handle.
 
 ## Validation boundary
 
@@ -341,6 +350,7 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000002_domain_schema` creates the current domain tables, constraints, indexes, and foreign keys.
 - `000003_add_user_soft_delete` adds the nullable `users.deleted_at` column and its index.
 - `000004_authentication` adds nullable `users.password_hash` and constrained `users.role` columns.
+- `000005_marketer_profiles` adds the unique nullable phone index, non-null normalized marketer profile fields, curated catalog tables, and marketer join tables.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
@@ -414,4 +424,4 @@ go list ./...
 
 ## Current status
 
-The foundation and User CRUD feature are implemented. Survey, job, offer, payment, review, authentication, and other domain workflows remain future work. The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, and `/api/v1/users`.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, and survey metadata operations. Job, offer, payment, review, and refresh-token workflows remain future work.
