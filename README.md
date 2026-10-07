@@ -260,6 +260,11 @@ Change the example passwords before using this setup outside local development.
 | `make run` | Start the API |
 | `make build` | Build the API binary |
 | `make test` | Run all tests |
+| `make test-json` | Run uncached tests with machine-readable diagnostic events |
+| `make test-integration` | Run repository tests against an explicit disposable `TEST_DATABASE_URL` |
+| `make smoke` | Verify HTTP composition and request diagnostics without a database |
+| `make smoke-live` | Probe `/healthz` on an already running local API |
+| `make verify` | Run vet, uncached tests, and the API build |
 | `make vet` | Run `go vet` |
 | `make fmt` | Format Go code |
 | `make db-up` | Start PostgreSQL |
@@ -287,11 +292,15 @@ Environment variables override values from `.env`. The local PostgreSQL URL shou
 Before submitting changes, run:
 
 ```powershell
-go test ./...
+go test -count=1 ./...
 go vet ./...
 go build -trimpath ./cmd/api
 go list ./...
 ```
+
+The regular test suite includes production import-boundary checks and a database-free HTTP composition smoke test. PostgreSQL integration fixtures run only when `TEST_DATABASE_URL` is explicitly set to a migrated loopback database whose name ends with `_test`; `DATABASE_URL` is reserved for the application and migrations. Integration tests use rollback transactions but consume database sequences, so use a disposable test database.
+
+For JSON evidence, live probes, and integration setup, see [docs/verification.md](docs/verification.md).
 
 ## Pull requests and commit messages
 

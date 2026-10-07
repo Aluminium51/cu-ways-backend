@@ -7,6 +7,9 @@ on:
     branches: [main, dev]
     types: [opened, edited, synchronize, reopened]
 
+permissions:
+  contents: read
+
 jobs:
   governance:
     name: PR title and commit messages
@@ -70,6 +73,17 @@ jobs:
           version: v2.12.2
           args: --timeout=5m
 
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          mapfile -t go_files < <(git ls-files '*.go')
+          unformatted="$(gofmt -l "${go_files[@]}")"
+          if [[ -n "$unformatted" ]]; then
+            printf '%s\n' "$unformatted"
+            echo "Run gofmt on the listed Go files."
+            exit 1
+          fi
+
       - name: Run go vet
         run: go vet ./...
 
@@ -111,11 +125,26 @@ jobs:
 
       - name: Run tests with coverage
         env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/cuways_test?sslmode=disable
+          TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/cuways_test?sslmode=disable
           SECRET_KEY: test-secret-key-for-ci
-        run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p coverage
+          go test -json -count=1 -race -covermode=atomic -coverprofile=coverage/coverage.out ./... | tee coverage/tests.jsonl
+
+      - name: Retain test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-evidence
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Check build targets
         run: |
           go build -v -o /dev/null ./cmd/api
           go build -v -o /dev/null ./cmd/seed-admin
+          go build -v -o /dev/null ./cmd/seed-mock-users
+          go build -v -o /dev/null ./cmd/smoke

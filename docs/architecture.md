@@ -19,7 +19,7 @@ cu-ways-backend/
 ├── internal/
 │   ├── config/                     # Environment loading and configuration validation
 │   ├── core/
-│   │   ├── domain/                 # Entities and domain types; standard library only, zero external imports
+│   │   ├── domain/                 # Entities and domain types; standard library and exact decimal values
 │   │   └── ports/                  # Consumer-side interfaces required by use cases
 │   ├── handlers/
 │   │   └── http/                   # Fiber HTTP adapters; package httpapi
@@ -97,7 +97,7 @@ Current models include:
 - normalized marketer expertise, campus, experience, availability, service, and survey metadata types
 - Status and type constants used by the database constraints
 
-Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. Keep domain entities free of external package imports; persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
+Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. The existing `github.com/shopspring/decimal` dependency supplies exact monetary value types; other imports must come from the standard library. Persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
 
 Request and response DTOs should be defined near the HTTP feature handler, not added to the domain entities solely for transport formatting.
 
@@ -229,6 +229,8 @@ The following rules are mandatory:
 11. Services may coordinate transactions through a port, but must never receive or import `*gorm.DB` or `*sql.Tx`.
 12. HTTP handlers validate transport format and syntax; services validate business meaning and invariants.
 13. Repositories enforce persistence concerns and translate database constraint errors; they do not own business decisions.
+
+`go test ./internal/architecture` checks these production import boundaries with the Go parser. Test files may import adapters to exercise their contracts. This check enforces layer dependencies; service and handler tests still prove authorization, context propagation, and business invariants.
 
 ## Context propagation
 
