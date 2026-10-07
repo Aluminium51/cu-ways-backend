@@ -125,55 +125,16 @@ func New(deps Dependencies) *fiber.App {
 	api.Get("/surveys/:id", protectedUsers, surveyHandler.Get)
 	api.Patch("/surveys/:id", protectedUsers, surveyHandler.Update)
 	api.Delete("/surveys/:id", protectedUsers, surveyHandler.Delete)
-
-	// =========================================================================
-	// 4. Dependency Injection & Repository Wiring [FUTURE]
-	// =========================================================================
-	// surveyRepo := postgres.NewSurveyRepository(deps.DB)
-	// jobRepo := postgres.NewJobRepository(deps.DB)
-	// paymentRepo := postgres.NewPaymentRepository(deps.DB)
-
-	// =========================================================================
-	// 5. Service Layer Instantiation [FUTURE]
-	// =========================================================================
-	// surveyService := services.NewSurveyService(surveyRepo)
-	// jobService := services.NewJobService(jobRepo, surveyRepo) // Handles state machines
-	// paymentService := services.NewPaymentService(paymentRepo, jobRepo)
-
-	// =========================================================================
-	// 6. HTTP Handlers Instantiation [FUTURE]
-	// =========================================================================
-	// surveyHandler := httpapi.NewSurveyHandler(surveyService)
-	// jobHandler := httpapi.NewJobHandler(jobService)
-	// paymentHandler := httpapi.NewPaymentHandler(paymentService)
-
-	// =========================================================================
-	// 7. API Routes Registration [FUTURE]
-	// =========================================================================
-	// api := app.Group("/api/v1")
-
-	// --- Public Routes ---
-	// --- Protected Routes (Require JWT Middleware) ---
-	// protected := api.Group("", middleware.Auth(deps.TokenVerifier))
-	//
-	// User / Profile
-	// protected.Get("/users/me", userHandler.GetProfile)
-	// protected.Put("/users/me", userHandler.UpdateProfile)
-	//
-	// Survey Management
-	// protected.Get("/surveys", surveyHandler.ListSurveys)
-	// protected.Post("/surveys", surveyHandler.CreateSurvey)
-	// protected.Get("/surveys/:id", surveyHandler.GetSurveyDetail)
-	//
-	// Job & Offer Flow (State Machine)
-	// protected.Post("/jobs", jobHandler.CreateJob)
-	// protected.Post("/jobs/:id/offers", jobHandler.SubmitOffer)
-	// protected.Put("/jobs/:id/accept", jobHandler.AcceptJob)
-	// protected.Put("/jobs/:id/complete", jobHandler.CompleteJob)
-	//
-	// Payment & Proof of Work
-	// protected.Post("/jobs/:id/payments", paymentHandler.CreatePayment)
-	// protected.Post("/jobs/:id/attachments", jobHandler.UploadProof)
+	jobRepo := postgres.NewJobRepository(deps.DB)
+	jobService := services.NewJobService(jobRepo, memberships)
+	jobHandler := httpapi.NewJobHandler(jobService)
+	api.Get("/me/surveys", protectedUsers, jobHandler.ListSurveys)
+	api.Post("/jobs", protectedUsers, jobHandler.Create)
+	api.Post("/jobs/:id/surveys/:surveyId", protectedUsers, jobHandler.AddSurvey)
+	api.Delete("/jobs/:id/surveys/:surveyId", protectedUsers, jobHandler.RemoveSurvey)
+	api.Post("/jobs/:id/briefs", protectedUsers, jobHandler.AddBrief)
+	api.Get("/jobs/:id/briefs", protectedUsers, jobHandler.ListBriefs)
+	api.Post("/jobs/:id/requests", protectedUsers, jobHandler.CreateRequests)
 
 	return app
 }

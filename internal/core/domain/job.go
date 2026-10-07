@@ -39,3 +39,28 @@ type JobSurvey struct {
 }
 
 func (JobSurvey) TableName() string { return "is_used_in" }
+
+type JobRequestStatus string
+
+const (
+	JobRequestStatusPending  JobRequestStatus = "Pending"
+	JobRequestStatusAccepted JobRequestStatus = "Accepted"
+	JobRequestStatusDeclined JobRequestStatus = "Declined"
+	JobRequestStatusClosed   JobRequestStatus = "Closed"
+)
+
+// JobRequest records a Creator's invitation to a Marketer. Accepting this
+// invitation is separate from accepting a later offer for the job.
+type JobRequest struct {
+	JobRequestID int32            `gorm:"column:job_request_id;primaryKey;autoIncrement"`
+	JobID        int32            `gorm:"column:job_id;not null"`
+	MarketerID   int32            `gorm:"column:marketer_id;not null"`
+	Status       JobRequestStatus `gorm:"column:request_status;type:varchar(20);not null"`
+	CreatedAt    time.Time        `gorm:"column:created_at;type:timestamp;not null"`
+	RespondedAt  *time.Time       `gorm:"column:responded_at;type:timestamp"`
+
+	Job      *Job      `gorm:"foreignKey:JobID;references:JobID"`
+	Marketer *Marketer `gorm:"foreignKey:MarketerID;references:UserID"`
+}
+
+func (JobRequest) TableName() string { return "job_requests" }

@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, and survey metadata management. Job, offer, payment, review, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, and Creator job setup workflows. Offer acceptance, payment, review, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -229,6 +229,22 @@ curl.exe "http://localhost:8081/api/v1/marketers?sort=rating_asc" `
 ```
 
 Create surveys with `POST /api/v1/surveys`. Registration already provisions the Creator membership; survey creation also uses an idempotent membership insert so existing and legacy accounts can create surveys safely. Survey owners can read, edit, and delete their surveys with `/api/v1/surveys/:id`. A survey referenced by any `is_used_in` row cannot be deleted, even when the related job is no longer active.
+
+## Creator Job Setup
+
+Creator job setup endpoints require a JWT and active Creator membership. A job must start with at least one survey owned by the Creator. Creating the job and its `is_used_in` links is one transaction, and the new job starts `Pending` with no accepted offer.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/me/surveys` | List surveys available to the Creator |
+| `POST` | `/api/v1/jobs` | Create a job with one or more owned survey IDs |
+| `POST` | `/api/v1/jobs/:id/surveys/:surveyId` | Link another owned survey |
+| `DELETE` | `/api/v1/jobs/:id/surveys/:surveyId` | Remove a link while keeping at least one survey |
+| `POST` | `/api/v1/jobs/:id/briefs` | Add a new HTTP(S) Brief URL |
+| `GET` | `/api/v1/jobs/:id/briefs` | List Brief history, newest first; the first item is current |
+| `POST` | `/api/v1/jobs/:id/requests` | Invite one or more Marketers |
+
+Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic.
 
 ## Database tools
 

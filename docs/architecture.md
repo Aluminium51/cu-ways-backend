@@ -115,13 +115,14 @@ Current ports:
 - `MarketerProfileRepository` for atomic profile replacement and filtered search.
 - `ServiceRepository` for marketer-owned service offerings.
 - `SurveyRepository` for survey metadata and atomic Creator provisioning/deletion checks.
+- `JobRepository` for Creator job creation, survey linking, Brief history, and marketer invitations.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
 
 When a feature is introduced, add a focused port describing the capability a service needs. The interface belongs to the consumer side, normally the service/application layer. PostgreSQL repositories implement those interfaces.
 
-Do not create speculative `user_port.go`, `survey_port.go`, or `job_port.go` files before their use cases exist.
+Add ports when their use cases exist; keep them focused on what the consuming service needs.
 
 ### `internal/services`
 
@@ -136,6 +137,7 @@ Current services:
 - `MarketerService`, which saves professional profiles and applies creator/admin search rules.
 - `ServiceService`, which manages marketer-owned service offerings.
 - `SurveyService`, which manages survey metadata and ownership rules.
+- `JobService`, which creates jobs with owned surveys, manages survey links and Brief history, and invites Marketers.
 
 Feature services should:
 
@@ -159,7 +161,7 @@ Handlers are responsible for:
 - Translating service results to HTTP status codes and response envelopes.
 - Avoiding direct database or repository calls.
 
-Current HTTP handlers include the health probes, User CRUD, public authentication routes under `/api/v1/auth`, marketer profile/service/search routes, and survey metadata routes.
+Current HTTP handlers include the health probes, User CRUD, public authentication routes under `/api/v1/auth`, marketer profile/service/search routes, survey metadata routes, and Creator job setup routes.
 
 Handlers should not contain multi-step business rules. A handler should remain thin enough that its behavior can be tested with Fiber requests and mocked service dependencies.
 
@@ -353,6 +355,8 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000003_add_user_soft_delete` adds the nullable `users.deleted_at` column and its index.
 - `000004_authentication` adds nullable `users.password_hash` and constrained `users.role` columns.
 - `000005_marketer_profiles` adds the unique nullable phone index, non-null normalized marketer profile fields, curated catalog tables, and marketer join tables.
+- `000006_service_listing_lifecycle` adds soft deletion for marketer service listings.
+- `000007_creator_job_workflows` adds active invitation uniqueness and the `job_requests` history table.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
@@ -426,4 +430,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, and survey metadata operations. Job, offer, payment, review, and refresh-token workflows remain future work.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, and Creator job setup (survey linking, Brief history, and invitations). Offer acceptance, payment, review, and refresh-token workflows remain future work.

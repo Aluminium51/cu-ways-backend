@@ -30,6 +30,7 @@ func TestWorkflowSmoke(t *testing.T) {
 	const dependencyError = "simulated PostgreSQL connectivity failure"
 	checks := []struct {
 		name          string
+		method        string
 		path          string
 		dependencyErr error
 		status        int
@@ -48,6 +49,13 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "statistics_require_authentication", path: "/api/v1/me/statistics", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "search_requires_authentication", path: "/api/v1/marketers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "survey_requires_authentication", path: "/api/v1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "creator_surveys_require_authentication", path: "/api/v1/me/surveys", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_creation_requires_authentication", method: "POST", path: "/api/v1/jobs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_survey_add_requires_authentication", method: "POST", path: "/api/v1/jobs/1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_survey_remove_requires_authentication", method: "DELETE", path: "/api/v1/jobs/1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "brief_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/briefs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "brief_history_requires_authentication", path: "/api/v1/jobs/1/briefs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_invitations_require_authentication", method: "POST", path: "/api/v1/jobs/1/requests", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "unknown_route", path: "/__workflow_smoke_missing", status: 404, envelope: "error", errorCode: "not_found"},
 	}
 
@@ -61,7 +69,11 @@ func TestWorkflowSmoke(t *testing.T) {
 				ReadinessTimeout: time.Second,
 			})
 			requestID := "workflow-smoke-" + check.name
-			request := httptest.NewRequest("GET", check.path, nil)
+			method := check.method
+			if method == "" {
+				method = "GET"
+			}
+			request := httptest.NewRequest(method, check.path, nil)
 			request.Header.Set("X-Request-ID", requestID)
 			res, err := app.Test(request)
 			if err != nil {
@@ -69,7 +81,7 @@ func TestWorkflowSmoke(t *testing.T) {
 			}
 			defer closeResponseBody(t, res.Body)
 			if res.StatusCode != check.status {
-				t.Fatalf("GET %s: expected %d, got %d", check.path, check.status, res.StatusCode)
+				t.Fatalf("%s %s: expected %d, got %d", method, check.path, check.status, res.StatusCode)
 			}
 			if got := res.Header.Get("X-Request-ID"); got != requestID {
 				t.Fatalf("request ID correlation: expected %q, got %q", requestID, got)
@@ -113,7 +125,7 @@ func TestWorkflowSmoke(t *testing.T) {
 					t.Fatal("request diagnostic lost request ID correlation")
 				}
 			}
-			t.Logf("smoke method=GET path=%s status=%d request_id=%s dependency_probes=%d", check.path, res.StatusCode, requestID, checker.calls)
+			t.Logf("smoke method=%s path=%s status=%d request_id=%s dependency_probes=%d", method, check.path, res.StatusCode, requestID, checker.calls)
 		})
 	}
 }

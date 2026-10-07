@@ -24,6 +24,7 @@ func TestModelTableNames(t *testing.T) {
 		{"surveys", Survey{}, "surveys"},
 		{"jobs", Job{}, "jobs"},
 		{"is_used_in", JobSurvey{}, "is_used_in"},
+		{"job_requests", JobRequest{}, "job_requests"},
 		{"offers", Offer{}, "offers"},
 		{"attachments", Attachment{}, "attachments"},
 		{"payments", Payment{}, "payments"},
