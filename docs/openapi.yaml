@@ -970,6 +970,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/jobs:
+    get:
+      operationId: listMyJobs
+      summary: List jobs owned by the authenticated Creator
+      description: Jobs are ordered by created_at descending and then job_id descending. Each job includes its linked survey IDs and titles, ordered by survey_id ascending. An empty list is valid.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The Creator's job summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorJobSummaryListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: getJob
+      summary: Get a Creator-owned job summary
+      description: Returns the job's linked surveys ordered by survey_id ascending. The authenticated user must have active Creator membership and own the job.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The job summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorJobSummaryResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership or does not own the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/surveys/{surveyId}:
     parameters:
       - name: id
@@ -1200,6 +1268,38 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Request is empty, contains duplicate IDs, or selects an unavailable marketer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: listJobRequests
+      summary: List invitation history for a Creator-owned job
+      description: Includes all request statuses, newest first by created_at and then job_request_id. Responses include marketer names only and do not expose contact or profile details. The authenticated user must have active Creator membership and own the job.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The job's invitation history. An empty list is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentJobRequestListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership or does not own the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found.
           content:
             application/json:
               schema:
@@ -1716,6 +1816,52 @@ components:
           enum: [success]
         data:
           $ref: '#/components/schemas/Job'
+    JobSurveySummary:
+      type: object
+      required: [survey_id, title]
+      properties:
+        survey_id:
+          type: integer
+          format: int32
+        title:
+          type: string
+    CreatorJobSummary:
+      type: object
+      required: [job_id, job_status, created_at, surveys]
+      properties:
+        job_id:
+          type: integer
+          format: int32
+        job_status:
+          type: string
+          enum: [Pending, Accepted, In Progress, Completed, Cancelled]
+        created_at:
+          type: string
+          format: date-time
+        surveys:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobSurveySummary'
+    CreatorJobSummaryResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/CreatorJobSummary'
+    CreatorJobSummaryListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatorJobSummary'
     JobLinkResponse:
       type: object
       required: [status, data]
@@ -1825,6 +1971,42 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobRequest'
+    SentJobRequest:
+      type: object
+      required: [job_request_id, job_id, marketer_id, request_status, created_at, responded_at, marketer_name]
+      properties:
+        job_request_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        marketer_id:
+          type: integer
+          format: int32
+        request_status:
+          type: string
+          enum: [Pending, Accepted, Declined, Closed]
+        created_at:
+          type: string
+          format: date-time
+        responded_at:
+          type: string
+          format: date-time
+          nullable: true
+        marketer_name:
+          type: string
+    SentJobRequestListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SentJobRequest'
     DeleteSurveyResponse:
       type: object
       required: [status, data]

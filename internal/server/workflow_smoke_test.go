@@ -50,12 +50,15 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "search_requires_authentication", path: "/api/v1/marketers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "survey_requires_authentication", path: "/api/v1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "creator_surveys_require_authentication", path: "/api/v1/me/surveys", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "creator_jobs_require_authentication", path: "/api/v1/me/jobs", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_creation_requires_authentication", method: "POST", path: "/api/v1/jobs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_detail_requires_authentication", path: "/api/v1/jobs/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_survey_add_requires_authentication", method: "POST", path: "/api/v1/jobs/1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_survey_remove_requires_authentication", method: "DELETE", path: "/api/v1/jobs/1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "brief_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/briefs", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "brief_history_requires_authentication", path: "/api/v1/jobs/1/briefs", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_invitations_require_authentication", method: "POST", path: "/api/v1/jobs/1/requests", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_invitation_history_requires_authentication", path: "/api/v1/jobs/1/requests", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "unknown_route", path: "/__workflow_smoke_missing", status: 404, envelope: "error", errorCode: "not_found"},
 	}
 

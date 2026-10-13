@@ -15,6 +15,9 @@ import (
 
 type jobService interface {
 	ListSurveys(context.Context, services.Actor) ([]domain.Survey, error)
+	ListMyJobs(context.Context, services.Actor) ([]domain.CreatorJobSummary, error)
+	GetJob(context.Context, services.Actor, int32) (*domain.CreatorJobSummary, error)
+	ListJobRequests(context.Context, services.Actor, int32) ([]domain.SentJobRequest, error)
 	Create(context.Context, services.Actor, services.CreateJobInput) (*domain.Job, error)
 	AddSurvey(context.Context, services.Actor, int32, int32) error
 	RemoveSurvey(context.Context, services.Actor, int32, int32) error
@@ -74,6 +77,28 @@ type JobRequestResponse struct {
 	RespondedAt  *string                 `json:"responded_at"`
 }
 
+type JobSurveySummaryResponse struct {
+	SurveyID int32  `json:"survey_id"`
+	Title    string `json:"title"`
+}
+
+type CreatorJobSummaryResponse struct {
+	JobID     int32                      `json:"job_id"`
+	JobStatus domain.JobStatus           `json:"job_status"`
+	CreatedAt time.Time                  `json:"created_at"`
+	Surveys   []JobSurveySummaryResponse `json:"surveys"`
+}
+
+type SentJobRequestResponse struct {
+	JobRequestID int32                   `json:"job_request_id"`
+	JobID        int32                   `json:"job_id"`
+	MarketerID   int32                   `json:"marketer_id"`
+	Status       domain.JobRequestStatus `json:"request_status"`
+	CreatedAt    time.Time               `json:"created_at"`
+	RespondedAt  *time.Time              `json:"responded_at"`
+	MarketerName string                  `json:"marketer_name"`
+}
+
 func (h *JobHandler) ListSurveys(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -86,6 +111,58 @@ func (h *JobHandler) ListSurveys(c *fiber.Ctx) error {
 	items := make([]SurveyResponse, 0, len(surveys))
 	for index := range surveys {
 		items = append(items, toSurveyResponse(&surveys[index]))
+	}
+	return response.Success(c, fiber.StatusOK, items)
+}
+
+func (h *JobHandler) ListMyJobs(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobs, err := h.service.ListMyJobs(c.UserContext(), actor)
+	if err != nil {
+		return mapJobError(err)
+	}
+	items := make([]CreatorJobSummaryResponse, 0, len(jobs))
+	for _, job := range jobs {
+		items = append(items, toCreatorJobSummaryResponse(job))
+	}
+	return response.Success(c, fiber.StatusOK, items)
+}
+
+func (h *JobHandler) GetJob(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	job, err := h.service.GetJob(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapJobError(err)
+	}
+	return response.Success(c, fiber.StatusOK, toCreatorJobSummaryResponse(*job))
+}
+
+func (h *JobHandler) ListJobRequests(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	requests, err := h.service.ListJobRequests(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapJobError(err)
+	}
+	items := make([]SentJobRequestResponse, 0, len(requests))
+	for _, request := range requests {
+		items = append(items, toSentJobRequestResponse(request))
 	}
 	return response.Success(c, fiber.StatusOK, items)
 }
@@ -256,6 +333,31 @@ func toJobRequestResponse(request domain.JobRequest) JobRequestResponse {
 		Status:       request.Status,
 		CreatedAt:    request.CreatedAt,
 		RespondedAt:  respondedAt,
+	}
+}
+
+func toCreatorJobSummaryResponse(job domain.CreatorJobSummary) CreatorJobSummaryResponse {
+	result := CreatorJobSummaryResponse{
+		JobID:     job.JobID,
+		JobStatus: job.JobStatus,
+		CreatedAt: job.CreatedAt,
+		Surveys:   make([]JobSurveySummaryResponse, 0, len(job.Surveys)),
+	}
+	for _, survey := range job.Surveys {
+		result.Surveys = append(result.Surveys, JobSurveySummaryResponse{SurveyID: survey.SurveyID, Title: survey.Title})
+	}
+	return result
+}
+
+func toSentJobRequestResponse(request domain.SentJobRequest) SentJobRequestResponse {
+	return SentJobRequestResponse{
+		JobRequestID: request.JobRequestID,
+		JobID:        request.JobID,
+		MarketerID:   request.MarketerID,
+		Status:       request.Status,
+		CreatedAt:    request.CreatedAt,
+		RespondedAt:  request.RespondedAt,
+		MarketerName: request.MarketerName,
 	}
 }
 
