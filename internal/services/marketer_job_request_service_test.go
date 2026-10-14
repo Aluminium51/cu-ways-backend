@@ -198,8 +198,22 @@ func TestMarketerJobRequestServiceRejectsInvalidDeclineDetailsBeforePersistence(
 
 func acceptedRequestWithDeadline(deadline *time.Time) *ports.MarketerJobRequest {
 	return &ports.MarketerJobRequest{
-		Request: domain.JobRequest{JobID: 4, Status: domain.JobRequestStatusAccepted},
-		Surveys: []domain.Survey{{SurveyID: 5, Deadline: deadline}},
+		Request:   domain.JobRequest{JobID: 4, Status: domain.JobRequestStatusAccepted},
+		JobStatus: domain.JobStatusPending,
+		Surveys:   []domain.Survey{{SurveyID: 5, Deadline: deadline}},
+	}
+}
+
+func TestMarketerJobRequestServiceRefusesOffersOnceTheJobHired(t *testing.T) {
+	found := acceptedRequestWithDeadline(nil)
+	found.JobStatus = domain.JobStatusAccepted
+	repo := &fakeMarketerJobRequestRepository{found: found}
+	service := newTestMarketerJobRequestService(repo, true)
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-20"}); !errors.Is(err, domain.ErrJobNotPending) {
+		t.Fatalf("expected a hired job to refuse offers, got %v", err)
+	}
+	if repo.createCalls != 0 {
+		t.Fatal("offer for a hired job reached persistence")
 	}
 }
 

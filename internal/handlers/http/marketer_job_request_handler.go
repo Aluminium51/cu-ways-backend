@@ -274,6 +274,8 @@ func mapMarketerJobRequestError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "job_request_not_pending", "this job request is no longer pending", err)
 	case errors.Is(err, domain.ErrJobRequestNotAccepted):
 		return response.NewAppError(fiber.StatusConflict, "job_request_not_accepted", "accept this job request before submitting an offer", err)
+	case errors.Is(err, domain.ErrJobNotPending):
+		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
 	case errors.Is(err, domain.ErrOfferAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "offer_already_exists", "an active offer already exists for this job request", err)
 	case errors.Is(err, domain.ErrInvalidOffer):

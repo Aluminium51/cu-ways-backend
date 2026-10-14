@@ -15,7 +15,7 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, marketer invitations, and offer comparison.
+    description: Creator job setup, survey links, briefs, marketer invitations, offer comparison, and offer acceptance.
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
@@ -1195,7 +1195,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: An active request already exists for a selected marketer.
+          description: An active request already exists for a selected marketer (code job_conflict), or the job has already hired a marketer (code job_not_pending).
           content:
             application/json:
               schema:
@@ -1256,6 +1256,66 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Invalid job ID or unknown status filter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/offers/{offerId}/accept:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: acceptJobOffer
+      summary: Accept one offer and hire its marketer
+      description: In one transaction that rolls back completely on any failure, marks the job Accepted with accepted_offer_id, sets the offer to Accepted, sets every other Pending offer on the job to Rejected, and closes the other marketers' Pending or Accepted job requests. The hired marketer's request stays Accepted. Only a Pending offer on a Pending job can be accepted.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offer accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptOfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found) or the offer does not belong to the job (code offer_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job already has an accepted offer or is closed (code job_not_pending), or the offer is not Pending (code offer_not_pending).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid job or offer ID.
           content:
             application/json:
               schema:
@@ -1486,7 +1546,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: The request is not Accepted (code job_request_not_accepted) or already has an active offer (code offer_already_exists).
+          description: The job has already hired a marketer (code job_not_pending), the request is not Accepted (code job_request_not_accepted), or it already has an active offer (code offer_already_exists).
           content:
             application/json:
               schema:
@@ -2307,6 +2367,38 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobOfferComparison'
+    AcceptOfferResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [job_id, job_status, accepted_offer_id, offer, rejected_offer_ids, closed_job_request_ids]
+          properties:
+            job_id:
+              type: integer
+              format: int32
+            job_status:
+              type: string
+              enum: [Accepted]
+            accepted_offer_id:
+              type: integer
+              format: int32
+            offer:
+              $ref: '#/components/schemas/Offer'
+            rejected_offer_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+            closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
     MarketerJobRequestListResponse:
       type: object
       required: [status, data]

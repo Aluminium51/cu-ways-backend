@@ -2,10 +2,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
+	"slices"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type JobOfferRepository struct {
@@ -70,6 +73,79 @@ func (r *JobOfferRepository) ListForCreatorJob(ctx context.Context, creatorID, j
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func (r *JobOfferRepository) AcceptOffer(ctx context.Context, creatorID, jobID, offerID int32) (*ports.OfferAcceptance, error) {
+	var result ports.OfferAcceptance
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
+			return err
+		}
+		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+			return domain.ErrJobNotPending
+		}
+		var offer domain.Offer
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("offer_id = ? AND job_id = ?", offerID, jobID).
+			First(&offer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrOfferNotFound
+			}
+			return err
+		}
+		if offer.OfferStatus != domain.OfferStatusPending {
+			return domain.ErrOfferNotPending
+		}
+
+		// The job is locked FOR UPDATE above. Offer submission locks the job
+		// FOR SHARE before its request, so a submission already in progress
+		// commits before this point (and its offer is rejected below), and a
+		// later one waits, then sees the job is no longer Pending.
+		var closed []int32
+		if err := tx.Raw(`
+UPDATE job_requests SET request_status = ?
+WHERE job_id = ? AND marketer_id <> ? AND request_status IN ?
+RETURNING job_request_id`, domain.JobRequestStatusClosed, jobID, offer.UserID,
+			[]domain.JobRequestStatus{domain.JobRequestStatusPending, domain.JobRequestStatusAccepted}).
+			Scan(&closed).Error; err != nil {
+			return err
+		}
+		var rejected []int32
+		if err := tx.Raw(`
+UPDATE offers SET offer_status = ?
+WHERE job_id = ? AND offer_id <> ? AND offer_status = ?
+RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferStatusPending).
+			Scan(&rejected).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&domain.Offer{}).Where("offer_id = ?", offerID).
+			Update("offer_status", domain.OfferStatusAccepted).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&domain.Job{}).Where("job_id = ?", jobID).
+			Updates(map[string]any{"job_status": domain.JobStatusAccepted, "accepted_offer_id": offerID}).Error; err != nil {
+			return err
+		}
+		slices.Sort(closed)
+		slices.Sort(rejected)
+		if closed == nil {
+			closed = []int32{}
+		}
+		if rejected == nil {
+			rejected = []int32{}
+		}
+
+		job.JobStatus = domain.JobStatusAccepted
+		job.AcceptedOfferID = &offer.OfferID
+		offer.OfferStatus = domain.OfferStatusAccepted
+		result = ports.OfferAcceptance{Job: *job, Offer: offer, RejectedOfferIDs: rejected, ClosedJobRequestIDs: closed}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func marketerExpertise(db *gorm.DB, marketerIDs []int32) (map[int32][]domain.Expertise, error) {

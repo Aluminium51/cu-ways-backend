@@ -147,6 +147,7 @@ func TestMarketerJobRequestHandlerMapsOfferErrors(t *testing.T) {
 	}{
 		{domain.ErrJobRequestNotAccepted, fiber.StatusConflict, "job_request_not_accepted", ""},
 		{domain.ErrOfferAlreadyExists, fiber.StatusConflict, "offer_already_exists", ""},
+		{domain.ErrJobNotPending, fiber.StatusConflict, "job_not_pending", ""},
 		{errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date cannot be after the job deadline")), fiber.StatusUnprocessableEntity, "invalid_offer", "delivery_date cannot be after the job deadline"},
 	} {
 		service := &fakeMarketerJobRequestService{err: tt.err}

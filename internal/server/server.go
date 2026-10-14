@@ -147,6 +147,7 @@ func New(deps Dependencies) *fiber.App {
 	jobOfferService := services.NewJobOfferService(jobOfferRepo, memberships)
 	jobOfferHandler := httpapi.NewJobOfferHandler(jobOfferService)
 	api.Get("/jobs/:id/offers", protectedUsers, jobOfferHandler.List)
+	api.Post("/jobs/:id/offers/:offerId/accept", protectedUsers, jobOfferHandler.Accept)
 
 	return app
 }

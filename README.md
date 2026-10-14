@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, and offer comparison. Offer acceptance, payment, review, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, offer comparison, and offer acceptance. Payment, review, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -244,10 +244,13 @@ Creator job setup endpoints require a JWT and active Creator membership. A job m
 | `GET` | `/api/v1/jobs/:id/briefs` | List Brief history, newest first; the first item is current |
 | `POST` | `/api/v1/jobs/:id/requests` | Invite one or more Marketers |
 | `GET` | `/api/v1/jobs/:id/offers` | Compare offers with each Marketer's profile and rating; filter with `?status=Pending` |
+| `POST` | `/api/v1/jobs/:id/offers/:offerId/accept` | Accept one `Pending` offer and hire its Marketer |
 
-Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic.
+Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic. Once a job has hired a Marketer, it refuses new invitations with `409 job_not_pending`.
 
 The offer comparison lists every offer on the Creator's job, oldest first. Each item includes the offer (price, delivery date, message, status), the Marketer's public profile, and a `rating` with `average_rating`, `review_count`, `completed_jobs`, and `is_rated`. The rating follows the marketer detail rule: completed jobs won through an accepted offer, averaging only valid 1–5 reviews. A Marketer without rated jobs returns `average_rating: null` and `is_rated: false`.
+
+Accepting an offer is one transaction that rolls back completely on any failure. The job becomes `Accepted` with `accepted_offer_id` set, the offer becomes `Accepted`, every other `Pending` offer on the job becomes `Rejected`, and the other Marketers' `Pending` or `Accepted` job requests become `Closed`; the hired Marketer's request stays `Accepted`. The response lists `rejected_offer_ids` and `closed_job_request_ids`. Only a `Pending` offer on a `Pending` job can be accepted: a job that already has an accepted offer returns `409 job_not_pending`, a non-pending offer returns `409 offer_not_pending`, and an offer from another job returns `404 offer_not_found`. Offer submission and acceptance both lock the job before any job request, so they never deadlock: a submission in progress finishes first and its offer is rejected, and a later one is refused.
 
 ## Marketer Job Requests
 
@@ -263,7 +266,7 @@ Marketer job request endpoints require a JWT and active Marketer membership. A m
 
 Each listed request includes the job status, the Creator's name, linked surveys, the newest Brief, the job deadline (the earliest survey deadline), and `target_responses` (the sum of the surveys' desired responses). Accepting or declining records `responded_at`. Only a `Pending` request can be answered; answering an `Accepted`, `Declined`, or `Closed` request returns `409 job_request_not_pending`. Accepting signals interest so the marketer can make an offer; it does not hire the marketer or change the job status. A decline `reason` must be one of `Schedule conflict`, `Budget too low`, `Target audience mismatch`, or `Fully booked`, and the `note` is limited to 300 characters.
 
-An offer can only be submitted for an `Accepted` request (`409 job_request_not_accepted` otherwise) and is stored as `Pending`. Send `offered_price` as a decimal string from `0` to `99999999.99` with at most two decimal places, `delivery_date` as `YYYY-MM-DD`, and an optional `message` of up to 300 characters. The delivery date cannot be before today or after the job deadline, using the Asia/Bangkok calendar. Invalid fields return `422 invalid_offer` with a message naming the problem. Each request may have one active (`Pending` or `Accepted`) offer; a second returns `409 offer_already_exists`, while a `Withdrawn` or `Rejected` offer allows a new one. A partial unique index on `offers.job_request_id` enforces this even under concurrent submissions.
+An offer can only be submitted for an `Accepted` request (`409 job_request_not_accepted` otherwise) on a job that has not hired yet (`409 job_not_pending` otherwise), and is stored as `Pending`. Send `offered_price` as a decimal string from `0` to `99999999.99` with at most two decimal places, `delivery_date` as `YYYY-MM-DD`, and an optional `message` of up to 300 characters. The delivery date cannot be before today or after the job deadline, using the Asia/Bangkok calendar. Invalid fields return `422 invalid_offer` with a message naming the problem. Each request may have one active (`Pending` or `Accepted`) offer; a second returns `409 offer_already_exists`, while a `Withdrawn` or `Rejected` offer allows a new one. A partial unique index on `offers.job_request_id` enforces this even under concurrent submissions.
 
 ## Database tools
 

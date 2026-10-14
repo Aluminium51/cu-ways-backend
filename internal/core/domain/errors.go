@@ -47,4 +47,7 @@ var (
 
 	ErrInvalidOffer       = errors.New("invalid offer")
 	ErrOfferAlreadyExists = errors.New("an active offer already exists for this job request")
+	ErrOfferNotFound      = errors.New("offer not found")
+	ErrOfferNotPending    = errors.New("offer is no longer pending")
+	ErrJobNotPending      = errors.New("job is no longer open for offers")
 )
