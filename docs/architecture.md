@@ -116,6 +116,7 @@ Current ports:
 - `ServiceRepository` for marketer-owned service offerings.
 - `SurveyRepository` for survey metadata and atomic Creator provisioning/deletion checks.
 - `JobRepository` for Creator job creation, survey linking, Brief history, and marketer invitations.
+- `MarketerJobRequestRepository` for listing and atomically answering the job requests addressed to a Marketer.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
@@ -138,6 +139,7 @@ Current services:
 - `ServiceService`, which manages marketer-owned service offerings.
 - `SurveyService`, which manages survey metadata and ownership rules.
 - `JobService`, which creates jobs with owned surveys, manages survey links and Brief history, and invites Marketers.
+- `MarketerJobRequestService`, which lets Marketers list, accept, and decline the job requests sent to them.
 
 Feature services should:
 
@@ -357,6 +359,7 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000005_marketer_profiles` adds the unique nullable phone index, non-null normalized marketer profile fields, curated catalog tables, and marketer join tables.
 - `000006_service_listing_lifecycle` adds soft deletion for marketer service listings.
 - `000007_creator_job_workflows` adds active invitation uniqueness and the `job_requests` history table.
+- `000008_job_request_responses` adds optional, constrained decline reason and note columns to `job_requests`.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
@@ -430,4 +433,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, and Creator job setup (survey linking, Brief history, and invitations). Offer acceptance, payment, review, and refresh-token workflows remain future work.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), and Marketer job request responses. Offer acceptance, payment, review, and refresh-token workflows remain future work.

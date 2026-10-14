@@ -49,18 +49,55 @@ const (
 	JobRequestStatusClosed   JobRequestStatus = "Closed"
 )
 
+// IsValid reports whether the status is one the job_requests table accepts.
+func (s JobRequestStatus) IsValid() bool {
+	switch s {
+	case JobRequestStatusPending, JobRequestStatusAccepted, JobRequestStatusDeclined, JobRequestStatusClosed:
+		return true
+	}
+	return false
+}
+
+// JobRequestDeclineReasons lists the optional reasons a Marketer may give when
+// declining. They match the chk_job_request_decline_reason constraint.
+var JobRequestDeclineReasons = []string{
+	"Schedule conflict",
+	"Budget too low",
+	"Target audience mismatch",
+	"Fully booked",
+}
+
+// MaxJobRequestDeclineNoteLength limits the optional decline note.
+const MaxJobRequestDeclineNoteLength = 300
+
 // JobRequest records a Creator's invitation to a Marketer. Accepting this
 // invitation is separate from accepting a later offer for the job.
 type JobRequest struct {
-	JobRequestID int32            `gorm:"column:job_request_id;primaryKey;autoIncrement"`
-	JobID        int32            `gorm:"column:job_id;not null"`
-	MarketerID   int32            `gorm:"column:marketer_id;not null"`
-	Status       JobRequestStatus `gorm:"column:request_status;type:varchar(20);not null"`
-	CreatedAt    time.Time        `gorm:"column:created_at;type:timestamp;not null"`
-	RespondedAt  *time.Time       `gorm:"column:responded_at;type:timestamp"`
+	JobRequestID  int32            `gorm:"column:job_request_id;primaryKey;autoIncrement"`
+	JobID         int32            `gorm:"column:job_id;not null"`
+	MarketerID    int32            `gorm:"column:marketer_id;not null"`
+	Status        JobRequestStatus `gorm:"column:request_status;type:varchar(20);not null"`
+	CreatedAt     time.Time        `gorm:"column:created_at;type:timestamp;not null"`
+	RespondedAt   *time.Time       `gorm:"column:responded_at;type:timestamp"`
+	DeclineReason *string          `gorm:"column:decline_reason;type:varchar(50)"`
+	DeclineNote   *string          `gorm:"column:decline_note;type:varchar(300)"`
 
 	Job      *Job      `gorm:"foreignKey:JobID;references:JobID"`
 	Marketer *Marketer `gorm:"foreignKey:MarketerID;references:UserID"`
 }
 
 func (JobRequest) TableName() string { return "job_requests" }
+
+// EarliestSurveyDeadline returns the earliest deadline among a job's surveys,
+// which is the latest date work for the job can be delivered. It returns nil
+// when no linked survey has a deadline.
+func EarliestSurveyDeadline(surveys []Survey) *time.Time {
+	var earliest *time.Time
+	for index := range surveys {
+		deadline := surveys[index].Deadline
+		if deadline != nil && (earliest == nil || deadline.Before(*earliest)) {
+			earliest = deadline
+		}
+	}
+	return earliest
+}

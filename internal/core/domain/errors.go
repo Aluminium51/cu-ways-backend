@@ -41,4 +41,6 @@ var (
 	ErrInvalidJobRequest       = errors.New("invalid job request")
 	ErrJobRequestAlreadyActive = errors.New("an active request already exists for this job and marketer")
 	ErrMarketerNotFound        = errors.New("marketer not found")
+	ErrJobRequestNotFound      = errors.New("job request not found")
+	ErrJobRequestNotPending    = errors.New("job request is no longer pending")
 )
