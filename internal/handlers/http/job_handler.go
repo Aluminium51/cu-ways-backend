@@ -66,12 +66,14 @@ type BriefResponse struct {
 }
 
 type JobRequestResponse struct {
-	JobRequestID int32                   `json:"job_request_id"`
-	JobID        int32                   `json:"job_id"`
-	MarketerID   int32                   `json:"marketer_id"`
-	Status       domain.JobRequestStatus `json:"request_status"`
-	CreatedAt    time.Time               `json:"created_at"`
-	RespondedAt  *string                 `json:"responded_at"`
+	JobRequestID  int32                   `json:"job_request_id"`
+	JobID         int32                   `json:"job_id"`
+	MarketerID    int32                   `json:"marketer_id"`
+	Status        domain.JobRequestStatus `json:"request_status"`
+	CreatedAt     time.Time               `json:"created_at"`
+	RespondedAt   *string                 `json:"responded_at"`
+	DeclineReason *string                 `json:"decline_reason"`
+	DeclineNote   *string                 `json:"decline_note"`
 }
 
 func (h *JobHandler) ListSurveys(c *fiber.Ctx) error {
@@ -250,12 +252,14 @@ func toJobRequestResponse(request domain.JobRequest) JobRequestResponse {
 		respondedAt = &value
 	}
 	return JobRequestResponse{
-		JobRequestID: request.JobRequestID,
-		JobID:        request.JobID,
-		MarketerID:   request.MarketerID,
-		Status:       request.Status,
-		CreatedAt:    request.CreatedAt,
-		RespondedAt:  respondedAt,
+		JobRequestID:  request.JobRequestID,
+		JobID:         request.JobID,
+		MarketerID:    request.MarketerID,
+		Status:        request.Status,
+		CreatedAt:     request.CreatedAt,
+		RespondedAt:   respondedAt,
+		DeclineReason: request.DeclineReason,
+		DeclineNote:   request.DeclineNote,
 	}
 }
 
