@@ -36,4 +36,14 @@ type MarketerJobRequestRepository interface {
 	// is addressed to marketerID and still Pending. It returns
 	// domain.ErrJobRequestNotFound or domain.ErrJobRequestNotPending otherwise.
 	RespondToPending(ctx context.Context, marketerID, requestID int32, response JobRequestResponse) (*domain.JobRequest, error)
+	// FindForMarketer returns one request addressed to marketerID with its job
+	// context, or domain.ErrJobRequestNotFound.
+	FindForMarketer(ctx context.Context, marketerID, requestID int32) (*MarketerJobRequest, error)
+	// CreateOffer atomically re-checks that the request is addressed to
+	// marketerID, is still Accepted, and has no active offer, then stores
+	// offer for the request's job. It sets offer.OfferID, JobID, and
+	// JobRequestID.
+	CreateOffer(ctx context.Context, marketerID, requestID int32, offer *domain.Offer) error
+	// ListOffers returns the marketer's offers for one request, newest first.
+	ListOffers(ctx context.Context, marketerID, requestID int32) ([]domain.Offer, error)
 }

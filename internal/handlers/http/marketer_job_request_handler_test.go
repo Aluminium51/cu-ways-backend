@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/Aluminium51/cu-way-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 type fakeMarketerJobRequestService struct {
@@ -24,6 +26,27 @@ type fakeMarketerJobRequestService struct {
 	declineCalls int
 	declineInput services.DeclineJobRequestInput
 	err          error
+	offerCalls   int
+	offerInput   services.SubmitOfferInput
+	offers       []domain.Offer
+}
+
+func (f *fakeMarketerJobRequestService) SubmitOffer(_ context.Context, actor services.Actor, requestID int32, input services.SubmitOfferInput) (*domain.Offer, error) {
+	f.offerCalls++
+	f.offerInput = input
+	if f.err != nil {
+		return nil, f.err
+	}
+	delivery := time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC)
+	return &domain.Offer{
+		OfferID: 31, JobID: 4, UserID: actor.UserID, JobRequestID: &requestID,
+		OfferedPrice: decimal.RequireFromString(input.OfferedPrice), DeliveryDate: &delivery,
+		Message: input.Message, OfferStatus: domain.OfferStatusPending, CreatedAt: time.Now().UTC(),
+	}, nil
+}
+
+func (f *fakeMarketerJobRequestService) ListOffers(context.Context, services.Actor, int32) ([]domain.Offer, error) {
+	return f.offers, f.err
 }
 
 func (f *fakeMarketerJobRequestService) List(_ context.Context, _ services.Actor, status *domain.JobRequestStatus) ([]ports.MarketerJobRequest, error) {
@@ -60,7 +83,111 @@ func marketerJobRequestApp(service *fakeMarketerJobRequestService) *fiber.App {
 	app.Get("/me/job-requests", handler.List)
 	app.Post("/me/job-requests/:id/accept", handler.Accept)
 	app.Post("/me/job-requests/:id/decline", handler.Decline)
+	app.Get("/me/job-requests/:id/offers", handler.ListOffers)
+	app.Post("/me/job-requests/:id/offers", handler.SubmitOffer)
 	return app
+}
+
+func TestMarketerJobRequestHandlerSubmitsOfferAndFormatsMoneyAndDate(t *testing.T) {
+	service := &fakeMarketerJobRequestService{}
+	body := `{"offered_price":"9000","delivery_date":"2026-10-25","message":"Campus booth."}`
+	res, err := marketerJobRequestApp(service).Test(httptest.NewRequest("POST", "/me/job-requests/21/offers", strings.NewReader(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusCreated {
+		t.Fatalf("expected 201, got %d", res.StatusCode)
+	}
+	if service.offerInput.OfferedPrice != "9000" || service.offerInput.DeliveryDate != "2026-10-25" || service.offerInput.Message == nil {
+		t.Fatalf("unexpected service input: %+v", service.offerInput)
+	}
+	var envelope struct {
+		Data OfferResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	offer := envelope.Data
+	if offer.OfferedPrice != "9000.00" || offer.DeliveryDate == nil || *offer.DeliveryDate != "2026-10-25" {
+		t.Fatalf("price and date must use fixed formats, got %+v", offer)
+	}
+	if offer.OfferStatus != domain.OfferStatusPending || offer.JobRequestID == nil || *offer.JobRequestID != 21 || offer.MarketerID != 9 {
+		t.Fatalf("unexpected offer: %+v", offer)
+	}
+}
+
+func TestMarketerJobRequestHandlerRejectsMalformedOfferBeforeService(t *testing.T) {
+	for name, body := range map[string]string{
+		"numeric_price":    `{"offered_price":9000,"delivery_date":"2026-10-25"}`,
+		"missing_price":    `{"delivery_date":"2026-10-25"}`,
+		"missing_date":     `{"offered_price":"9000"}`,
+		"unknown_field":    `{"offered_price":"9000","delivery_date":"2026-10-25","offer_status":"Accepted"}`,
+		"invalid_json":     `{`,
+		"message_too_long": `{"offered_price":"9000","delivery_date":"2026-10-25","message":"` + strings.Repeat("a", 301) + `"}`,
+	} {
+		service := &fakeMarketerJobRequestService{}
+		res, err := marketerJobRequestApp(service).Test(httptest.NewRequest("POST", "/me/job-requests/21/offers", strings.NewReader(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeResponseBody(t, res.Body)
+		if res.StatusCode != fiber.StatusUnprocessableEntity || service.offerCalls != 0 {
+			t.Fatalf("%s: expected 422 before service, got status=%d calls=%d", name, res.StatusCode, service.offerCalls)
+		}
+	}
+}
+
+func TestMarketerJobRequestHandlerMapsOfferErrors(t *testing.T) {
+	for _, tt := range []struct {
+		err     error
+		status  int
+		code    string
+		message string
+	}{
+		{domain.ErrJobRequestNotAccepted, fiber.StatusConflict, "job_request_not_accepted", ""},
+		{domain.ErrOfferAlreadyExists, fiber.StatusConflict, "offer_already_exists", ""},
+		{errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date cannot be after the job deadline")), fiber.StatusUnprocessableEntity, "invalid_offer", "delivery_date cannot be after the job deadline"},
+	} {
+		service := &fakeMarketerJobRequestService{err: tt.err}
+		res, err := marketerJobRequestApp(service).Test(httptest.NewRequest("POST", "/me/job-requests/21/offers", strings.NewReader(`{"offered_price":"10","delivery_date":"2026-10-25"}`)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var envelope response.ErrorEnvelope
+		decodeErr := json.NewDecoder(res.Body).Decode(&envelope)
+		closeResponseBody(t, res.Body)
+		if decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if res.StatusCode != tt.status || envelope.Error.Code != tt.code {
+			t.Fatalf("%v: expected %d/%s, got %d/%s", tt.err, tt.status, tt.code, res.StatusCode, envelope.Error.Code)
+		}
+		if tt.message != "" && envelope.Error.Message != tt.message {
+			t.Fatalf("expected message %q, got %q", tt.message, envelope.Error.Message)
+		}
+	}
+}
+
+func TestMarketerJobRequestHandlerListsOffersNewestFirst(t *testing.T) {
+	service := &fakeMarketerJobRequestService{offers: []domain.Offer{
+		{OfferID: 32, JobID: 4, UserID: 9, OfferedPrice: decimal.RequireFromString("8500"), OfferStatus: domain.OfferStatusPending},
+		{OfferID: 31, JobID: 4, UserID: 9, OfferedPrice: decimal.RequireFromString("9000"), OfferStatus: domain.OfferStatusWithdrawn},
+	}}
+	res, err := marketerJobRequestApp(service).Test(httptest.NewRequest("GET", "/me/job-requests/21/offers", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	var envelope struct {
+		Data []OfferResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != fiber.StatusOK || len(envelope.Data) != 2 || envelope.Data[0].OfferID != 32 || envelope.Data[0].DeliveryDate != nil {
+		t.Fatalf("unexpected offers: status=%d data=%+v", res.StatusCode, envelope.Data)
+	}
 }
 
 func TestMarketerJobRequestHandlerListsRequestsWithJobContext(t *testing.T) {

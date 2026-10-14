@@ -43,4 +43,8 @@ var (
 	ErrMarketerNotFound        = errors.New("marketer not found")
 	ErrJobRequestNotFound      = errors.New("job request not found")
 	ErrJobRequestNotPending    = errors.New("job request is no longer pending")
+	ErrJobRequestNotAccepted   = errors.New("accept the job request before submitting an offer")
+
+	ErrInvalidOffer       = errors.New("invalid offer")
+	ErrOfferAlreadyExists = errors.New("an active offer already exists for this job request")
 )

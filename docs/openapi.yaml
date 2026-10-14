@@ -17,7 +17,7 @@ tags:
   - name: Jobs
     description: Creator job setup, survey links, briefs, and marketer invitations.
   - name: Job Requests
-    description: Marketer review of and responses to job invitations.
+    description: Marketer review of and responses to job invitations, and offer submission.
 paths:
   /healthz:
     get:
@@ -1352,6 +1352,97 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/job-requests/{id}/offers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listMyJobRequestOffers
+      summary: List the marketer's offers for a job request
+      description: Returns the caller's offers for one request, newest first. The first item is the current offer; withdrawn and rejected offers remain as history.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offers for the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No request with this ID is addressed to the caller (code job_request_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: submitMyJobRequestOffer
+      summary: Submit a price offer for an accepted job request
+      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today or after the job deadline (the earliest linked survey deadline), using the Asia/Bangkok calendar.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitOfferRequest'
+      responses:
+        '201':
+          description: Offer submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No request with this ID is addressed to the caller (code job_request_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The request is not Accepted (code job_request_not_accepted) or already has an active offer (code offer_already_exists).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Malformed body (code validation_error) or an invalid price, delivery date, or message (code invalid_offer; the message names the problem).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -2055,6 +2146,76 @@ components:
                   allOf:
                     - $ref: '#/components/schemas/Brief'
                   nullable: true
+    SubmitOfferRequest:
+      type: object
+      additionalProperties: false
+      required: [offered_price, delivery_date]
+      properties:
+        offered_price:
+          type: string
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+          example: '9000.00'
+        delivery_date:
+          type: string
+          format: date
+          example: '2026-10-25'
+        message:
+          type: string
+          nullable: true
+          maxLength: 300
+    Offer:
+      type: object
+      required: [offer_id, job_id, job_request_id, marketer_id, offered_price, delivery_date, message, offer_status, created_at]
+      properties:
+        offer_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        job_request_id:
+          type: integer
+          format: int32
+          nullable: true
+        marketer_id:
+          type: integer
+          format: int32
+        offered_price:
+          type: string
+          example: '9000.00'
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        offer_status:
+          type: string
+          enum: [Pending, Accepted, Rejected, Withdrawn]
+        created_at:
+          type: string
+          format: date-time
+    OfferResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/Offer'
+    OfferListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
     MarketerJobRequestListResponse:
       type: object
       required: [status, data]
