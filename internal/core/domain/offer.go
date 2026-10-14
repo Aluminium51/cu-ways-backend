@@ -15,6 +15,15 @@ const (
 	OfferStatusWithdrawn OfferStatus = "Withdrawn"
 )
 
+// IsValid reports whether the status is one the offers table accepts.
+func (s OfferStatus) IsValid() bool {
+	switch s {
+	case OfferStatusPending, OfferStatusAccepted, OfferStatusRejected, OfferStatusWithdrawn:
+		return true
+	}
+	return false
+}
+
 // MaxOfferMessageLength limits the optional message sent with an offer.
 const MaxOfferMessageLength = 300
 
