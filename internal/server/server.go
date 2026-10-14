@@ -141,6 +141,8 @@ func New(deps Dependencies) *fiber.App {
 	api.Get("/me/job-requests", protectedUsers, marketerJobRequestHandler.List)
 	api.Post("/me/job-requests/:id/accept", protectedUsers, marketerJobRequestHandler.Accept)
 	api.Post("/me/job-requests/:id/decline", protectedUsers, marketerJobRequestHandler.Decline)
+	api.Get("/me/job-requests/:id/offers", protectedUsers, marketerJobRequestHandler.ListOffers)
+	api.Post("/me/job-requests/:id/offers", protectedUsers, marketerJobRequestHandler.SubmitOffer)
 
 	return app
 }

@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, and Marketer job request responses. Offer acceptance, payment, review, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, and offer submission. Offer acceptance, payment, review, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -255,8 +255,12 @@ Marketer job request endpoints require a JWT and active Marketer membership. A m
 | `GET` | `/api/v1/me/job-requests` | List requests sent to the marketer, newest first; filter with `?status=Pending` |
 | `POST` | `/api/v1/me/job-requests/:id/accept` | Accept a `Pending` request |
 | `POST` | `/api/v1/me/job-requests/:id/decline` | Decline a `Pending` request with an optional `reason` and `note` |
+| `GET` | `/api/v1/me/job-requests/:id/offers` | List the marketer's offers for the request, newest first |
+| `POST` | `/api/v1/me/job-requests/:id/offers` | Submit a price offer for an `Accepted` request |
 
 Each listed request includes the job status, the Creator's name, linked surveys, the newest Brief, the job deadline (the earliest survey deadline), and `target_responses` (the sum of the surveys' desired responses). Accepting or declining records `responded_at`. Only a `Pending` request can be answered; answering an `Accepted`, `Declined`, or `Closed` request returns `409 job_request_not_pending`. Accepting signals interest so the marketer can make an offer; it does not hire the marketer or change the job status. A decline `reason` must be one of `Schedule conflict`, `Budget too low`, `Target audience mismatch`, or `Fully booked`, and the `note` is limited to 300 characters.
+
+An offer can only be submitted for an `Accepted` request (`409 job_request_not_accepted` otherwise) and is stored as `Pending`. Send `offered_price` as a decimal string from `0` to `99999999.99` with at most two decimal places, `delivery_date` as `YYYY-MM-DD`, and an optional `message` of up to 300 characters. The delivery date cannot be before today or after the job deadline, using the Asia/Bangkok calendar. Invalid fields return `422 invalid_offer` with a message naming the problem. Each request may have one active (`Pending` or `Accepted`) offer; a second returns `409 offer_already_exists`, while a `Withdrawn` or `Rejected` offer allows a new one. A partial unique index on `offers.job_request_id` enforces this even under concurrent submissions.
 
 ## Database tools
 
