@@ -33,6 +33,20 @@ func (s *JobOfferService) ListOffers(ctx context.Context, actor Actor, jobID int
 	return s.repo.ListForCreatorJob(ctx, actor.UserID, jobID, status)
 }
 
+// AcceptOffer hires the Marketer behind one Pending offer on a Pending job the
+// Creator owns. The job becomes Accepted with accepted_offer_id set, competing
+// Pending offers are Rejected, and the other Marketers' active job requests
+// are Closed, all atomically.
+func (s *JobOfferService) AcceptOffer(ctx context.Context, actor Actor, jobID, offerID int32) (*ports.OfferAcceptance, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 || offerID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	return s.repo.AcceptOffer(ctx, actor.UserID, jobID, offerID)
+}
+
 func (s *JobOfferService) requireCreator(ctx context.Context, actor Actor) error {
 	if actor.UserID < 1 {
 		return domain.ErrCreatorRequired

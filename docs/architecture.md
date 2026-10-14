@@ -117,7 +117,7 @@ Current ports:
 - `SurveyRepository` for survey metadata and atomic Creator provisioning/deletion checks.
 - `JobRepository` for Creator job creation, survey linking, Brief history, and marketer invitations.
 - `MarketerJobRequestRepository` for listing and atomically answering the job requests addressed to a Marketer, and for submitting and listing their offers.
-- `JobOfferRepository` for listing a Creator's job offers with Marketer profiles and rating history.
+- `JobOfferRepository` for listing a Creator's job offers with Marketer profiles and rating history, and for atomically accepting one offer.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
@@ -141,7 +141,7 @@ Current services:
 - `SurveyService`, which manages survey metadata and ownership rules.
 - `JobService`, which creates jobs with owned surveys, manages survey links and Brief history, and invites Marketers.
 - `MarketerJobRequestService`, which lets Marketers list, accept, and decline the job requests sent to them, and submit one active offer per accepted request.
-- `JobOfferService`, which lets Creators compare the offers on their jobs.
+- `JobOfferService`, which lets Creators compare the offers on their jobs and accept one, rejecting competing offers and closing other invitations in one transaction.
 
 Feature services should:
 
@@ -436,4 +436,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, and offer comparison. Offer acceptance, payment, review, and refresh-token workflows remain future work.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, offer comparison, and offer acceptance. Payment, review, and refresh-token workflows remain future work.
