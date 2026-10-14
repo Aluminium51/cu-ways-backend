@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,18 @@ type DeclineJobRequestInput struct {
 	Reason *string
 	Note   *string
 }
+
+// SubmitOfferInput carries a Marketer's offer for an accepted job request.
+// OfferedPrice is a decimal string and DeliveryDate a YYYY-MM-DD date.
+type SubmitOfferInput struct {
+	OfferedPrice string
+	DeliveryDate string
+	Message      *string
+}
+
+// offerDateLocation is the calendar used for offer delivery dates. CU Ways
+// serves Chulalongkorn University, so "today" and deadlines use Bangkok time.
+var offerDateLocation = time.FixedZone("Asia/Bangkok", 7*60*60)
 
 // MarketerJobRequestService lets Marketers review and answer the job requests
 // Creators sent to them. Accepting a request signals interest only; it does
@@ -75,6 +88,72 @@ func (s *MarketerJobRequestService) Decline(ctx context.Context, actor Actor, re
 	})
 }
 
+// SubmitOffer creates a Pending offer for a request the Marketer accepted.
+// A request may have only one active (Pending or Accepted) offer; a
+// withdrawn or rejected offer does not block a new one.
+func (s *MarketerJobRequestService) SubmitOffer(ctx context.Context, actor Actor, requestID int32, input SubmitOfferInput) (*domain.Offer, error) {
+	if err := s.requireMarketer(ctx, actor); err != nil {
+		return nil, err
+	}
+	if requestID < 1 {
+		return nil, domain.ErrInvalidJobRequest
+	}
+	price, err := parsePrice(input.OfferedPrice)
+	if err != nil {
+		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("offered_price must be a non-negative amount with at most two decimal places, up to 99999999.99"))
+	}
+	deliveryDate, err := time.Parse(time.DateOnly, strings.TrimSpace(input.DeliveryDate))
+	if err != nil {
+		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date must be a YYYY-MM-DD date"))
+	}
+	message, err := normalizeOfferMessage(input.Message)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	if deliveryDate.Before(calendarDate(now)) {
+		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date cannot be before today"))
+	}
+
+	request, err := s.repo.FindForMarketer(ctx, actor.UserID, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if request.JobStatus != domain.JobStatusPending {
+		return nil, domain.ErrJobNotPending
+	}
+	if request.Request.Status != domain.JobRequestStatusAccepted {
+		return nil, domain.ErrJobRequestNotAccepted
+	}
+	if deadline := domain.EarliestSurveyDeadline(request.Surveys); deadline != nil && deliveryDate.After(calendarDate(*deadline)) {
+		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date cannot be after the job deadline"))
+	}
+
+	offer := &domain.Offer{
+		OfferedPrice: price,
+		DeliveryDate: &deliveryDate,
+		Message:      message,
+		OfferStatus:  domain.OfferStatusPending,
+		CreatedAt:    now.UTC(),
+	}
+	if err := s.repo.CreateOffer(ctx, actor.UserID, requestID, offer); err != nil {
+		return nil, err
+	}
+	return offer, nil
+}
+
+// ListOffers returns the Marketer's offers for one request, newest first. The
+// first item is the current offer.
+func (s *MarketerJobRequestService) ListOffers(ctx context.Context, actor Actor, requestID int32) ([]domain.Offer, error) {
+	if err := s.requireMarketer(ctx, actor); err != nil {
+		return nil, err
+	}
+	if requestID < 1 {
+		return nil, domain.ErrInvalidJobRequest
+	}
+	return s.repo.ListOffers(ctx, actor.UserID, requestID)
+}
+
 func (s *MarketerJobRequestService) requireMarketer(ctx context.Context, actor Actor) error {
 	if actor.UserID < 1 {
 		return domain.ErrMarketerRequired
@@ -87,6 +166,27 @@ func (s *MarketerJobRequestService) requireMarketer(ctx context.Context, actor A
 		return domain.ErrMarketerRequired
 	}
 	return nil
+}
+
+// calendarDate returns the Bangkok calendar date of t as midnight UTC, the
+// same representation time.Parse gives a YYYY-MM-DD string.
+func calendarDate(t time.Time) time.Time {
+	year, month, day := t.In(offerDateLocation).Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+func normalizeOfferMessage(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	message := strings.TrimSpace(*value)
+	if message == "" {
+		return nil, nil
+	}
+	if len([]rune(message)) > domain.MaxOfferMessageLength {
+		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("message must be 300 characters or fewer"))
+	}
+	return &message, nil
 }
 
 func normalizeDeclineReason(value *string) (*string, error) {

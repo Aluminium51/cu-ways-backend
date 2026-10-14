@@ -18,6 +18,8 @@ type marketerJobRequestService interface {
 	List(context.Context, services.Actor, *domain.JobRequestStatus) ([]ports.MarketerJobRequest, error)
 	Accept(context.Context, services.Actor, int32) (*domain.JobRequest, error)
 	Decline(context.Context, services.Actor, int32, services.DeclineJobRequestInput) (*domain.JobRequest, error)
+	SubmitOffer(context.Context, services.Actor, int32, services.SubmitOfferInput) (*domain.Offer, error)
+	ListOffers(context.Context, services.Actor, int32) ([]domain.Offer, error)
 }
 
 type MarketerJobRequestHandler struct {
@@ -31,6 +33,24 @@ func NewMarketerJobRequestHandler(service marketerJobRequestService) *MarketerJo
 type DeclineJobRequestDTO struct {
 	Reason *string `json:"reason" validate:"omitempty,max=50"`
 	Note   *string `json:"note" validate:"omitempty,max=300"`
+}
+
+type SubmitOfferDTO struct {
+	OfferedPrice string  `json:"offered_price" validate:"required"`
+	DeliveryDate string  `json:"delivery_date" validate:"required"`
+	Message      *string `json:"message" validate:"omitempty,max=300"`
+}
+
+type OfferResponse struct {
+	OfferID      int32              `json:"offer_id"`
+	JobID        int32              `json:"job_id"`
+	JobRequestID *int32             `json:"job_request_id"`
+	MarketerID   int32              `json:"marketer_id"`
+	OfferedPrice string             `json:"offered_price"`
+	DeliveryDate *string            `json:"delivery_date"`
+	Message      *string            `json:"message"`
+	OfferStatus  domain.OfferStatus `json:"offer_status"`
+	CreatedAt    time.Time          `json:"created_at"`
 }
 
 type MarketerJobRequestResponse struct {
@@ -132,6 +152,82 @@ func (h *MarketerJobRequestHandler) Decline(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, toJobRequestResponse(*request))
 }
 
+func (h *MarketerJobRequestHandler) SubmitOffer(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	requestID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	var dto SubmitOfferDTO
+	if err := decodeStrictJSON(c, &dto); err != nil {
+		return validationError(err)
+	}
+	if err := utils.Validate(dto); err != nil {
+		return validationError(err)
+	}
+	offer, err := h.service.SubmitOffer(c.UserContext(), actor, requestID, services.SubmitOfferInput{
+		OfferedPrice: dto.OfferedPrice,
+		DeliveryDate: dto.DeliveryDate,
+		Message:      dto.Message,
+	})
+	if err != nil {
+		return mapMarketerJobRequestError(err)
+	}
+	return response.Success(c, fiber.StatusCreated, toOfferResponse(offer))
+}
+
+func (h *MarketerJobRequestHandler) ListOffers(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	requestID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	offers, err := h.service.ListOffers(c.UserContext(), actor, requestID)
+	if err != nil {
+		return mapMarketerJobRequestError(err)
+	}
+	result := make([]OfferResponse, 0, len(offers))
+	for index := range offers {
+		result = append(result, toOfferResponse(&offers[index]))
+	}
+	return response.Success(c, fiber.StatusOK, result)
+}
+
+func toOfferResponse(offer *domain.Offer) OfferResponse {
+	var deliveryDate *string
+	if offer.DeliveryDate != nil {
+		value := offer.DeliveryDate.Format(time.DateOnly)
+		deliveryDate = &value
+	}
+	return OfferResponse{
+		OfferID:      offer.OfferID,
+		JobID:        offer.JobID,
+		JobRequestID: offer.JobRequestID,
+		MarketerID:   offer.UserID,
+		OfferedPrice: offer.OfferedPrice.StringFixed(2),
+		DeliveryDate: deliveryDate,
+		Message:      offer.Message,
+		OfferStatus:  offer.OfferStatus,
+		CreatedAt:    offer.CreatedAt,
+	}
+}
+
+// offerValidationError returns the client-safe reason joined after
+// domain.ErrInvalidOffer so the frontend can show which field is wrong.
+func offerValidationError(err error) error {
+	appErr := response.NewAppError(fiber.StatusUnprocessableEntity, "invalid_offer", "offer validation failed", err)
+	if lines := strings.Split(err.Error(), "\n"); len(lines) > 1 {
+		appErr.Message = lines[1]
+	}
+	return appErr
+}
+
 func toMarketerJobRequestResponse(item *ports.MarketerJobRequest) MarketerJobRequestResponse {
 	job := MarketerJobRequestJobResponse{
 		JobID:     item.Request.JobID,
@@ -176,6 +272,14 @@ func mapMarketerJobRequestError(err error) error {
 		return response.NewAppError(fiber.StatusNotFound, "job_request_not_found", "job request was not found", err)
 	case errors.Is(err, domain.ErrJobRequestNotPending):
 		return response.NewAppError(fiber.StatusConflict, "job_request_not_pending", "this job request is no longer pending", err)
+	case errors.Is(err, domain.ErrJobRequestNotAccepted):
+		return response.NewAppError(fiber.StatusConflict, "job_request_not_accepted", "accept this job request before submitting an offer", err)
+	case errors.Is(err, domain.ErrJobNotPending):
+		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
+	case errors.Is(err, domain.ErrOfferAlreadyExists):
+		return response.NewAppError(fiber.StatusConflict, "offer_already_exists", "an active offer already exists for this job request", err)
+	case errors.Is(err, domain.ErrInvalidOffer):
+		return offerValidationError(err)
 	case errors.Is(err, domain.ErrInvalidJobRequest):
 		return validationError(err)
 	default:

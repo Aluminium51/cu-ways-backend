@@ -6,6 +6,7 @@ import (
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -22,17 +23,133 @@ func NewMarketerJobRequestRepository(db *gorm.DB) *MarketerJobRequestRepository 
 
 func (r *MarketerJobRequestRepository) ListForMarketer(ctx context.Context, marketerID int32, status *domain.JobRequestStatus) ([]ports.MarketerJobRequest, error) {
 	db := r.db.WithContext(ctx)
-	query := db.
+	query := db.Where("marketer_id = ?", marketerID)
+	if status != nil {
+		query = query.Where("request_status = ?", *status)
+	}
+	return loadMarketerJobRequests(db, query.Order("created_at DESC, job_request_id DESC"))
+}
+
+func (r *MarketerJobRequestRepository) FindForMarketer(ctx context.Context, marketerID, requestID int32) (*ports.MarketerJobRequest, error) {
+	db := r.db.WithContext(ctx)
+	items, err := loadMarketerJobRequests(db, db.Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID))
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, domain.ErrJobRequestNotFound
+	}
+	return &items[0], nil
+}
+
+func (r *MarketerJobRequestRepository) CreateOffer(ctx context.Context, marketerID, requestID int32, offer *domain.Offer) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the job before the request, the same order offer acceptance
+		// uses, so the two workflows cannot deadlock. FOR SHARE lets
+		// submissions for different requests on one job run together while
+		// still waiting for an acceptance that holds the job FOR UPDATE.
+		var jobIDs []int32
+		if err := tx.Model(&domain.JobRequest{}).
+			Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID).
+			Pluck("job_id", &jobIDs).Error; err != nil {
+			return err
+		}
+		if len(jobIDs) == 0 {
+			return domain.ErrJobRequestNotFound
+		}
+		if err := requirePendingJob(tx, jobIDs[0], "SHARE"); err != nil {
+			return err
+		}
+		request, err := lockMarketerJobRequest(tx, marketerID, requestID)
+		if err != nil {
+			return err
+		}
+		if request.Status != domain.JobRequestStatusAccepted {
+			return domain.ErrJobRequestNotAccepted
+		}
+		var active int64
+		if err := tx.Model(&domain.Offer{}).
+			Where("job_request_id = ? AND offer_status IN ?", requestID,
+				[]domain.OfferStatus{domain.OfferStatusPending, domain.OfferStatusAccepted}).
+			Count(&active).Error; err != nil {
+			return err
+		}
+		if active > 0 {
+			return domain.ErrOfferAlreadyExists
+		}
+		offer.JobID = request.JobID
+		offer.UserID = marketerID
+		offer.JobRequestID = &request.JobRequestID
+		return tx.Create(offer).Error
+	})
+	return mapOfferRepositoryError(err)
+}
+
+func (r *MarketerJobRequestRepository) ListOffers(ctx context.Context, marketerID, requestID int32) ([]domain.Offer, error) {
+	db := r.db.WithContext(ctx)
+	var count int64
+	if err := db.Model(&domain.JobRequest{}).
+		Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID).
+		Count(&count).Error; err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, domain.ErrJobRequestNotFound
+	}
+	var offers []domain.Offer
+	err := db.Where("job_request_id = ? AND user_id = ?", requestID, marketerID).
+		Order("created_at DESC, offer_id DESC").
+		Find(&offers).Error
+	return offers, err
+}
+
+// requirePendingJob locks the job with the given row-lock strength and
+// returns domain.ErrJobNotPending once a Marketer has been hired.
+func requirePendingJob(tx *gorm.DB, jobID int32, strength string) error {
+	var job domain.Job
+	if err := tx.Clauses(clause.Locking{Strength: strength}).Where("job_id = ?", jobID).First(&job).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrJobNotFound
+		}
+		return err
+	}
+	if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+		return domain.ErrJobNotPending
+	}
+	return nil
+}
+
+func lockMarketerJobRequest(tx *gorm.DB, marketerID, requestID int32) (*domain.JobRequest, error) {
+	var request domain.JobRequest
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID).
+		First(&request).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrJobRequestNotFound
+		}
+		return nil, err
+	}
+	return &request, nil
+}
+
+func mapOfferRepositoryError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "idx_offers_active_job_request" {
+		return domain.ErrOfferAlreadyExists
+	}
+	return err
+}
+
+// loadMarketerJobRequests runs query against job_requests and attaches each
+// request's job status, creator name, linked surveys, and newest Brief.
+func loadMarketerJobRequests(db, query *gorm.DB) ([]ports.MarketerJobRequest, error) {
+	var requests []domain.JobRequest
+	if err := query.
 		Preload("Job").
 		Preload("Job.Surveys", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("surveys.survey_id ASC")
 		}).
-		Where("marketer_id = ?", marketerID)
-	if status != nil {
-		query = query.Where("request_status = ?", *status)
-	}
-	var requests []domain.JobRequest
-	if err := query.Order("created_at DESC, job_request_id DESC").Find(&requests).Error; err != nil {
+		Find(&requests).Error; err != nil {
 		return nil, err
 	}
 	if len(requests) == 0 {
@@ -77,14 +194,11 @@ func (r *MarketerJobRequestRepository) ListForMarketer(ctx context.Context, mark
 func (r *MarketerJobRequestRepository) RespondToPending(ctx context.Context, marketerID, requestID int32, response ports.JobRequestResponse) (*domain.JobRequest, error) {
 	var request domain.JobRequest
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID).
-			First(&request).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return domain.ErrJobRequestNotFound
-			}
+		locked, err := lockMarketerJobRequest(tx, marketerID, requestID)
+		if err != nil {
 			return err
 		}
+		request = *locked
 		if request.Status != domain.JobRequestStatusPending {
 			return domain.ErrJobRequestNotPending
 		}
