@@ -98,10 +98,10 @@ func (r *JobOfferRepository) AcceptOffer(ctx context.Context, creatorID, jobID, 
 			return domain.ErrOfferNotPending
 		}
 
-		// Close the other Marketers' requests first. This waits for any offer
-		// submission holding one of those request locks, so an offer committed
-		// concurrently is visible to the reject step below, and later
-		// submissions see a Closed request.
+		// The job is locked FOR UPDATE above. Offer submission locks the job
+		// FOR SHARE before its request, so a submission already in progress
+		// commits before this point (and its offer is rejected below), and a
+		// later one waits, then sees the job is no longer Pending.
 		var closed []int32
 		if err := tx.Raw(`
 UPDATE job_requests SET request_status = ?

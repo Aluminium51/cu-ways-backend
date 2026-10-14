@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -145,5 +146,12 @@ func TestJobHandlerRejectsInvalidBriefURLBeforeCallingService(t *testing.T) {
 	defer closeResponseBody(t, res.Body)
 	if res.StatusCode != fiber.StatusUnprocessableEntity || service.briefCalls != 0 {
 		t.Fatalf("expected invalid URL rejection before service, got status=%d calls=%d", res.StatusCode, service.briefCalls)
+	}
+}
+
+func TestMapJobErrorReportsHiredJobAsConflict(t *testing.T) {
+	var appErr *response.AppError
+	if !errors.As(mapJobError(domain.ErrJobNotPending), &appErr) || appErr.Status != fiber.StatusConflict || appErr.Code != "job_not_pending" {
+		t.Fatalf("expected 409 job_not_pending, got %+v", appErr)
 	}
 }

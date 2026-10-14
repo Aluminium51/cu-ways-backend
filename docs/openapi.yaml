@@ -1195,7 +1195,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: An active request already exists for a selected marketer.
+          description: An active request already exists for a selected marketer (code job_conflict), or the job has already hired a marketer (code job_not_pending).
           content:
             application/json:
               schema:
@@ -1546,7 +1546,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: The request is not Accepted (code job_request_not_accepted) or already has an active offer (code offer_already_exists).
+          description: The job has already hired a marketer (code job_not_pending), the request is not Accepted (code job_request_not_accepted), or it already has an active offer (code offer_already_exists).
           content:
             application/json:
               schema:

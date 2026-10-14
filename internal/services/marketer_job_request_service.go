@@ -119,6 +119,9 @@ func (s *MarketerJobRequestService) SubmitOffer(ctx context.Context, actor Actor
 	if err != nil {
 		return nil, err
 	}
+	if request.JobStatus != domain.JobStatusPending {
+		return nil, domain.ErrJobNotPending
+	}
 	if request.Request.Status != domain.JobRequestStatusAccepted {
 		return nil, domain.ErrJobRequestNotAccepted
 	}

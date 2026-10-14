@@ -44,6 +44,22 @@ func (r *MarketerJobRequestRepository) FindForMarketer(ctx context.Context, mark
 
 func (r *MarketerJobRequestRepository) CreateOffer(ctx context.Context, marketerID, requestID int32, offer *domain.Offer) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the job before the request, the same order offer acceptance
+		// uses, so the two workflows cannot deadlock. FOR SHARE lets
+		// submissions for different requests on one job run together while
+		// still waiting for an acceptance that holds the job FOR UPDATE.
+		var jobIDs []int32
+		if err := tx.Model(&domain.JobRequest{}).
+			Where("job_request_id = ? AND marketer_id = ?", requestID, marketerID).
+			Pluck("job_id", &jobIDs).Error; err != nil {
+			return err
+		}
+		if len(jobIDs) == 0 {
+			return domain.ErrJobRequestNotFound
+		}
+		if err := requirePendingJob(tx, jobIDs[0], "SHARE"); err != nil {
+			return err
+		}
 		request, err := lockMarketerJobRequest(tx, marketerID, requestID)
 		if err != nil {
 			return err
@@ -85,6 +101,22 @@ func (r *MarketerJobRequestRepository) ListOffers(ctx context.Context, marketerI
 		Order("created_at DESC, offer_id DESC").
 		Find(&offers).Error
 	return offers, err
+}
+
+// requirePendingJob locks the job with the given row-lock strength and
+// returns domain.ErrJobNotPending once a Marketer has been hired.
+func requirePendingJob(tx *gorm.DB, jobID int32, strength string) error {
+	var job domain.Job
+	if err := tx.Clauses(clause.Locking{Strength: strength}).Where("job_id = ?", jobID).First(&job).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrJobNotFound
+		}
+		return err
+	}
+	if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+		return domain.ErrJobNotPending
+	}
+	return nil
 }
 
 func lockMarketerJobRequest(tx *gorm.DB, marketerID, requestID int32) (*domain.JobRequest, error) {
