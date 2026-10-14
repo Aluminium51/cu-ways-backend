@@ -243,6 +243,9 @@ func validateUpdateDTO(dto UpdateUserDTO) error {
 			return domain.ErrInvalidUser
 		}
 	}
+	if dto.Phone.Set && dto.Phone.Value == nil {
+		return domain.ErrInvalidUser
+	}
 	if err := validateContactDTO(dto.Phone.Value, 20); err != nil && dto.Phone.Set {
 		return err
 	}

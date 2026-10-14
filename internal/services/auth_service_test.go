@@ -318,3 +318,23 @@ func TestAuthServiceRegisterRejectsInvalidMarketerProfile(t *testing.T) {
 		t.Fatal("an invalid marketer profile must be rejected before hashing or persisting")
 	}
 }
+
+func TestAuthServiceRegisterRequiresTenDigitPhone(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	for _, phone := range []string{"081234567", "08123456789"} {
+		_, err := service.Register(context.Background(), RegisterInput{
+			Name:     "Jane",
+			Email:    "jane@example.com",
+			Password: "correct horse battery staple",
+			Phone:    stringPointer(phone),
+		})
+		if !errors.Is(err, domain.ErrInvalidUser) {
+			t.Fatalf("expected %q to be rejected, got %v", phone, err)
+		}
+	}
+	if len(repo.users) != 0 {
+		t.Fatal("an invalid phone must not create an account")
+	}
+}

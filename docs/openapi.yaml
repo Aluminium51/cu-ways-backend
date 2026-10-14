@@ -1378,9 +1378,10 @@ components:
           maxLength: 128
         phone:
           type: string
-          description: Digits only. Must be unique across accounts.
-          minLength: 1
-          maxLength: 20
+          description: A 10-digit Thai mobile number, digits only. Must be unique across accounts.
+          pattern: '^[0-9]{10}$'
+          minLength: 10
+          maxLength: 10
         line_id:
           type: string
           nullable: true
@@ -1482,8 +1483,10 @@ components:
           maxLength: 255
         phone:
           type: string
-          nullable: true
-          maxLength: 20
+          description: A 10-digit Thai mobile number, digits only. Can be changed but not removed.
+          pattern: '^[0-9]{10}$'
+          minLength: 10
+          maxLength: 10
         line_id:
           type: string
           nullable: true
