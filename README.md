@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, and offer submission. Offer acceptance, payment, review, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, and offer comparison. Offer acceptance, payment, review, and refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -243,8 +243,11 @@ Creator job setup endpoints require a JWT and active Creator membership. A job m
 | `POST` | `/api/v1/jobs/:id/briefs` | Add a new HTTP(S) Brief URL |
 | `GET` | `/api/v1/jobs/:id/briefs` | List Brief history, newest first; the first item is current |
 | `POST` | `/api/v1/jobs/:id/requests` | Invite one or more Marketers |
+| `GET` | `/api/v1/jobs/:id/offers` | Compare offers with each Marketer's profile and rating; filter with `?status=Pending` |
 
 Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic.
+
+The offer comparison lists every offer on the Creator's job, oldest first. Each item includes the offer (price, delivery date, message, status), the Marketer's public profile, and a `rating` with `average_rating`, `review_count`, `completed_jobs`, and `is_rated`. The rating follows the marketer detail rule: completed jobs won through an accepted offer, averaging only valid 1–5 reviews. A Marketer without rated jobs returns `average_rating: null` and `is_rated: false`.
 
 ## Marketer Job Requests
 

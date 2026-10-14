@@ -15,7 +15,7 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, and marketer invitations.
+    description: Creator job setup, survey links, briefs, marketer invitations, and offer comparison.
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
@@ -1206,6 +1206,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/offers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listJobOffers
+      summary: Compare the offers submitted for a job
+      description: Returns every offer on a job the caller owns, oldest first, with the marketer's profile and rating history. The rating uses the same rule as the marketer detail endpoint - jobs count when Completed through the marketer's accepted offer, and only 1-5 reviews contribute to average_rating. Marketers with no rated jobs return average_rating null and is_rated false.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Accepted, Rejected, Withdrawn]
+      responses:
+        '200':
+          description: Offers for the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOfferComparisonListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid job ID or unknown status filter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/me/job-requests:
     get:
       operationId: listMyJobRequests
@@ -2216,6 +2270,43 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Offer'
+    MarketerRating:
+      type: object
+      required: [average_rating, review_count, completed_jobs, is_rated]
+      properties:
+        average_rating:
+          type: number
+          format: double
+          nullable: true
+        review_count:
+          type: integer
+          format: int64
+        completed_jobs:
+          type: integer
+          format: int64
+        is_rated:
+          type: boolean
+    JobOfferComparison:
+      allOf:
+        - $ref: '#/components/schemas/Offer'
+        - type: object
+          required: [marketer, rating]
+          properties:
+            marketer:
+              $ref: '#/components/schemas/MarketerProfile'
+            rating:
+              $ref: '#/components/schemas/MarketerRating'
+    JobOfferComparisonListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobOfferComparison'
     MarketerJobRequestListResponse:
       type: object
       required: [status, data]
