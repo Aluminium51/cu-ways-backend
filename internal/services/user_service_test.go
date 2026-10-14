@@ -13,6 +13,7 @@ import (
 type fakeUserRepository struct {
 	users      map[int32]*domain.User
 	creatorIDs map[int32]bool
+	marketers  map[int32]*domain.Marketer
 
 	findByEmailErr       error
 	createWithCreatorErr error
@@ -23,7 +24,7 @@ type fakeUserRepository struct {
 }
 
 func newFakeUserRepository(users ...*domain.User) *fakeUserRepository {
-	repo := &fakeUserRepository{users: make(map[int32]*domain.User), creatorIDs: make(map[int32]bool)}
+	repo := &fakeUserRepository{users: make(map[int32]*domain.User), creatorIDs: make(map[int32]bool), marketers: make(map[int32]*domain.Marketer)}
 	for _, user := range users {
 		copy := *user
 		repo.users[user.UserID] = &copy
@@ -41,7 +42,7 @@ func (f *fakeUserRepository) Create(ctx context.Context, user *domain.User) erro
 	return nil
 }
 
-func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain.User) error {
+func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain.User, marketer *domain.Marketer) error {
 	f.lastContext = ctx
 	if err := ctx.Err(); err != nil {
 		return err
@@ -55,6 +56,11 @@ func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain
 	copy := *user
 	f.users[user.UserID] = &copy
 	f.creatorIDs[user.UserID] = true
+	if marketer != nil {
+		profile := *marketer
+		profile.UserID = user.UserID
+		f.marketers[user.UserID] = &profile
+	}
 	return nil
 }
 

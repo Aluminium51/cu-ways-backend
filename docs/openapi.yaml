@@ -1213,7 +1213,7 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [name, email, password]
+      required: [name, email, password, phone]
       properties:
         name:
           type: string
@@ -1230,12 +1230,33 @@ components:
           maxLength: 128
         phone:
           type: string
-          nullable: true
+          description: Digits only. Must be unique across accounts.
+          minLength: 1
           maxLength: 20
         line_id:
           type: string
           nullable: true
           maxLength: 50
+        marketer_profile:
+          $ref: '#/components/schemas/RegisterMarketerProfile'
+    RegisterMarketerProfile:
+      type: object
+      description: >-
+        Sent only when signing up as a Marketer. The account also keeps its Creator
+        membership. Availability status starts as `available`; expertise and campuses
+        are added later from the marketer profile.
+      properties:
+        bio:
+          type: string
+          maxLength: 5000
+        experience_years:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 80
+        availability_text:
+          type: string
+          maxLength: 5000
     LoginRequest:
       type: object
       required: [email, password]
