@@ -36,7 +36,7 @@ func TestJobRepositoryCreatesJobAndSurveyLinksAtomically(t *testing.T) {
 	callbackName := "test:fail_job_survey_link"
 	if err := db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
 		if tx.Statement.Table == "is_used_in" {
-			tx.AddError(linkFailure)
+			_ = tx.AddError(linkFailure)
 		}
 	}); err != nil {
 		t.Fatal(err)

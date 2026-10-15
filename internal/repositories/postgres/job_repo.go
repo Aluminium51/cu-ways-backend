@@ -206,8 +206,14 @@ func (r *JobRepository) ListBriefs(ctx context.Context, creatorID, jobID int32) 
 func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int32, marketerIDs []int32, createdAt time.Time) ([]domain.JobRequest, error) {
 	requests := make([]domain.JobRequest, 0, len(marketerIDs))
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		// A hired job takes no new invitations. The job lock serializes this
+		// check with offer acceptance.
+		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+			return domain.ErrJobNotPending
 		}
 		var marketerIDsFound []int32
 		if err := tx.Table("marketers").

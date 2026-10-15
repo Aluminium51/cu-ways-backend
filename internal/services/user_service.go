@@ -101,6 +101,10 @@ func (s *UserService) Update(ctx context.Context, actor Actor, userID int32, inp
 		patch.Email = &email
 	}
 	if input.PhoneSet {
+		// Every account keeps a phone: it can be changed but not removed.
+		if input.Phone == nil {
+			return nil, domain.ErrInvalidUser
+		}
 		phone, err := normalizePhone(input.Phone)
 		if err != nil {
 			return nil, err
@@ -182,12 +186,16 @@ func normalizeContact(value *string, maxRunes int) (*string, error) {
 	return &normalized, nil
 }
 
+// PhoneDigits is the length of a Thai mobile number, the only phone format the
+// sign-up and contact-settings designs accept.
+const PhoneDigits = 10
+
 func normalizePhone(value *string) (*string, error) {
 	if value == nil {
 		return nil, nil
 	}
 	normalized := strings.TrimSpace(*value)
-	if normalized == "" || utf8.RuneCountInString(normalized) > 20 {
+	if utf8.RuneCountInString(normalized) != PhoneDigits {
 		return nil, domain.ErrInvalidUser
 	}
 	for _, character := range normalized {

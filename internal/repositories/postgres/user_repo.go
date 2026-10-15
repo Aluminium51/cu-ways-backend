@@ -32,9 +32,9 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 }
 
 // CreateWithCreator creates a registered user and its Creator membership in a
-// single transaction. Registration must not leave either row behind when one
-// of the writes fails.
-func (r *UserRepository) CreateWithCreator(ctx context.Context, user *domain.User) error {
+// single transaction, plus the Marketer profile when marketer is non-nil.
+// Registration must not leave any row behind when one of the writes fails.
+func (r *UserRepository) CreateWithCreator(ctx context.Context, user *domain.User, marketer *domain.Marketer) error {
 	tx := r.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return mapUserDatabaseError(tx.Error)
@@ -50,6 +50,15 @@ func (r *UserRepository) CreateWithCreator(ctx context.Context, user *domain.Use
 	}
 	if err := tx.Exec("INSERT INTO creators (user_id) VALUES (?)", user.UserID).Error; err != nil {
 		return rollback(err)
+	}
+	if marketer != nil {
+		marketer.UserID = user.UserID
+		if err := tx.Exec(`
+INSERT INTO marketers (user_id, bio, experience_years, availability_status, availability_text)
+VALUES (?, ?, ?, ?, ?)`,
+			marketer.UserID, marketer.Bio, marketer.ExperienceYears, marketer.AvailabilityStatus, marketer.AvailabilityText).Error; err != nil {
+			return rollback(err)
+		}
 	}
 	if err := tx.Commit().Error; err != nil {
 		return mapUserDatabaseError(err)

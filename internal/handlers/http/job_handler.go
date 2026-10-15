@@ -69,12 +69,14 @@ type BriefResponse struct {
 }
 
 type JobRequestResponse struct {
-	JobRequestID int32                   `json:"job_request_id"`
-	JobID        int32                   `json:"job_id"`
-	MarketerID   int32                   `json:"marketer_id"`
-	Status       domain.JobRequestStatus `json:"request_status"`
-	CreatedAt    time.Time               `json:"created_at"`
-	RespondedAt  *string                 `json:"responded_at"`
+	JobRequestID  int32                   `json:"job_request_id"`
+	JobID         int32                   `json:"job_id"`
+	MarketerID    int32                   `json:"marketer_id"`
+	Status        domain.JobRequestStatus `json:"request_status"`
+	CreatedAt     time.Time               `json:"created_at"`
+	RespondedAt   *string                 `json:"responded_at"`
+	DeclineReason *string                 `json:"decline_reason"`
+	DeclineNote   *string                 `json:"decline_note"`
 }
 
 type JobSurveySummaryResponse struct {
@@ -327,12 +329,14 @@ func toJobRequestResponse(request domain.JobRequest) JobRequestResponse {
 		respondedAt = &value
 	}
 	return JobRequestResponse{
-		JobRequestID: request.JobRequestID,
-		JobID:        request.JobID,
-		MarketerID:   request.MarketerID,
-		Status:       request.Status,
-		CreatedAt:    request.CreatedAt,
-		RespondedAt:  respondedAt,
+		JobRequestID:  request.JobRequestID,
+		JobID:         request.JobID,
+		MarketerID:    request.MarketerID,
+		Status:        request.Status,
+		CreatedAt:     request.CreatedAt,
+		RespondedAt:   respondedAt,
+		DeclineReason: request.DeclineReason,
+		DeclineNote:   request.DeclineNote,
 	}
 }
 
@@ -369,6 +373,8 @@ func mapJobError(err error) error {
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this job or survey", err)
 	case errors.Is(err, domain.ErrJobNotFound), errors.Is(err, domain.ErrSurveyNotFound), errors.Is(err, domain.ErrJobSurveyNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "resource_not_found", "job or survey was not found", err)
+	case errors.Is(err, domain.ErrJobNotPending):
+		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
 	case errors.Is(err, domain.ErrJobRequestAlreadyActive), errors.Is(err, domain.ErrJobSurveyAlreadyLinked), errors.Is(err, domain.ErrLastJobSurvey):
 		return response.NewAppError(fiber.StatusConflict, "job_conflict", err.Error(), err)
 	case errors.Is(err, domain.ErrMarketerNotFound):

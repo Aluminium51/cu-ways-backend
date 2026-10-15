@@ -138,6 +138,19 @@ func New(deps Dependencies) *fiber.App {
 	api.Get("/jobs/:id/briefs", protectedUsers, jobHandler.ListBriefs)
 	api.Post("/jobs/:id/requests", protectedUsers, jobHandler.CreateRequests)
 	api.Get("/jobs/:id/requests", protectedUsers, jobHandler.ListJobRequests)
+	marketerJobRequestRepo := postgres.NewMarketerJobRequestRepository(deps.DB)
+	marketerJobRequestService := services.NewMarketerJobRequestService(marketerJobRequestRepo, memberships)
+	marketerJobRequestHandler := httpapi.NewMarketerJobRequestHandler(marketerJobRequestService)
+	api.Get("/me/job-requests", protectedUsers, marketerJobRequestHandler.List)
+	api.Post("/me/job-requests/:id/accept", protectedUsers, marketerJobRequestHandler.Accept)
+	api.Post("/me/job-requests/:id/decline", protectedUsers, marketerJobRequestHandler.Decline)
+	api.Get("/me/job-requests/:id/offers", protectedUsers, marketerJobRequestHandler.ListOffers)
+	api.Post("/me/job-requests/:id/offers", protectedUsers, marketerJobRequestHandler.SubmitOffer)
+	jobOfferRepo := postgres.NewJobOfferRepository(deps.DB)
+	jobOfferService := services.NewJobOfferService(jobOfferRepo, memberships)
+	jobOfferHandler := httpapi.NewJobOfferHandler(jobOfferService)
+	api.Get("/jobs/:id/offers", protectedUsers, jobOfferHandler.List)
+	api.Post("/jobs/:id/offers/:offerId/accept", protectedUsers, jobOfferHandler.Accept)
 
 	return app
 }

@@ -102,6 +102,7 @@ func TestAuthServiceRegisterRejectsDuplicateEmail(t *testing.T) {
 		Name:     "Jane",
 		Email:    "JANE@example.com",
 		Password: "correct horse battery staple",
+		Phone:    stringPointer("0812345678"),
 	})
 	if !errors.Is(err, domain.ErrEmailAlreadyExists) {
 		t.Fatalf("expected duplicate email error, got %v", err)
@@ -120,6 +121,7 @@ func TestAuthServiceRegisterPropagatesRegistrationRepositoryError(t *testing.T) 
 		Name:     "Jane",
 		Email:    "jane@example.com",
 		Password: "correct horse battery staple",
+		Phone:    stringPointer("0812345678"),
 	})
 	if !errors.Is(err, repo.createWithCreatorErr) {
 		t.Fatalf("expected registration repository error, got %v", err)
@@ -195,8 +197,144 @@ func TestAuthServiceRegisterPropagatesCanceledContext(t *testing.T) {
 		Name:     "Jane",
 		Email:    "jane@example.com",
 		Password: "correct horse battery staple",
+		Phone:    stringPointer("0812345678"),
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", err)
+	}
+}
+
+func TestAuthServiceRegisterRequiresPhone(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	for name, phone := range map[string]*string{"missing": nil, "blank": stringPointer("   ")} {
+		t.Run(name, func(t *testing.T) {
+			_, err := service.Register(context.Background(), RegisterInput{
+				Name:     "Jane",
+				Email:    "jane@example.com",
+				Password: "correct horse battery staple",
+				Phone:    phone,
+			})
+			if !errors.Is(err, domain.ErrInvalidUser) {
+				t.Fatalf("expected invalid user for %s phone, got %v", name, err)
+			}
+		})
+	}
+	if len(repo.users) != 0 {
+		t.Fatal("registration without a phone must not persist a user")
+	}
+}
+
+func TestAuthServiceRegisterCreatorHasNoMarketerProfile(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	result, err := service.Register(context.Background(), RegisterInput{
+		Name:     "Jane",
+		Email:    "jane@example.com",
+		Password: "correct horse battery staple",
+		Phone:    stringPointer("0812345678"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := repo.marketers[result.User.UserID]; ok {
+		t.Fatal("a creator sign-up must not create a marketer profile")
+	}
+}
+
+func TestAuthServiceRegisterSavesMarketerProfileWithCreatorMembership(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+	years := int32(3)
+
+	result, err := service.Register(context.Background(), RegisterInput{
+		Name:     "Jane",
+		Email:    "jane@example.com",
+		Password: "correct horse battery staple",
+		Phone:    stringPointer("0812345678"),
+		MarketerProfile: &RegisterMarketerProfileInput{
+			Bio:              "  Survey recruiter  ",
+			ExperienceYears:  &years,
+			AvailabilityText: " Weekends ",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID := result.User.UserID
+	if !repo.creatorIDs[userID] {
+		t.Fatal("a marketer sign-up keeps the Creator membership")
+	}
+	profile := repo.marketers[userID]
+	if profile == nil {
+		t.Fatal("expected a marketer profile")
+	}
+	if profile.Bio != "Survey recruiter" || profile.ExperienceYears != 3 || profile.AvailabilityText != "Weekends" {
+		t.Fatalf("expected trimmed profile fields, got %+v", profile)
+	}
+	if profile.AvailabilityStatus != domain.AvailabilityAvailable {
+		t.Fatalf("expected a new marketer to start available, got %q", profile.AvailabilityStatus)
+	}
+}
+
+func TestAuthServiceRegisterDefaultsMissingExperienceToZero(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	result, err := service.Register(context.Background(), RegisterInput{
+		Name:            "Jane",
+		Email:           "jane@example.com",
+		Password:        "correct horse battery staple",
+		Phone:           stringPointer("0812345678"),
+		MarketerProfile: &RegisterMarketerProfileInput{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile := repo.marketers[result.User.UserID]; profile == nil || profile.ExperienceYears != 0 {
+		t.Fatalf("expected a marketer profile with 0 years, got %+v", profile)
+	}
+}
+
+func TestAuthServiceRegisterRejectsInvalidMarketerProfile(t *testing.T) {
+	repo := newFakeUserRepository()
+	hasher := &fakePasswordHasher{}
+	service := NewAuthService(repo, hasher, &fakeTokenIssuer{})
+	years := int32(81)
+
+	_, err := service.Register(context.Background(), RegisterInput{
+		Name:            "Jane",
+		Email:           "jane@example.com",
+		Password:        "correct horse battery staple",
+		Phone:           stringPointer("0812345678"),
+		MarketerProfile: &RegisterMarketerProfileInput{ExperienceYears: &years},
+	})
+	if !errors.Is(err, domain.ErrInvalidMarketerProfile) {
+		t.Fatalf("expected invalid marketer profile, got %v", err)
+	}
+	if len(repo.users) != 0 || hasher.lastInput != "" {
+		t.Fatal("an invalid marketer profile must be rejected before hashing or persisting")
+	}
+}
+
+func TestAuthServiceRegisterRequiresTenDigitPhone(t *testing.T) {
+	repo := newFakeUserRepository()
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	for _, phone := range []string{"081234567", "08123456789"} {
+		_, err := service.Register(context.Background(), RegisterInput{
+			Name:     "Jane",
+			Email:    "jane@example.com",
+			Password: "correct horse battery staple",
+			Phone:    stringPointer(phone),
+		})
+		if !errors.Is(err, domain.ErrInvalidUser) {
+			t.Fatalf("expected %q to be rejected, got %v", phone, err)
+		}
+	}
+	if len(repo.users) != 0 {
+		t.Fatal("an invalid phone must not create an account")
 	}
 }
