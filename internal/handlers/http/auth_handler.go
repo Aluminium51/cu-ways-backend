@@ -25,11 +25,19 @@ func NewAuthHandler(service authService) *AuthHandler {
 }
 
 type RegisterDTO struct {
-	Name     string  `json:"name" validate:"required,max=100"`
-	Email    string  `json:"email" validate:"required,email,max=255"`
-	Password string  `json:"password" validate:"required,min=8,max=128"`
-	Phone    *string `json:"phone" validate:"omitempty,max=20"`
-	LineID   *string `json:"line_id" validate:"omitempty,max=50"`
+	Name            string                      `json:"name" validate:"required,max=100"`
+	Email           string                      `json:"email" validate:"required,email,max=255"`
+	Password        string                      `json:"password" validate:"required,min=8,max=128"`
+	Phone           *string                     `json:"phone" validate:"required,max=20"`
+	LineID          *string                     `json:"line_id" validate:"omitempty,max=50"`
+	MarketerProfile *RegisterMarketerProfileDTO `json:"marketer_profile"`
+}
+
+// RegisterMarketerProfileDTO is present only when the user signs up as a Marketer.
+type RegisterMarketerProfileDTO struct {
+	Bio              string `json:"bio" validate:"max=5000"`
+	ExperienceYears  *int32 `json:"experience_years" validate:"omitempty,gte=0,lte=80"`
+	AvailabilityText string `json:"availability_text" validate:"max=5000"`
 }
 
 type LoginDTO struct {
@@ -59,13 +67,21 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return validationError(err)
 	}
 
-	result, err := h.service.Register(c.UserContext(), services.RegisterInput{
+	input := services.RegisterInput{
 		Name:     dto.Name,
 		Email:    dto.Email,
 		Password: dto.Password,
 		Phone:    dto.Phone,
 		LineID:   dto.LineID,
-	})
+	}
+	if profile := dto.MarketerProfile; profile != nil {
+		input.MarketerProfile = &services.RegisterMarketerProfileInput{
+			Bio:              profile.Bio,
+			ExperienceYears:  profile.ExperienceYears,
+			AvailabilityText: profile.AvailabilityText,
+		}
+	}
+	result, err := h.service.Register(c.UserContext(), input)
 	if err != nil {
 		return mapAuthError(err)
 	}
@@ -108,7 +124,7 @@ func mapAuthError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "email_already_exists", "email already exists", err)
 	case errors.Is(err, domain.ErrPhoneAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "phone_already_exists", "phone already exists", err)
-	case errors.Is(err, domain.ErrInvalidUser):
+	case errors.Is(err, domain.ErrInvalidUser), errors.Is(err, domain.ErrInvalidMarketerProfile):
 		return validationError(err)
 	default:
 		return err
