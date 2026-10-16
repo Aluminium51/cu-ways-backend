@@ -22,12 +22,16 @@ These are guidelines, not a reason to force a large refactor. When a nearby patt
 Use the commands in the README/Makefile as the source of truth. Common checks include:
 
 ```powershell
-go test ./...
+go test -count=1 ./...
 go vet ./...
 go build -trimpath ./cmd/api
 ```
 
 Run formatting on changed Go files and verify migrations against a local database when a schema change is involved.
+
+Use `go test -json -count=1 -run '^TestWorkflowSmoke$' ./internal/server` for database-free HTTP composition evidence. The optional `go run ./cmd/smoke` command probes a running local API using only harmless GET requests. See `docs/verification.md` for the exact proof and limitations.
+
+Repository integration tests require explicit `TEST_DATABASE_URL` pointing to a migrated disposable loopback database whose name ends with `_test`. Never substitute the normal application `DATABASE_URL` or infer credentials from `.env` for test runs.
 
 ## Boundaries and safety
 

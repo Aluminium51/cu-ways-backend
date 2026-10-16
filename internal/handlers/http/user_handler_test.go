@@ -84,7 +84,7 @@ func TestUserHandlerRequiresClaimsForProtectedRoutes(t *testing.T) {
 	}
 }
 
-func TestUserHandlerUpdateCanClearNullableField(t *testing.T) {
+func TestUserHandlerUpdateCanClearLineID(t *testing.T) {
 	var got services.UpdateUserInput
 	service := &fakeUserService{
 		updateFn: func(_ context.Context, actor services.Actor, userID int32, input services.UpdateUserInput) (*domain.User, error) {
@@ -98,7 +98,7 @@ func TestUserHandlerUpdateCanClearNullableField(t *testing.T) {
 	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
 	app := newUserHandlerTestApp(service, claims)
 
-	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":null}`))
+	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"line_id":null}`))
 	request.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(request)
 	if err != nil {
@@ -109,8 +109,35 @@ func TestUserHandlerUpdateCanClearNullableField(t *testing.T) {
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200, got %d", res.StatusCode)
 	}
-	if !got.PhoneSet || got.Phone != nil {
-		t.Fatalf("expected phone clear patch, got %+v", got)
+	if !got.LineIDSet || got.LineID != nil {
+		t.Fatalf("expected line ID clear patch, got %+v", got)
+	}
+}
+
+func TestUserHandlerUpdateRejectsClearingPhone(t *testing.T) {
+	called := false
+	service := &fakeUserService{
+		updateFn: func(context.Context, services.Actor, int32, services.UpdateUserInput) (*domain.User, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+	app := newUserHandlerTestApp(service, claims)
+
+	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":null}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 when clearing the phone, got %d", res.StatusCode)
+	}
+	if called {
+		t.Fatal("an invalid request must not reach the service")
 	}
 }
 

@@ -185,9 +185,12 @@ func TestServiceRepositoryUpdateAdvancesUpdatedAt(t *testing.T) {
 
 func openRepositoryIntegrationTransaction(t *testing.T) *gorm.DB {
 	t.Helper()
-	databaseURL := os.Getenv("DATABASE_URL")
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("DATABASE_URL is not set; skipping PostgreSQL integration test")
+		t.Skip("TEST_DATABASE_URL is not set; skipping PostgreSQL integration test")
+	}
+	if err := validateIntegrationDatabaseURL(databaseURL); err != nil {
+		t.Fatal(err)
 	}
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),

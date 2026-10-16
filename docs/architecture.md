@@ -19,7 +19,7 @@ cu-ways-backend/
 ├── internal/
 │   ├── config/                     # Environment loading and configuration validation
 │   ├── core/
-│   │   ├── domain/                 # Entities and domain types; standard library only, zero external imports
+│   │   ├── domain/                 # Entities and domain types; standard library and exact decimal values
 │   │   └── ports/                  # Consumer-side interfaces required by use cases
 │   ├── handlers/
 │   │   └── http/                   # Fiber HTTP adapters; package httpapi
@@ -97,7 +97,7 @@ Current models include:
 - normalized marketer expertise, campus, experience, availability, service, and survey metadata types
 - Status and type constants used by the database constraints
 
-Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. Keep domain entities free of external package imports; persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
+Domain code must remain independent from Fiber, GORM, HTTP request types, and database connection setup. The existing `github.com/shopspring/decimal` dependency supplies exact monetary value types; other imports must come from the standard library. Persistence-specific mapping belongs in repository adapters or dedicated persistence models. Business rules should still be kept in services rather than handlers or database adapters.
 
 Request and response DTOs should be defined near the HTTP feature handler, not added to the domain entities solely for transport formatting.
 
@@ -115,13 +115,16 @@ Current ports:
 - `MarketerProfileRepository` for atomic profile replacement and filtered search.
 - `ServiceRepository` for marketer-owned service offerings.
 - `SurveyRepository` for survey metadata and atomic Creator provisioning/deletion checks.
+- `JobRepository` for Creator job creation, survey linking, Brief history, and marketer invitations.
+- `MarketerJobRequestRepository` for listing and atomically answering the job requests addressed to a Marketer, and for submitting and listing their offers.
+- `JobOfferRepository` for listing a Creator's job offers with Marketer profiles and rating history, and for atomically accepting one offer.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
 
 When a feature is introduced, add a focused port describing the capability a service needs. The interface belongs to the consumer side, normally the service/application layer. PostgreSQL repositories implement those interfaces.
 
-Do not create speculative `user_port.go`, `survey_port.go`, or `job_port.go` files before their use cases exist.
+Add ports when their use cases exist; keep them focused on what the consuming service needs.
 
 ### `internal/services`
 
@@ -136,6 +139,9 @@ Current services:
 - `MarketerService`, which saves professional profiles and applies creator/admin search rules.
 - `ServiceService`, which manages marketer-owned service offerings.
 - `SurveyService`, which manages survey metadata and ownership rules.
+- `JobService`, which creates jobs with owned surveys, manages survey links and Brief history, and invites Marketers.
+- `MarketerJobRequestService`, which lets Marketers list, accept, and decline the job requests sent to them, and submit one active offer per accepted request.
+- `JobOfferService`, which lets Creators compare the offers on their jobs and accept one, rejecting competing offers and closing other invitations in one transaction.
 
 Feature services should:
 
@@ -159,7 +165,7 @@ Handlers are responsible for:
 - Translating service results to HTTP status codes and response envelopes.
 - Avoiding direct database or repository calls.
 
-Current HTTP handlers include the health probes, User CRUD, public authentication routes under `/api/v1/auth`, marketer profile/service/search routes, and survey metadata routes.
+Current HTTP handlers include the health probes, User CRUD, public authentication routes under `/api/v1/auth`, marketer profile/service/search routes, survey metadata routes, and Creator job setup routes.
 
 Handlers should not contain multi-step business rules. A handler should remain thin enough that its behavior can be tested with Fiber requests and mocked service dependencies.
 
@@ -229,6 +235,8 @@ The following rules are mandatory:
 11. Services may coordinate transactions through a port, but must never receive or import `*gorm.DB` or `*sql.Tx`.
 12. HTTP handlers validate transport format and syntax; services validate business meaning and invariants.
 13. Repositories enforce persistence concerns and translate database constraint errors; they do not own business decisions.
+
+`go test ./internal/architecture` checks these production import boundaries with the Go parser. Test files may import adapters to exercise their contracts. This check enforces layer dependencies; service and handler tests still prove authorization, context propagation, and business invariants.
 
 ## Context propagation
 
@@ -351,6 +359,10 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000003_add_user_soft_delete` adds the nullable `users.deleted_at` column and its index.
 - `000004_authentication` adds nullable `users.password_hash` and constrained `users.role` columns.
 - `000005_marketer_profiles` adds the unique nullable phone index, non-null normalized marketer profile fields, curated catalog tables, and marketer join tables.
+- `000006_service_listing_lifecycle` adds soft deletion for marketer service listings.
+- `000007_creator_job_workflows` adds active invitation uniqueness and the `job_requests` history table.
+- `000008_job_request_responses` adds optional, constrained decline reason and note columns to `job_requests`.
+- `000009_offer_submissions` links offers to their job request, adds delivery date and message columns, and allows one active offer per request.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
@@ -424,4 +436,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, and survey metadata operations. Job, offer, payment, review, and refresh-token workflows remain future work.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, offer comparison, and offer acceptance. Payment, review, and refresh-token workflows remain future work.
