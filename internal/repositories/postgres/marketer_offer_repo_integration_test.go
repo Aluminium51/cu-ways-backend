@@ -97,7 +97,7 @@ func TestMarketerOfferRepositoryAllowsOneActiveOfferPerRequest(t *testing.T) {
 		t.Fatalf("expected the active offer index to reject a duplicate, got %v", err)
 	}
 
-	if err := db.Model(&domain.Offer{}).Where("offer_id = ?", first.OfferID).Update("offer_status", domain.OfferStatusWithdrawn).Error; err != nil {
+	if _, err := repo.WithdrawOffer(ctx, marketerID, first.OfferID); err != nil {
 		t.Fatal(err)
 	}
 	replacement := newIntegrationOffer("95")
