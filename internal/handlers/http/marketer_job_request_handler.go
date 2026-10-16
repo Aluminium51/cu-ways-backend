@@ -20,6 +20,7 @@ type marketerJobRequestService interface {
 	Decline(context.Context, services.Actor, int32, services.DeclineJobRequestInput) (*domain.JobRequest, error)
 	SubmitOffer(context.Context, services.Actor, int32, services.SubmitOfferInput) (*domain.Offer, error)
 	ListOffers(context.Context, services.Actor, int32) ([]domain.Offer, error)
+	WithdrawOffer(context.Context, services.Actor, int32) (*domain.Offer, error)
 }
 
 type MarketerJobRequestHandler struct {
@@ -179,6 +180,22 @@ func (h *MarketerJobRequestHandler) SubmitOffer(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusCreated, toOfferResponse(offer))
 }
 
+func (h *MarketerJobRequestHandler) WithdrawOffer(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	offerID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	offer, err := h.service.WithdrawOffer(c.UserContext(), actor, offerID)
+	if err != nil {
+		return mapMarketerJobRequestError(err)
+	}
+	return response.Success(c, fiber.StatusOK, toOfferResponse(offer))
+}
+
 func (h *MarketerJobRequestHandler) ListOffers(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -278,6 +295,10 @@ func mapMarketerJobRequestError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
 	case errors.Is(err, domain.ErrOfferAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "offer_already_exists", "an active offer already exists for this job request", err)
+	case errors.Is(err, domain.ErrOfferNotFound):
+		return response.NewAppError(fiber.StatusNotFound, "offer_not_found", "offer was not found", err)
+	case errors.Is(err, domain.ErrOfferNotPending):
+		return response.NewAppError(fiber.StatusConflict, "offer_not_pending", "only a pending offer can be withdrawn", err)
 	case errors.Is(err, domain.ErrInvalidOffer):
 		return offerValidationError(err)
 	case errors.Is(err, domain.ErrInvalidJobRequest):

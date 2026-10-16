@@ -52,6 +52,19 @@ func (s *MarketerJobRequestService) List(ctx context.Context, actor Actor, statu
 	return s.repo.ListForMarketer(ctx, actor.UserID, status)
 }
 
+// WithdrawOffer releases a Pending offer without changing its invitation or
+// deleting its history. Persistence applies the transition atomically so that
+// an offer cannot be both withdrawn and accepted by concurrent requests.
+func (s *MarketerJobRequestService) WithdrawOffer(ctx context.Context, actor Actor, offerID int32) (*domain.Offer, error) {
+	if err := s.requireMarketer(ctx, actor); err != nil {
+		return nil, err
+	}
+	if offerID < 1 {
+		return nil, domain.ErrInvalidOffer
+	}
+	return s.repo.WithdrawOffer(ctx, actor.UserID, offerID)
+}
+
 func (s *MarketerJobRequestService) Accept(ctx context.Context, actor Actor, requestID int32) (*domain.JobRequest, error) {
 	if err := s.requireMarketer(ctx, actor); err != nil {
 		return nil, err

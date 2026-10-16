@@ -85,6 +85,33 @@ func (r *MarketerJobRequestRepository) CreateOffer(ctx context.Context, marketer
 	return mapOfferRepositoryError(err)
 }
 
+func (r *MarketerJobRequestRepository) WithdrawOffer(ctx context.Context, marketerID, offerID int32) (*domain.Offer, error) {
+	db := r.db.WithContext(ctx)
+	var offer domain.Offer
+	// PostgreSQL locks the matching offer and rechecks the Pending predicate
+	// after waiting for another writer. Acceptance takes this same row lock,
+	// so exactly one transition can win. Do not acquire job/request locks here:
+	// acceptance locks the job before the offer.
+	result := db.Model(&offer).Clauses(clause.Returning{}).
+		Where("offer_id = ? AND user_id = ? AND offer_status = ?", offerID, marketerID, domain.OfferStatusPending).
+		Update("offer_status", domain.OfferStatusWithdrawn)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected > 0 {
+		return &offer, nil
+	}
+	// Keep foreign offers indistinguishable from missing ones, including when
+	// their status is already resolved.
+	if err := db.Where("offer_id = ? AND user_id = ?", offerID, marketerID).First(&offer).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrOfferNotFound
+		}
+		return nil, err
+	}
+	return nil, domain.ErrOfferNotPending
+}
+
 func (r *MarketerJobRequestRepository) ListOffers(ctx context.Context, marketerID, requestID int32) ([]domain.Offer, error) {
 	db := r.db.WithContext(ctx)
 	var count int64

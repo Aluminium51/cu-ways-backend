@@ -1669,6 +1669,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/offers/{id}/withdraw:
+    post:
+      operationId: withdrawMyOffer
+      summary: Withdraw the marketer's pending offer
+      description: >-
+        Changes only the authenticated marketer's Pending offer to Withdrawn and
+        returns the updated offer. No request body is required. The offer remains
+        in history with its original price, delivery date, message, and creation
+        time. The job and invitation are unchanged. A new offer can be submitted
+        through POST /api/v1/me/job-requests/{id}/offers while that invitation is
+        Accepted, the job is Pending, and no Pending or Accepted offer exists.
+        Withdrawal and acceptance serialize on the offer row; whichever obtains
+        that lock first wins, and the other action returns offer_not_pending.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The offer ID, not the job request ID.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Offer withdrawn; offer_status is Withdrawn.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership (code marketer_profile_required).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The offer does not exist or belongs to another marketer (code offer_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The offer is Accepted, Rejected, or already Withdrawn (code offer_not_pending). No state is changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The offer ID is not a positive int32 (code validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
