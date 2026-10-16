@@ -237,14 +237,19 @@ Creator job setup endpoints require a JWT and active Creator membership. A job m
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/me/surveys` | List surveys available to the Creator |
+| `GET` | `/api/v1/me/jobs` | List the authenticated Creator's job summaries |
 | `POST` | `/api/v1/jobs` | Create a job with one or more owned survey IDs |
+| `GET` | `/api/v1/jobs/:id` | Read an owned job summary |
 | `POST` | `/api/v1/jobs/:id/surveys/:surveyId` | Link another owned survey |
 | `DELETE` | `/api/v1/jobs/:id/surveys/:surveyId` | Remove a link while keeping at least one survey |
 | `POST` | `/api/v1/jobs/:id/briefs` | Add a new HTTP(S) Brief URL |
 | `GET` | `/api/v1/jobs/:id/briefs` | List Brief history, newest first; the first item is current |
 | `POST` | `/api/v1/jobs/:id/requests` | Invite one or more Marketers |
+| `GET` | `/api/v1/jobs/:id/requests` | Read all invitation history for an owned job |
 | `GET` | `/api/v1/jobs/:id/offers` | Compare offers with each Marketer's profile and rating; filter with `?status=Pending` |
 | `POST` | `/api/v1/jobs/:id/offers/:offerId/accept` | Accept one `Pending` offer and hire its Marketer |
+
+All job read routes require a JWT and active Creator membership. The job list is scoped to the authenticated Creator. Per-job reads check ownership and return the existing forbidden/not-found errors. Job summaries include only the job ID, status, creation time, and linked survey IDs/titles. Jobs sort newest first by creation time and ID; surveys sort by ID. Invitation history includes every status, sorted newest first by creation time and request ID, and returns marketer names without email, phone, or profile fields. Empty job and request lists return `data: []`.
 
 Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic. Once a job has hired a Marketer, it refuses new invitations with `409 job_not_pending`.
 

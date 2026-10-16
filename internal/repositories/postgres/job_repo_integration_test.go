@@ -204,6 +204,159 @@ func TestJobRepositoryBriefHistoryAndInvitations(t *testing.T) {
 	if len(retried) != 1 || retried[0].Status != domain.JobRequestStatusPending {
 		t.Fatalf("expected a declined invitation to be resendable, got %+v", retried)
 	}
+	if err := db.Model(&domain.JobRequest{}).
+		Where("job_request_id = ?", retried[0].JobRequestID).
+		Update("request_status", domain.JobRequestStatusAccepted).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.CreateRequests(ctx, creatorID, job.JobID, []int32{marketerID}, createdAt.Add(2*time.Minute)); !errors.Is(err, domain.ErrJobRequestAlreadyActive) {
+		t.Fatalf("expected an Accepted invitation to remain active, got %v", err)
+	}
+	if err := db.Model(&domain.JobRequest{}).
+		Where("job_request_id = ?", retried[0].JobRequestID).
+		Update("request_status", domain.JobRequestStatusClosed).Error; err != nil {
+		t.Fatal(err)
+	}
+	closedRetry, err := repo.CreateRequests(ctx, creatorID, job.JobID, []int32{marketerID}, createdAt.Add(3*time.Minute))
+	if err != nil {
+		t.Fatalf("expected a Closed invitation to allow a later invitation, got %v", err)
+	}
+	if len(closedRetry) != 1 || closedRetry[0].Status != domain.JobRequestStatusPending {
+		t.Fatalf("expected a new Pending row after a Closed invitation, got %+v", closedRetry)
+	}
+}
+
+func TestJobRepositoryCreatorReadsAreScopedAndReturnSortedNamedHistory(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	ctx := context.Background()
+	creatorID := createIntegrationCreator(t, db, "job-read-owner")
+	otherCreatorID := createIntegrationCreator(t, db, "job-read-other")
+	emptyCreatorID := createIntegrationCreator(t, db, "job-read-empty")
+	firstSurvey := createIntegrationSurvey(t, db, creatorID, "read-first")
+	secondSurvey := createIntegrationSurvey(t, db, creatorID, "read-second")
+	otherSurvey := createIntegrationSurvey(t, db, otherCreatorID, "read-other")
+	repo := NewJobRepository(db)
+	time1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	time2 := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+	time3 := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
+
+	olderJob, err := repo.CreateWithSurveys(ctx, &domain.Job{UserID: creatorID, JobStatus: domain.JobStatusPending, CreatedAt: time1}, []int32{secondSurvey, firstSurvey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTieJob, err := repo.CreateWithSurveys(ctx, &domain.Job{UserID: creatorID, JobStatus: domain.JobStatusAccepted, CreatedAt: time2}, []int32{firstSurvey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondTieJob, err := repo.CreateWithSurveys(ctx, &domain.Job{UserID: creatorID, JobStatus: domain.JobStatusInProgress, CreatedAt: time2}, []int32{secondSurvey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignJob, err := repo.CreateWithSurveys(ctx, &domain.Job{UserID: otherCreatorID, JobStatus: domain.JobStatusCompleted, CreatedAt: time3}, []int32{otherSurvey})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jobs, err := repo.ListJobsByCreator(ctx, creatorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 3 || jobs[0].JobID != secondTieJob.JobID || jobs[1].JobID != firstTieJob.JobID || jobs[2].JobID != olderJob.JobID {
+		t.Fatalf("expected only owned jobs ordered by created_at/job_id descending, got %+v (foreign job %d)", jobs, foreignJob.JobID)
+	}
+	if jobs[2].JobStatus != domain.JobStatusPending || !jobs[2].CreatedAt.Equal(time1) || len(jobs[2].Surveys) != 2 || jobs[2].Surveys[0].SurveyID != firstSurvey || jobs[2].Surveys[1].SurveyID != secondSurvey || jobs[2].Surveys[0].Title != "Survey read-first" || jobs[2].Surveys[1].Title != "Survey read-second" {
+		t.Fatalf("expected survey summaries ordered by ID with titles, got %+v", jobs[2])
+	}
+	emptyJobs, err := repo.ListJobsByCreator(ctx, emptyCreatorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if emptyJobs == nil || len(emptyJobs) != 0 {
+		t.Fatalf("expected an empty non-nil job list, got %#v", emptyJobs)
+	}
+
+	detail, err := repo.GetJobByCreator(ctx, creatorID, olderJob.JobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.JobID != olderJob.JobID || len(detail.Surveys) != 2 || detail.Surveys[0].SurveyID != firstSurvey || detail.Surveys[1].SurveyID != secondSurvey {
+		t.Fatalf("unexpected owned job detail: %+v", detail)
+	}
+	if _, err := repo.GetJobByCreator(ctx, creatorID, foreignJob.JobID); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("expected foreign job detail to be forbidden, got %v", err)
+	}
+	if _, err := repo.GetJobByCreator(ctx, creatorID, int32(2147483647)); !errors.Is(err, domain.ErrJobNotFound) {
+		t.Fatalf("expected missing job detail to be not found, got %v", err)
+	}
+
+	marketerA := createIntegrationMarketerNamed(t, db, "Avery Marketer", "job-read-a")
+	marketerB := createIntegrationMarketerNamed(t, db, "Blake Marketer", "job-read-b")
+	marketerC := createIntegrationMarketerNamed(t, db, "Casey Marketer", "job-read-c")
+	marketerD := createIntegrationMarketerNamed(t, db, "Drew Marketer", "job-read-d")
+	requestA, err := repo.CreateRequests(ctx, creatorID, olderJob.JobID, []int32{marketerA}, time1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestB, err := repo.CreateRequests(ctx, creatorID, olderJob.JobID, []int32{marketerB}, time2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestC, err := repo.CreateRequests(ctx, creatorID, olderJob.JobID, []int32{marketerC}, time2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestD, err := repo.CreateRequests(ctx, creatorID, olderJob.JobID, []int32{marketerD}, time3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	respondedAt := time3.Add(time.Hour)
+	for _, update := range []struct {
+		id     int32
+		status domain.JobRequestStatus
+	}{{requestA[0].JobRequestID, domain.JobRequestStatusAccepted}, {requestB[0].JobRequestID, domain.JobRequestStatusDeclined}, {requestC[0].JobRequestID, domain.JobRequestStatusClosed}} {
+		if err := db.Model(&domain.JobRequest{}).Where("job_request_id = ?", update.id).Updates(map[string]any{
+			"request_status": update.status,
+			"responded_at":   respondedAt,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	history, err := repo.ListJobRequestsByCreator(ctx, creatorID, olderJob.JobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 4 {
+		t.Fatalf("expected all four invitation statuses, got %+v", history)
+	}
+	expected := []struct {
+		requestID  int32
+		marketerID int32
+		name       string
+		status     domain.JobRequestStatus
+	}{{requestD[0].JobRequestID, marketerD, "Drew Marketer", domain.JobRequestStatusPending}, {requestC[0].JobRequestID, marketerC, "Casey Marketer", domain.JobRequestStatusClosed}, {requestB[0].JobRequestID, marketerB, "Blake Marketer", domain.JobRequestStatusDeclined}, {requestA[0].JobRequestID, marketerA, "Avery Marketer", domain.JobRequestStatusAccepted}}
+	for index, item := range expected {
+		actual := history[index]
+		if actual.JobRequestID != item.requestID || actual.JobID != olderJob.JobID || actual.MarketerID != item.marketerID || actual.MarketerName != item.name || actual.Status != item.status {
+			t.Errorf("history[%d] expected %+v, got %+v", index, item, actual)
+		}
+		if item.status == domain.JobRequestStatusPending {
+			if actual.RespondedAt != nil {
+				t.Errorf("history[%d] expected pending responded_at to be nil, got %s", index, actual.RespondedAt)
+			}
+		} else if actual.RespondedAt == nil || !actual.RespondedAt.Equal(respondedAt) {
+			t.Errorf("history[%d] expected responded_at %s, got %v", index, respondedAt, actual.RespondedAt)
+		}
+	}
+	if _, err := repo.ListJobRequestsByCreator(ctx, creatorID, foreignJob.JobID); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("expected foreign job invitation history to be forbidden, got %v", err)
+	}
+	if _, err := repo.ListJobRequestsByCreator(ctx, creatorID, int32(2147483647)); !errors.Is(err, domain.ErrJobNotFound) {
+		t.Fatalf("expected missing job invitation history to be not found, got %v", err)
+	}
+	if emptyHistory, err := repo.ListJobRequestsByCreator(ctx, creatorID, firstTieJob.JobID); err != nil || emptyHistory == nil || len(emptyHistory) != 0 {
+		t.Fatalf("expected empty invitation history array, got history=%#v err=%v", emptyHistory, err)
+	}
 }
 
 func createIntegrationSurvey(t *testing.T, db *gorm.DB, creatorID int32, label string) int32 {

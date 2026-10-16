@@ -1,0 +1,35 @@
+{
+  "status": "VERIFIED",
+  "timestampUtc": "2026-10-15T08:43:08.0271924Z",
+  "database": {
+    "container": "cuways-pr-demo-20261015-postgres",
+    "host": "127.0.0.1",
+    "port": 55433,
+    "name": "cuways_pr_demo_test",
+    "migrationVersion": 9,
+    "dirty": false
+  },
+  "readback": {
+    "schemaVersion": 9,
+    "schemaDirty": false,
+    "jobId": 1,
+    "jobStatus": "Pending",
+    "requestCount": 2,
+    "requestRows": [
+      {
+        "id": 1,
+        "marketerId": 7,
+        "status": "Pending"
+      },
+      {
+        "id": 2,
+        "marketerId": 8,
+        "status": "Pending"
+      }
+    ],
+    "closedJobStatus": "Cancelled",
+    "foreignJobOwnerId": 6
+  },
+  "rejectedProbesLeftInvitationCountUnchanged": true,
+  "writesPerformedByThisCheck": false
+}
