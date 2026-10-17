@@ -1,0 +1,4721 @@
+{
+  "result": "PASS",
+  "scope": "US24 manual API-client walkthrough against the user-running backend",
+  "base_url": "http://127.0.0.1:8081",
+  "run_id": "20261016-104142",
+  "started_at": "2026-10-16T10:41:42.301930+07:00",
+  "finished_at": "2026-10-16T10:44:21.939489+07:00",
+  "recorded_walkthrough_requests": 78,
+  "preliminary_health_probes": 2,
+  "total_http_requests": 80,
+  "state_checks": 28,
+  "unexpected_http_results": 0,
+  "failed_state_checks": 0,
+  "actors": {
+    "Creator": {
+      "user_id": 59,
+      "email": "us24-manual-20261016-104142-creator@example.test"
+    },
+    "Marketer A": {
+      "user_id": 60,
+      "email": "us24-manual-20261016-104142-marketer-a@example.test"
+    },
+    "Marketer B": {
+      "user_id": 61,
+      "email": "us24-manual-20261016-104142-marketer-b@example.test"
+    }
+  },
+  "fixtures": {
+    "survey_id": 18,
+    "job_id": 38,
+    "Marketer A": {
+      "request_id": 25,
+      "offer_id": 22,
+      "original": {
+        "offer_id": 22,
+        "job_id": 38,
+        "job_request_id": 25,
+        "marketer_id": 60,
+        "offered_price": "100.00",
+        "delivery_date": "2026-10-23",
+        "message": "Original Marketer A terms, manual run 20261016-104142",
+        "offer_status": "Pending",
+        "created_at": "2026-10-16T03:42:01.123893Z"
+      },
+      "withdrawn": {
+        "offer_id": 22,
+        "job_id": 38,
+        "job_request_id": 25,
+        "marketer_id": 60,
+        "offered_price": "100.00",
+        "delivery_date": "2026-10-23",
+        "message": "Original Marketer A terms, manual run 20261016-104142",
+        "offer_status": "Withdrawn",
+        "created_at": "2026-10-16T03:42:01.123893Z"
+      },
+      "replacement_id": 24,
+      "replacement": {
+        "offer_id": 24,
+        "job_id": 38,
+        "job_request_id": 25,
+        "marketer_id": 60,
+        "offered_price": "95.00",
+        "delivery_date": "2026-10-23",
+        "message": "Replacement offer for manual run 20261016-104142",
+        "offer_status": "Pending",
+        "created_at": "2026-10-16T03:42:49.687386Z"
+      }
+    },
+    "Marketer B": {
+      "request_id": 26,
+      "offer_id": 23,
+      "original": {
+        "offer_id": 23,
+        "job_id": 38,
+        "job_request_id": 26,
+        "marketer_id": 61,
+        "offered_price": "120.00",
+        "delivery_date": "2026-10-23",
+        "message": "Original Marketer B terms, manual run 20261016-104142",
+        "offer_status": "Pending",
+        "created_at": "2026-10-16T03:42:01.224868Z"
+      }
+    },
+    "concurrency": [
+      {
+        "kind": "double-withdrawal",
+        "job_id": 39,
+        "request_id": 27,
+        "offer_id": 25,
+        "outcome": "Withdrawn"
+      },
+      {
+        "kind": "acceptance-versus-withdrawal",
+        "job_id": 40,
+        "request_id": 28,
+        "offer_id": 26,
+        "outcome": "Withdrawn"
+      }
+    ]
+  },
+  "operational_notes": [
+    "Read repository instructions and the existing US24 manual guide, checked the branch and working tree, and preserved existing changes.",
+    "Made the two preliminary curl health probes recorded below. A restricted process-list read did not identify the listener; successful HTTP responses established reachability.",
+    "An attempted Node recording-client connection failed under its restricted networking environment, without an HTTP response. Continued using a permission-enabled local HTTP client.",
+    "Used an interactive, phased HTTP API-client walkthrough. A small helper recorded requests and responses and compared the stated expectations. This is API-level verification, not a browser/Postman GUI recording and not a rerun of Go unit tests.",
+    "Registered three labeled test accounts, logged in as each role, and created all fixtures through the same public HTTP routes available to an API client. No direct database writes, migrations, mock repositories, or alternate API server were used.",
+    "After step 49, the local recording helper failed while formatting numeric offer IDs in a state-check summary. All HTTP requests/responses were already saved successfully. The helper was corrected and the saved step 49 response was reviewed without replaying any mutation. This was a recording-tool issue, not an API failure.",
+    "Reviewed the saved responses and persisted-state reads after each phase. Two concurrency probes used two actual HTTP requests sent together with separate client threads.",
+    "Made final health and readiness reads. Left the user-running backend and its configuration unchanged and retained the labeled test records for inspection.",
+    "Exported the sanitized report and transcript, checked that neither contains any generated password or bearer token, and removed the temporary credential-state file after export."
+  ],
+  "initial_probes": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/healthz"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:38:53 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "43",
+          "X-Request-Id": "3cad63d1-aef7-4666-9b6f-554347cbb43f"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ok"
+          }
+        }
+      },
+      "result": "PASS"
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/readyz"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:38:53 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "46",
+          "X-Request-Id": "3dad63d1-aef7-4666-9b6f-554347cbb43f"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ready"
+          }
+        }
+      },
+      "result": "PASS"
+    }
+  ],
+  "requests": [
+    {
+      "step": 1,
+      "label": "Check the user-running API liveness",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:41:42.301930+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/healthz",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:42.304195+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:41 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "43",
+          "X-Request-Id": "3ead63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ok"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:42.384864+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 2,
+      "label": "Check the user-running database readiness",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:41:42.386861+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/readyz",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:42.389074+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:41 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "46",
+          "X-Request-Id": "3fad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ready"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:42.414590+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 3,
+      "label": "Check that withdrawal route is deployed and protected",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:41:42.417596+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/2147483647/withdraw",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 401,
+        "error_code": "unauthorized"
+      },
+      "sent_at": "2026-10-16T10:41:42.421897+07:00",
+      "response": {
+        "status": 401,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:41 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "86",
+          "X-Request-Id": "40ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "unauthorized",
+            "message": "authentication required"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:42.444102+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 4,
+      "label": "Register a clearly labeled Creator test account",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:41:54.640695+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "US24 MANUAL 20261016-104142 Creator",
+          "email": "us24-manual-20261016-104142-creator@example.test",
+          "password": "[REDACTED]",
+          "phone": "0925027079"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:54.643693+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "454",
+          "X-Request-Id": "41ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 59,
+              "name": "US24 MANUAL 20261016-104142 Creator",
+              "email": "us24-manual-20261016-104142-creator@example.test",
+              "phone": "0925027079",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:54.9606216Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:55.040780+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 5,
+      "label": "Log in as Creator",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:41:55.047805+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/login",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "email": "us24-manual-20261016-104142-creator@example.test",
+          "password": "[REDACTED]"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:55.050798+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "453",
+          "X-Request-Id": "42ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 59,
+              "name": "US24 MANUAL 20261016-104142 Creator",
+              "email": "us24-manual-20261016-104142-creator@example.test",
+              "phone": "0925027079",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:54.960621Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:55.313460+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 6,
+      "label": "Register a clearly labeled Marketer A test account",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:41:55.319646+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "US24 MANUAL 20261016-104142 Marketer A",
+          "email": "us24-manual-20261016-104142-marketer-a@example.test",
+          "password": "[REDACTED]",
+          "phone": "0918242741",
+          "marketer_profile": {
+            "bio": "US24 manual verification 20261016-104142",
+            "experience_years": 1,
+            "availability_text": "Test account for offer withdrawal verification"
+          }
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:55.322432+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "460",
+          "X-Request-Id": "43ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 60,
+              "name": "US24 MANUAL 20261016-104142 Marketer A",
+              "email": "us24-manual-20261016-104142-marketer-a@example.test",
+              "phone": "0918242741",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:55.4971257Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:55.511809+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 7,
+      "label": "Log in as Marketer A",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:41:55.515820+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/login",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "email": "us24-manual-20261016-104142-marketer-a@example.test",
+          "password": "[REDACTED]"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:55.517817+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "459",
+          "X-Request-Id": "44ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 60,
+              "name": "US24 MANUAL 20261016-104142 Marketer A",
+              "email": "us24-manual-20261016-104142-marketer-a@example.test",
+              "phone": "0918242741",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:55.497125Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:55.668494+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 8,
+      "label": "Register a clearly labeled Marketer B test account",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:41:55.674498+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "US24 MANUAL 20261016-104142 Marketer B",
+          "email": "us24-manual-20261016-104142-marketer-b@example.test",
+          "password": "[REDACTED]",
+          "phone": "0970646376",
+          "marketer_profile": {
+            "bio": "US24 manual verification 20261016-104142",
+            "experience_years": 1,
+            "availability_text": "Test account for offer withdrawal verification"
+          }
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:55.677525+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:55 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "460",
+          "X-Request-Id": "45ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 61,
+              "name": "US24 MANUAL 20261016-104142 Marketer B",
+              "email": "us24-manual-20261016-104142-marketer-b@example.test",
+              "phone": "0970646376",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:55.9203156Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:56.016342+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 9,
+      "label": "Log in as Marketer B",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:41:56.019352+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/login",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": {
+          "email": "us24-manual-20261016-104142-marketer-b@example.test",
+          "password": "[REDACTED]"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:41:56.021353+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:41:55 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "459",
+          "X-Request-Id": "46ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 61,
+              "name": "US24 MANUAL 20261016-104142 Marketer B",
+              "email": "us24-manual-20261016-104142-marketer-b@example.test",
+              "phone": "0970646376",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:55.920315Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:41:56.187912+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 10,
+      "label": "Create survey metadata owned by the test Creator",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:00.823468+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/surveys",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "title": "US24 MANUAL 20261016-104142",
+          "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+          "survey_link": "https://example.test/us24-manual/20261016-104142",
+          "desired_responses": 10,
+          "deadline": "2026-10-30T10:42:00.822959+07:00"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:00.841146+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "391",
+          "X-Request-Id": "47ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "survey_id": 18,
+            "user_id": 59,
+            "title": "US24 MANUAL 20261016-104142",
+            "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+            "survey_link": "https://example.test/us24-manual/20261016-104142",
+            "target_group": null,
+            "desired_responses": 10,
+            "deadline": "2026-10-30T10:42:00.822959+07:00",
+            "created_at": "2026-10-16T03:42:00.9305664Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:00.946471+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 11,
+      "label": "Create the Pending test job",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:00.949802+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "survey_ids": [
+            18
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:00.951813+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "164",
+          "X-Request-Id": "48ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_id": 38,
+            "user_id": 59,
+            "accepted_offer_id": null,
+            "job_status": "Pending",
+            "created_at": "2026-10-16T03:42:00.9808125Z",
+            "survey_ids": [
+              18
+            ]
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.003009+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 12,
+      "label": "Attach a test brief URL",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:01.008419+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/briefs",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "url": "https://example.test/us24-manual/20261016-104142/brief"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.011937+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "180",
+          "X-Request-Id": "49ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "attachment_id": 10,
+            "attachment_type": "Brief",
+            "url": "https://example.test/us24-manual/20261016-104142/brief",
+            "upload_at": "2026-10-16T03:42:01.0381438Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.048689+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 13,
+      "label": "Invite Marketers A and B",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:01.051177+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/requests",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "marketer_ids": [
+            60,
+            61
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.053401+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "397",
+          "X-Request-Id": "4aad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 25,
+              "job_id": 38,
+              "marketer_id": 60,
+              "request_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.0564234Z",
+              "responded_at": null,
+              "decline_reason": null,
+              "decline_note": null
+            },
+            {
+              "job_request_id": 26,
+              "job_id": 38,
+              "marketer_id": 61,
+              "request_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.0564234Z",
+              "responded_at": null,
+              "decline_reason": null,
+              "decline_note": null
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.078130+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 14,
+      "label": "Marketer A accepts the invitation, not a hiring decision",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:01.082167+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.084689+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "237",
+          "X-Request-Id": "4bad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_request_id": 25,
+            "job_id": 38,
+            "marketer_id": 60,
+            "request_status": "Accepted",
+            "created_at": "2026-10-16T03:42:01.056423Z",
+            "responded_at": "2026-10-16T03:42:01.1018537Z",
+            "decline_reason": null,
+            "decline_note": null
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.113074+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 15,
+      "label": "Marketer A submits a Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:01.118277+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.120322+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "280",
+          "X-Request-Id": "4cad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 22,
+            "job_id": 38,
+            "job_request_id": 25,
+            "marketer_id": 60,
+            "offered_price": "100.00",
+            "delivery_date": "2026-10-23",
+            "message": "Original Marketer A terms, manual run 20261016-104142",
+            "offer_status": "Pending",
+            "created_at": "2026-10-16T03:42:01.123893Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.160782+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 16,
+      "label": "Read persisted original offer for Marketer A",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:01.165650+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.168168+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "4dad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.176027+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 17,
+      "label": "Marketer B accepts the invitation, not a hiring decision",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:01.179360+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/26/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.183845+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "237",
+          "X-Request-Id": "4ead63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_request_id": 26,
+            "job_id": 38,
+            "marketer_id": 61,
+            "request_status": "Accepted",
+            "created_at": "2026-10-16T03:42:01.056423Z",
+            "responded_at": "2026-10-16T03:42:01.1867304Z",
+            "decline_reason": null,
+            "decline_note": null
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.198212+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 18,
+      "label": "Marketer B submits a Pending offer",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:01.202729+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/26/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": {
+          "offered_price": "120.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer B terms, manual run 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.205522+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "281",
+          "X-Request-Id": "4fad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 23,
+            "job_id": 38,
+            "job_request_id": 26,
+            "marketer_id": 61,
+            "offered_price": "120.00",
+            "delivery_date": "2026-10-23",
+            "message": "Original Marketer B terms, manual run 20261016-104142",
+            "offer_status": "Pending",
+            "created_at": "2026-10-16T03:42:01.2248683Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.252926+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 19,
+      "label": "Read persisted original offer for Marketer B",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:01.257310+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/26/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:01.260570+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:00 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "50ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 23,
+              "job_id": 38,
+              "job_request_id": 26,
+              "marketer_id": 61,
+              "offered_price": "120.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer B terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.224868Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:01.290325+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 20,
+      "label": "Missing authentication",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:42:11.914682+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 401,
+        "error_code": "unauthorized"
+      },
+      "sent_at": "2026-10-16T10:42:11.917998+07:00",
+      "response": {
+        "status": 401,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "86",
+          "X-Request-Id": "51ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "unauthorized",
+            "message": "authentication required"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:11.943317+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 21,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:11.946543+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:11.948148+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "52ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.049637+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 22,
+      "label": "Invalid bearer token",
+      "actor": "Invalid token",
+      "started_at": "2026-10-16T10:42:12.054335+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Invalid token]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 401,
+        "error_code": "unauthorized"
+      },
+      "sent_at": "2026-10-16T10:42:12.056564+07:00",
+      "response": {
+        "status": 401,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "91",
+          "X-Request-Id": "53ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "unauthorized",
+            "message": "invalid authentication token"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.060995+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 23,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.062996+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.064310+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "54ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.074383+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 24,
+      "label": "Creator without Marketer membership",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:12.078373+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 403,
+        "error_code": "marketer_profile_required"
+      },
+      "sent_at": "2026-10-16T10:42:12.080978+07:00",
+      "response": {
+        "status": 403,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "106",
+          "X-Request-Id": "55ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "marketer_profile_required",
+            "message": "a marketer profile is required"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.092599+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 25,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.096608+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.099750+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "56ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.121275+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 26,
+      "label": "Marketer B attempts to withdraw A's Pending offer",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:12.129650+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 404,
+        "error_code": "offer_not_found"
+      },
+      "sent_at": "2026-10-16T10:42:12.132753+07:00",
+      "response": {
+        "status": 404,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "85",
+          "X-Request-Id": "57ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_found",
+            "message": "offer was not found"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.157302+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 27,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.161310+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.164709+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "58ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.171034+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 28,
+      "label": "Nonexistent positive offer ID",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.175393+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/2147483647/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 404,
+        "error_code": "offer_not_found"
+      },
+      "sent_at": "2026-10-16T10:42:12.178863+07:00",
+      "response": {
+        "status": 404,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "85",
+          "X-Request-Id": "59ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_found",
+            "message": "offer was not found"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.189164+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 29,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.191492+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.194499+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "5aad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.217112+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 30,
+      "label": "Invalid offer ID: 0",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.224504+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/0/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 422,
+        "error_code": "validation_error"
+      },
+      "sent_at": "2026-10-16T10:42:12.229460+07:00",
+      "response": {
+        "status": 422,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "92",
+          "X-Request-Id": "5bad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "validation_error",
+            "message": "request validation failed"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.256829+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 31,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.263105+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.266407+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "5cad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.272473+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 32,
+      "label": "Invalid offer ID: -1",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.279323+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/-1/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 422,
+        "error_code": "validation_error"
+      },
+      "sent_at": "2026-10-16T10:42:12.281322+07:00",
+      "response": {
+        "status": 422,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "92",
+          "X-Request-Id": "5dad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "validation_error",
+            "message": "request validation failed"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.303330+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 33,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.308474+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.313411+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "5ead63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.321817+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 34,
+      "label": "Invalid offer ID: abc",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.331408+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/abc/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 422,
+        "error_code": "validation_error"
+      },
+      "sent_at": "2026-10-16T10:42:12.335237+07:00",
+      "response": {
+        "status": 422,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "92",
+          "X-Request-Id": "5fad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "validation_error",
+            "message": "request validation failed"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.350025+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 35,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.353874+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.355997+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "60ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.384165+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 36,
+      "label": "Invalid offer ID: 2147483648",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.391257+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/2147483648/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 422,
+        "error_code": "validation_error"
+      },
+      "sent_at": "2026-10-16T10:42:12.394599+07:00",
+      "response": {
+        "status": 422,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "92",
+          "X-Request-Id": "61ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "validation_error",
+            "message": "request validation failed"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.414361+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 37,
+      "label": "Confirm rejected request did not change the Pending offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:12.419488+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:12.424214+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:11 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "62ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:12.451183+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 38,
+      "label": "Marketer A withdraws own Pending offer with no request body",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:16.457039+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:16.464024+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "63ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 22,
+            "job_id": 38,
+            "job_request_id": 25,
+            "marketer_id": 60,
+            "offered_price": "100.00",
+            "delivery_date": "2026-10-23",
+            "message": "Original Marketer A terms, manual run 20261016-104142",
+            "offer_status": "Withdrawn",
+            "created_at": "2026-10-16T03:42:01.123893Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.507643+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 39,
+      "label": "Read invitation and job state after withdrawal",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:16.517057+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:16.520229+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "888",
+          "X-Request-Id": "64ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 25,
+              "job_id": 38,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:42:01.056423Z",
+              "responded_at": "2026-10-16T03:42:01.101853Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 38,
+                "job_status": "Pending",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": {
+                  "attachment_id": 10,
+                  "attachment_type": "Brief",
+                  "url": "https://example.test/us24-manual/20261016-104142/brief",
+                  "upload_at": "2026-10-16T03:42:01.038143Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.579330+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 40,
+      "label": "Read competing offer after A withdraws",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:16.588590+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/26/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:16.592981+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "282",
+          "X-Request-Id": "65ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 23,
+              "job_id": 38,
+              "job_request_id": 26,
+              "marketer_id": 61,
+              "offered_price": "120.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer B terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.224868Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.619217+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 41,
+      "label": "Repeat withdrawal of the already Withdrawn offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:16.634987+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "offer_not_pending"
+      },
+      "sent_at": "2026-10-16T10:42:16.638404+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "105",
+          "X-Request-Id": "66ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be withdrawn"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.669225+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 42,
+      "label": "Creator tries to accept the Withdrawn offer",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:16.672232+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/offers/22/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "offer_not_pending"
+      },
+      "sent_at": "2026-10-16T10:42:16.674620+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "104",
+          "X-Request-Id": "67ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be accepted"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.687429+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 43,
+      "label": "Marketer B tries to withdraw A's Withdrawn offer",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:16.691443+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/22/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 404,
+        "error_code": "offer_not_found"
+      },
+      "sent_at": "2026-10-16T10:42:16.697921+07:00",
+      "response": {
+        "status": 404,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "85",
+          "X-Request-Id": "68ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_found",
+            "message": "offer was not found"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.707584+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 44,
+      "label": "Log in as Marketer A",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:16.713771+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/auth/login",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "email": "us24-manual-20261016-104142-marketer-a@example.test",
+          "password": "[REDACTED]"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:16.716768+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "459",
+          "X-Request-Id": "69ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "access_token": "[REDACTED]",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "user": {
+              "user_id": 60,
+              "name": "US24 MANUAL 20261016-104142 Marketer A",
+              "email": "us24-manual-20261016-104142-marketer-a@example.test",
+              "phone": "0918242741",
+              "line_id": null,
+              "created_at": "2026-10-16T03:41:55.497125Z"
+            }
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.905411+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 45,
+      "label": "Re-read withdrawn offer using a fresh login token",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:16.917156+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:16.922413+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:15 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "284",
+          "X-Request-Id": "6aad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:16.930093+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 46,
+      "label": "Submit a replacement offer for the same Accepted invitation",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:49.650457+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "95.00",
+          "delivery_date": "2026-10-23",
+          "message": "Replacement offer for manual run 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:49.653463+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:49 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "275",
+          "X-Request-Id": "6bad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 24,
+            "job_id": 38,
+            "job_request_id": 25,
+            "marketer_id": 60,
+            "offered_price": "95.00",
+            "delivery_date": "2026-10-23",
+            "message": "Replacement offer for manual run 20261016-104142",
+            "offer_status": "Pending",
+            "created_at": "2026-10-16T03:42:49.6873868Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:49.702931+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 47,
+      "label": "Try to create a second active replacement",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:49.711372+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "95.00",
+          "delivery_date": "2026-10-23",
+          "message": "Replacement offer for manual run 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "offer_already_exists"
+      },
+      "sent_at": "2026-10-16T10:42:49.715330+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:49 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "122",
+          "X-Request-Id": "6cad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_already_exists",
+            "message": "an active offer already exists for this job request"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:49.753013+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 48,
+      "label": "Read replacement and withdrawn history, newest first",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:49.758735+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:49.766328+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:49 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "531",
+          "X-Request-Id": "6dad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 24,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "95.00",
+              "delivery_date": "2026-10-23",
+              "message": "Replacement offer for manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:49.687386Z"
+            },
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:49.773221+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 49,
+      "label": "Creator compares all offers including Withdrawn history",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:49.784981+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:49.788586+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:49 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "2293",
+          "X-Request-Id": "6ead63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:42:01.123893Z",
+              "marketer": {
+                "user_id": 60,
+                "name": "US24 MANUAL 20261016-104142 Marketer A",
+                "email": "us24-manual-20261016-104142-marketer-a@example.test",
+                "phone": "0918242741",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.497125Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            },
+            {
+              "offer_id": 23,
+              "job_id": 38,
+              "job_request_id": 26,
+              "marketer_id": 61,
+              "offered_price": "120.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer B terms, manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:01.224868Z",
+              "marketer": {
+                "user_id": 61,
+                "name": "US24 MANUAL 20261016-104142 Marketer B",
+                "email": "us24-manual-20261016-104142-marketer-b@example.test",
+                "phone": "0970646376",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.920315Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            },
+            {
+              "offer_id": 24,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "95.00",
+              "delivery_date": "2026-10-23",
+              "message": "Replacement offer for manual run 20261016-104142",
+              "offer_status": "Pending",
+              "created_at": "2026-10-16T03:42:49.687386Z",
+              "marketer": {
+                "user_id": 60,
+                "name": "US24 MANUAL 20261016-104142 Marketer A",
+                "email": "us24-manual-20261016-104142-marketer-a@example.test",
+                "phone": "0918242741",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.497125Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:49.824352+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 50,
+      "label": "Creator accepts the replacement offer",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:53.826907+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/offers/24/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:53.831030+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:53 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "400",
+          "X-Request-Id": "6fad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_id": 38,
+            "job_status": "Accepted",
+            "accepted_offer_id": 24,
+            "offer": {
+              "offer_id": 24,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "95.00",
+              "delivery_date": "2026-10-23",
+              "message": "Replacement offer for manual run 20261016-104142",
+              "offer_status": "Accepted",
+              "created_at": "2026-10-16T03:42:49.687386Z"
+            },
+            "rejected_offer_ids": [
+              23
+            ],
+            "closed_job_request_ids": [
+              26
+            ]
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:53.874117+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 51,
+      "label": "Owner cannot withdraw an Accepted offer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:53.882135+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/24/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "offer_not_pending"
+      },
+      "sent_at": "2026-10-16T10:42:53.885152+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:53 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "105",
+          "X-Request-Id": "70ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be withdrawn"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:53.938711+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 52,
+      "label": "Owner cannot withdraw a Rejected offer",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:53.943709+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/23/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "offer_not_pending"
+      },
+      "sent_at": "2026-10-16T10:42:53.947861+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:53 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "105",
+          "X-Request-Id": "71ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be withdrawn"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.027292+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 53,
+      "label": "Foreign Accepted offer remains hidden",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:54.033588+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/24/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 404,
+        "error_code": "offer_not_found"
+      },
+      "sent_at": "2026-10-16T10:42:54.039943+07:00",
+      "response": {
+        "status": 404,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "85",
+          "X-Request-Id": "72ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_found",
+            "message": "offer was not found"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.059168+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 54,
+      "label": "Foreign Rejected offer remains hidden",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:54.066990+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/23/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 404,
+        "error_code": "offer_not_found"
+      },
+      "sent_at": "2026-10-16T10:42:54.070461+07:00",
+      "response": {
+        "status": 404,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "85",
+          "X-Request-Id": "73ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_found",
+            "message": "offer was not found"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.101517+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 55,
+      "label": "Cannot resubmit after the job has hired a Marketer",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:54.108275+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "90.00",
+          "delivery_date": "2026-10-23"
+        }
+      },
+      "expected": {
+        "status": 409,
+        "error_code": "job_not_pending"
+      },
+      "sent_at": "2026-10-16T10:42:54.116019+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "103",
+          "X-Request-Id": "74ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "job_not_pending",
+            "message": "this job has already hired a marketer"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.152085+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 56,
+      "label": "Read final accepted replacement and original history",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:54.155605+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/25/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:54.159691+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "532",
+          "X-Request-Id": "75ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 24,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "95.00",
+              "delivery_date": "2026-10-23",
+              "message": "Replacement offer for manual run 20261016-104142",
+              "offer_status": "Accepted",
+              "created_at": "2026-10-16T03:42:49.687386Z"
+            },
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:42:01.123893Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.186064+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 57,
+      "label": "Read final rejected competing offer",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:54.200550+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/26/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:54.204956+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "283",
+          "X-Request-Id": "76ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 23,
+              "job_id": 38,
+              "job_request_id": 26,
+              "marketer_id": 61,
+              "offered_price": "120.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer B terms, manual run 20261016-104142",
+              "offer_status": "Rejected",
+              "created_at": "2026-10-16T03:42:01.224868Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.216219+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 58,
+      "label": "Read final invitation/job state as Marketer A",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:42:54.226079+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:54.231452+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "889",
+          "X-Request-Id": "77ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 25,
+              "job_id": 38,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:42:01.056423Z",
+              "responded_at": "2026-10-16T03:42:01.101853Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 38,
+                "job_status": "Accepted",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": {
+                  "attachment_id": 10,
+                  "attachment_type": "Brief",
+                  "url": "https://example.test/us24-manual/20261016-104142/brief",
+                  "upload_at": "2026-10-16T03:42:01.038143Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.241930+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 59,
+      "label": "Read final invitation/job state as Marketer B",
+      "actor": "Marketer B",
+      "started_at": "2026-10-16T10:42:54.252778+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer B]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:54.255710+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "886",
+          "X-Request-Id": "78ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 26,
+              "job_id": 38,
+              "marketer_id": 61,
+              "request_status": "Closed",
+              "created_at": "2026-10-16T03:42:01.056423Z",
+              "responded_at": "2026-10-16T03:42:01.18673Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 38,
+                "job_status": "Accepted",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": {
+                  "attachment_id": 10,
+                  "attachment_type": "Brief",
+                  "url": "https://example.test/us24-manual/20261016-104142/brief",
+                  "upload_at": "2026-10-16T03:42:01.038143Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.271366+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 60,
+      "label": "Creator reads the final job offer comparison",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:42:54.284185+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/38/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:42:54.287210+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:42:54 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "2295",
+          "X-Request-Id": "79ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 22,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "100.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer A terms, manual run 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:42:01.123893Z",
+              "marketer": {
+                "user_id": 60,
+                "name": "US24 MANUAL 20261016-104142 Marketer A",
+                "email": "us24-manual-20261016-104142-marketer-a@example.test",
+                "phone": "0918242741",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.497125Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            },
+            {
+              "offer_id": 23,
+              "job_id": 38,
+              "job_request_id": 26,
+              "marketer_id": 61,
+              "offered_price": "120.00",
+              "delivery_date": "2026-10-23",
+              "message": "Original Marketer B terms, manual run 20261016-104142",
+              "offer_status": "Rejected",
+              "created_at": "2026-10-16T03:42:01.224868Z",
+              "marketer": {
+                "user_id": 61,
+                "name": "US24 MANUAL 20261016-104142 Marketer B",
+                "email": "us24-manual-20261016-104142-marketer-b@example.test",
+                "phone": "0970646376",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.920315Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            },
+            {
+              "offer_id": 24,
+              "job_id": 38,
+              "job_request_id": 25,
+              "marketer_id": 60,
+              "offered_price": "95.00",
+              "delivery_date": "2026-10-23",
+              "message": "Replacement offer for manual run 20261016-104142",
+              "offer_status": "Accepted",
+              "created_at": "2026-10-16T03:42:49.687386Z",
+              "marketer": {
+                "user_id": 60,
+                "name": "US24 MANUAL 20261016-104142 Marketer A",
+                "email": "us24-manual-20261016-104142-marketer-a@example.test",
+                "phone": "0918242741",
+                "line_id": null,
+                "bio": "US24 manual verification 20261016-104142",
+                "experience_years": 1,
+                "availability_status": "available",
+                "availability_text": "Test account for offer withdrawal verification",
+                "expertise": [],
+                "campuses": [],
+                "created_at": "2026-10-16T03:41:55.497125Z"
+              },
+              "rating": {
+                "average_rating": null,
+                "review_count": 0,
+                "completed_jobs": 0,
+                "is_rated": false
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:42:54.302177+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 61,
+      "label": "Create a separate test job for double-withdrawal",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:43:33.187779+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "survey_ids": [
+            18
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.192781+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "164",
+          "X-Request-Id": "7aad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_id": 39,
+            "user_id": 59,
+            "accepted_offer_id": null,
+            "job_status": "Pending",
+            "created_at": "2026-10-16T03:43:33.2191174Z",
+            "survey_ids": [
+              18
+            ]
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.234273+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 62,
+      "label": "Invite A for double-withdrawal",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:43:33.238346+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/39/requests",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "marketer_ids": [
+            60
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.242031+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "213",
+          "X-Request-Id": "7bad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 27,
+              "job_id": 39,
+              "marketer_id": 60,
+              "request_status": "Pending",
+              "created_at": "2026-10-16T03:43:33.2859612Z",
+              "responded_at": null,
+              "decline_reason": null,
+              "decline_note": null
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.421190+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 63,
+      "label": "A accepts the double-withdrawal invitation",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.430243+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/27/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.435773+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "237",
+          "X-Request-Id": "7cad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_request_id": 27,
+            "job_id": 39,
+            "marketer_id": 60,
+            "request_status": "Accepted",
+            "created_at": "2026-10-16T03:43:33.285961Z",
+            "responded_at": "2026-10-16T03:43:33.5093745Z",
+            "decline_reason": null,
+            "decline_note": null
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.576245+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 64,
+      "label": "A submits a fresh offer for double-withdrawal",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.586308+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/27/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "80.00",
+          "delivery_date": "2026-10-23",
+          "message": "Manual double-withdrawal test 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.592817+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "272",
+          "X-Request-Id": "7dad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 25,
+            "job_id": 39,
+            "job_request_id": 27,
+            "marketer_id": 60,
+            "offered_price": "80.00",
+            "delivery_date": "2026-10-23",
+            "message": "Manual double-withdrawal test 20261016-104142",
+            "offer_status": "Pending",
+            "created_at": "2026-10-16T03:43:33.6006556Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.622125+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 65,
+      "label": "double-withdrawal: first concurrent request (withdraw)",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.682281+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/25/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": [
+          200,
+          409
+        ],
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.691818+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "273",
+          "X-Request-Id": "7ead63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 25,
+            "job_id": 39,
+            "job_request_id": 27,
+            "marketer_id": 60,
+            "offered_price": "80.00",
+            "delivery_date": "2026-10-23",
+            "message": "Manual double-withdrawal test 20261016-104142",
+            "offer_status": "Withdrawn",
+            "created_at": "2026-10-16T03:43:33.600655Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.710609+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 66,
+      "label": "double-withdrawal: second concurrent request",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.687283+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/25/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": [
+          200,
+          409
+        ],
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.690583+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "105",
+          "X-Request-Id": "7fad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be withdrawn"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.727706+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 67,
+      "label": "Read final double-withdrawal offer state",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.738911+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/27/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.743532+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "275",
+          "X-Request-Id": "80ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 25,
+              "job_id": 39,
+              "job_request_id": 27,
+              "marketer_id": 60,
+              "offered_price": "80.00",
+              "delivery_date": "2026-10-23",
+              "message": "Manual double-withdrawal test 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:43:33.600655Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.750468+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 68,
+      "label": "Read final double-withdrawal job/invitation state",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.760984+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.765662+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "1601",
+          "X-Request-Id": "81ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 27,
+              "job_id": 39,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:43:33.285961Z",
+              "responded_at": "2026-10-16T03:43:33.509374Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 39,
+                "job_status": "Pending",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": null
+              }
+            },
+            {
+              "job_request_id": 25,
+              "job_id": 38,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:42:01.056423Z",
+              "responded_at": "2026-10-16T03:42:01.101853Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 38,
+                "job_status": "Accepted",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": {
+                  "attachment_id": 10,
+                  "attachment_type": "Brief",
+                  "url": "https://example.test/us24-manual/20261016-104142/brief",
+                  "upload_at": "2026-10-16T03:42:01.038143Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.792644+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 69,
+      "label": "Create a separate test job for acceptance-versus-withdrawal",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:43:33.804096+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "survey_ids": [
+            18
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.808476+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "164",
+          "X-Request-Id": "82ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_id": 40,
+            "user_id": 59,
+            "accepted_offer_id": null,
+            "job_status": "Pending",
+            "created_at": "2026-10-16T03:43:33.8116868Z",
+            "survey_ids": [
+              18
+            ]
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.820110+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 70,
+      "label": "Invite A for acceptance-versus-withdrawal",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:43:33.826788+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/40/requests",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": {
+          "marketer_ids": [
+            60
+          ]
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.833900+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "213",
+          "X-Request-Id": "83ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 28,
+              "job_id": 40,
+              "marketer_id": 60,
+              "request_status": "Pending",
+              "created_at": "2026-10-16T03:43:33.8595486Z",
+              "responded_at": null,
+              "decline_reason": null,
+              "decline_note": null
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.871146+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 71,
+      "label": "A accepts the acceptance-versus-withdrawal invitation",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.878913+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/28/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.883399+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "237",
+          "X-Request-Id": "84ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "job_request_id": 28,
+            "job_id": 40,
+            "marketer_id": 60,
+            "request_status": "Accepted",
+            "created_at": "2026-10-16T03:43:33.859548Z",
+            "responded_at": "2026-10-16T03:43:33.8867336Z",
+            "decline_reason": null,
+            "decline_note": null
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.893823+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 72,
+      "label": "A submits a fresh offer for acceptance-versus-withdrawal",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.901171+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/28/offers",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": {
+          "offered_price": "80.00",
+          "delivery_date": "2026-10-23",
+          "message": "Manual acceptance-versus-withdrawal test 20261016-104142"
+        }
+      },
+      "expected": {
+        "status": 201,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.904726+07:00",
+      "response": {
+        "status": 201,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "283",
+          "X-Request-Id": "85ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 26,
+            "job_id": 40,
+            "job_request_id": 28,
+            "marketer_id": 60,
+            "offered_price": "80.00",
+            "delivery_date": "2026-10-23",
+            "message": "Manual acceptance-versus-withdrawal test 20261016-104142",
+            "offer_status": "Pending",
+            "created_at": "2026-10-16T03:43:33.9211802Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.938903+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 73,
+      "label": "acceptance-versus-withdrawal: first concurrent request (withdraw)",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.945438+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/me/offers/26/withdraw",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": [
+          200,
+          409
+        ],
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.956040+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "283",
+          "X-Request-Id": "87ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "offer_id": 26,
+            "job_id": 40,
+            "job_request_id": 28,
+            "marketer_id": 60,
+            "offered_price": "80.00",
+            "delivery_date": "2026-10-23",
+            "message": "Manual acceptance-versus-withdrawal test 20261016-104142",
+            "offer_status": "Withdrawn",
+            "created_at": "2026-10-16T03:43:33.92118Z"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.968149+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 74,
+      "label": "acceptance-versus-withdrawal: second concurrent request",
+      "actor": "Creator",
+      "started_at": "2026-10-16T10:43:33.950259+07:00",
+      "request": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8081/api/v1/jobs/40/offers/26/accept",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Creator]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": [
+          200,
+          409
+        ],
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.954643+07:00",
+      "response": {
+        "status": 409,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "104",
+          "X-Request-Id": "86ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "error",
+          "error": {
+            "code": "offer_not_pending",
+            "message": "only a pending offer can be accepted"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:43:33.983250+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 75,
+      "label": "Read final acceptance-versus-withdrawal offer state",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:33.991844+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests/28/offers",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:33.997787+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "285",
+          "X-Request-Id": "88ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "offer_id": 26,
+              "job_id": 40,
+              "job_request_id": 28,
+              "marketer_id": 60,
+              "offered_price": "80.00",
+              "delivery_date": "2026-10-23",
+              "message": "Manual acceptance-versus-withdrawal test 20261016-104142",
+              "offer_status": "Withdrawn",
+              "created_at": "2026-10-16T03:43:33.92118Z"
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:34.019824+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 76,
+      "label": "Read final acceptance-versus-withdrawal job/invitation state",
+      "actor": "Marketer A",
+      "started_at": "2026-10-16T10:43:34.030801+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/api/v1/me/job-requests",
+        "headers": {
+          "Authorization": "Bearer [REDACTED: Marketer A]"
+        },
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:43:34.034330+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:43:33 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "2313",
+          "X-Request-Id": "89ad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": [
+            {
+              "job_request_id": 28,
+              "job_id": 40,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:43:33.859548Z",
+              "responded_at": "2026-10-16T03:43:33.886733Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 40,
+                "job_status": "Pending",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": null
+              }
+            },
+            {
+              "job_request_id": 27,
+              "job_id": 39,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:43:33.285961Z",
+              "responded_at": "2026-10-16T03:43:33.509374Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 39,
+                "job_status": "Pending",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": null
+              }
+            },
+            {
+              "job_request_id": 25,
+              "job_id": 38,
+              "marketer_id": 60,
+              "request_status": "Accepted",
+              "created_at": "2026-10-16T03:42:01.056423Z",
+              "responded_at": "2026-10-16T03:42:01.101853Z",
+              "decline_reason": null,
+              "decline_note": null,
+              "job": {
+                "job_id": 38,
+                "job_status": "Accepted",
+                "creator": {
+                  "user_id": 59,
+                  "name": "US24 MANUAL 20261016-104142 Creator"
+                },
+                "deadline": "2026-10-30T10:42:00.822959Z",
+                "target_responses": 10,
+                "surveys": [
+                  {
+                    "survey_id": 18,
+                    "title": "US24 MANUAL 20261016-104142",
+                    "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+                    "survey_link": "https://example.test/us24-manual/20261016-104142",
+                    "target_group": null,
+                    "desired_responses": 10,
+                    "deadline": "2026-10-30T10:42:00.822959Z"
+                  }
+                ],
+                "brief": {
+                  "attachment_id": 10,
+                  "attachment_type": "Brief",
+                  "url": "https://example.test/us24-manual/20261016-104142/brief",
+                  "upload_at": "2026-10-16T03:42:01.038143Z"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "received_at": "2026-10-16T10:43:34.049250+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 77,
+      "label": "Confirm the user-running API remains alive after testing",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:44:21.852157+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/healthz",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:44:21.860161+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:44:21 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "43",
+          "X-Request-Id": "8aad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ok"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:44:21.905055+07:00",
+      "result": "PASS"
+    },
+    {
+      "step": 78,
+      "label": "Confirm the application database remains ready after testing",
+      "actor": "Anonymous",
+      "started_at": "2026-10-16T10:44:21.912140+07:00",
+      "request": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8081/readyz",
+        "headers": {},
+        "body": null
+      },
+      "expected": {
+        "status": 200,
+        "error_code": null
+      },
+      "sent_at": "2026-10-16T10:44:21.916946+07:00",
+      "response": {
+        "status": 200,
+        "headers": {
+          "Date": "Fri, 16 Oct 2026 03:44:21 GMT",
+          "Content-Type": "application/json",
+          "Content-Length": "46",
+          "X-Request-Id": "8bad63d1-aef7-4666-9b6f-554347cbb43f",
+          "Connection": "close"
+        },
+        "body": {
+          "status": "success",
+          "data": {
+            "status": "ready"
+          }
+        }
+      },
+      "received_at": "2026-10-16T10:44:21.939489+07:00",
+      "result": "PASS"
+    }
+  ],
+  "checks": [
+    {
+      "after_step": 11,
+      "label": "New job is unassigned and Pending",
+      "result": "PASS",
+      "observed": {
+        "job_id": 38,
+        "user_id": 59,
+        "accepted_offer_id": null,
+        "job_status": "Pending",
+        "created_at": "2026-10-16T03:42:00.9808125Z",
+        "survey_ids": [
+          18
+        ]
+      }
+    },
+    {
+      "after_step": 21,
+      "label": "Missing authentication: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 23,
+      "label": "Invalid bearer token: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 25,
+      "label": "Creator without Marketer membership: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 27,
+      "label": "Marketer B attempts to withdraw A's Pending offer: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 29,
+      "label": "Nonexistent positive offer ID: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 31,
+      "label": "Invalid offer ID: 0: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 33,
+      "label": "Invalid offer ID: -1: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 35,
+      "label": "Invalid offer ID: abc: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 37,
+      "label": "Invalid offer ID: 2147483648: original offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 38,
+      "label": "Only offer_status changed; all original persisted fields retained",
+      "result": "PASS",
+      "observed": {
+        "offer_id": 22,
+        "job_id": 38,
+        "job_request_id": 25,
+        "marketer_id": 60,
+        "offered_price": "100.00",
+        "delivery_date": "2026-10-23",
+        "message": "Original Marketer A terms, manual run 20261016-104142",
+        "offer_status": "Withdrawn",
+        "created_at": "2026-10-16T03:42:01.123893Z"
+      }
+    },
+    {
+      "after_step": 39,
+      "label": "Invitation remains Accepted and job remains Pending",
+      "result": "PASS",
+      "observed": {
+        "job_request_id": 25,
+        "job_id": 38,
+        "marketer_id": 60,
+        "request_status": "Accepted",
+        "created_at": "2026-10-16T03:42:01.056423Z",
+        "responded_at": "2026-10-16T03:42:01.101853Z",
+        "decline_reason": null,
+        "decline_note": null,
+        "job": {
+          "job_id": 38,
+          "job_status": "Pending",
+          "creator": {
+            "user_id": 59,
+            "name": "US24 MANUAL 20261016-104142 Creator"
+          },
+          "deadline": "2026-10-30T10:42:00.822959Z",
+          "target_responses": 10,
+          "surveys": [
+            {
+              "survey_id": 18,
+              "title": "US24 MANUAL 20261016-104142",
+              "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+              "survey_link": "https://example.test/us24-manual/20261016-104142",
+              "target_group": null,
+              "desired_responses": 10,
+              "deadline": "2026-10-30T10:42:00.822959Z"
+            }
+          ],
+          "brief": {
+            "attachment_id": 10,
+            "attachment_type": "Brief",
+            "url": "https://example.test/us24-manual/20261016-104142/brief",
+            "upload_at": "2026-10-16T03:42:01.038143Z"
+          }
+        }
+      }
+    },
+    {
+      "after_step": 40,
+      "label": "Competing offer remains completely unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 23,
+          "job_id": 38,
+          "job_request_id": 26,
+          "marketer_id": 61,
+          "offered_price": "120.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer B terms, manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:01.224868Z"
+        }
+      ]
+    },
+    {
+      "after_step": 45,
+      "label": "Withdrawal is persisted across login sessions; rejected actions changed nothing",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Withdrawn",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 46,
+      "label": "Replacement has a new ID and Pending status",
+      "result": "PASS",
+      "observed": {
+        "offer_id": 24,
+        "job_id": 38,
+        "job_request_id": 25,
+        "marketer_id": 60,
+        "offered_price": "95.00",
+        "delivery_date": "2026-10-23",
+        "message": "Replacement offer for manual run 20261016-104142",
+        "offer_status": "Pending",
+        "created_at": "2026-10-16T03:42:49.6873868Z"
+      }
+    },
+    {
+      "after_step": 48,
+      "label": "Exactly two offers remain; new Pending offer first and original Withdrawn unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 24,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "95.00",
+          "delivery_date": "2026-10-23",
+          "message": "Replacement offer for manual run 20261016-104142",
+          "offer_status": "Pending",
+          "created_at": "2026-10-16T03:42:49.687386Z"
+        },
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Withdrawn",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 50,
+      "label": "Replacement hired; competing offer rejected and invitation closed",
+      "result": "PASS",
+      "observed": {
+        "job_id": 38,
+        "job_status": "Accepted",
+        "accepted_offer_id": 24,
+        "offer": {
+          "offer_id": 24,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "95.00",
+          "delivery_date": "2026-10-23",
+          "message": "Replacement offer for manual run 20261016-104142",
+          "offer_status": "Accepted",
+          "created_at": "2026-10-16T03:42:49.687386Z"
+        },
+        "rejected_offer_ids": [
+          23
+        ],
+        "closed_job_request_ids": [
+          26
+        ]
+      }
+    },
+    {
+      "after_step": 56,
+      "label": "Refused post-hiring actions leave A's offers unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 24,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "95.00",
+          "delivery_date": "2026-10-23",
+          "message": "Replacement offer for manual run 20261016-104142",
+          "offer_status": "Accepted",
+          "created_at": "2026-10-16T03:42:49.687386Z"
+        },
+        {
+          "offer_id": 22,
+          "job_id": 38,
+          "job_request_id": 25,
+          "marketer_id": 60,
+          "offered_price": "100.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer A terms, manual run 20261016-104142",
+          "offer_status": "Withdrawn",
+          "created_at": "2026-10-16T03:42:01.123893Z"
+        }
+      ]
+    },
+    {
+      "after_step": 57,
+      "label": "Refused post-hiring actions leave B's offer unchanged",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 23,
+          "job_id": 38,
+          "job_request_id": 26,
+          "marketer_id": 61,
+          "offered_price": "120.00",
+          "delivery_date": "2026-10-23",
+          "message": "Original Marketer B terms, manual run 20261016-104142",
+          "offer_status": "Rejected",
+          "created_at": "2026-10-16T03:42:01.224868Z"
+        }
+      ]
+    },
+    {
+      "after_step": 58,
+      "label": "Marketer A invitation is Accepted and job is Accepted",
+      "result": "PASS",
+      "observed": {
+        "job_request_id": 25,
+        "job_id": 38,
+        "marketer_id": 60,
+        "request_status": "Accepted",
+        "created_at": "2026-10-16T03:42:01.056423Z",
+        "responded_at": "2026-10-16T03:42:01.101853Z",
+        "decline_reason": null,
+        "decline_note": null,
+        "job": {
+          "job_id": 38,
+          "job_status": "Accepted",
+          "creator": {
+            "user_id": 59,
+            "name": "US24 MANUAL 20261016-104142 Creator"
+          },
+          "deadline": "2026-10-30T10:42:00.822959Z",
+          "target_responses": 10,
+          "surveys": [
+            {
+              "survey_id": 18,
+              "title": "US24 MANUAL 20261016-104142",
+              "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+              "survey_link": "https://example.test/us24-manual/20261016-104142",
+              "target_group": null,
+              "desired_responses": 10,
+              "deadline": "2026-10-30T10:42:00.822959Z"
+            }
+          ],
+          "brief": {
+            "attachment_id": 10,
+            "attachment_type": "Brief",
+            "url": "https://example.test/us24-manual/20261016-104142/brief",
+            "upload_at": "2026-10-16T03:42:01.038143Z"
+          }
+        }
+      }
+    },
+    {
+      "after_step": 59,
+      "label": "Marketer B invitation is Closed and job is Accepted",
+      "result": "PASS",
+      "observed": {
+        "job_request_id": 26,
+        "job_id": 38,
+        "marketer_id": 61,
+        "request_status": "Closed",
+        "created_at": "2026-10-16T03:42:01.056423Z",
+        "responded_at": "2026-10-16T03:42:01.18673Z",
+        "decline_reason": null,
+        "decline_note": null,
+        "job": {
+          "job_id": 38,
+          "job_status": "Accepted",
+          "creator": {
+            "user_id": 59,
+            "name": "US24 MANUAL 20261016-104142 Creator"
+          },
+          "deadline": "2026-10-30T10:42:00.822959Z",
+          "target_responses": 10,
+          "surveys": [
+            {
+              "survey_id": 18,
+              "title": "US24 MANUAL 20261016-104142",
+              "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+              "survey_link": "https://example.test/us24-manual/20261016-104142",
+              "target_group": null,
+              "desired_responses": 10,
+              "deadline": "2026-10-30T10:42:00.822959Z"
+            }
+          ],
+          "brief": {
+            "attachment_id": 10,
+            "attachment_type": "Brief",
+            "url": "https://example.test/us24-manual/20261016-104142/brief",
+            "upload_at": "2026-10-16T03:42:01.038143Z"
+          }
+        }
+      }
+    },
+    {
+      "after_step": 60,
+      "label": "Review saved step 49: Creator saw Withdrawn history and both Pending candidates",
+      "result": "PASS",
+      "observed": {
+        "22": "Withdrawn",
+        "23": "Pending",
+        "24": "Pending"
+      }
+    },
+    {
+      "after_step": 66,
+      "label": "double-withdrawal: exactly one success and one offer_not_pending conflict",
+      "result": "PASS",
+      "observed": {
+        "statuses": [
+          200,
+          409
+        ],
+        "response_steps": [
+          65,
+          66
+        ]
+      }
+    },
+    {
+      "after_step": 67,
+      "label": "double-withdrawal: one retained offer with the winning status",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 25,
+          "job_id": 39,
+          "job_request_id": 27,
+          "marketer_id": 60,
+          "offered_price": "80.00",
+          "delivery_date": "2026-10-23",
+          "message": "Manual double-withdrawal test 20261016-104142",
+          "offer_status": "Withdrawn",
+          "created_at": "2026-10-16T03:43:33.600655Z"
+        }
+      ]
+    },
+    {
+      "after_step": 68,
+      "label": "double-withdrawal: job and invitation agree with the winning action",
+      "result": "PASS",
+      "observed": {
+        "job_request_id": 27,
+        "job_id": 39,
+        "marketer_id": 60,
+        "request_status": "Accepted",
+        "created_at": "2026-10-16T03:43:33.285961Z",
+        "responded_at": "2026-10-16T03:43:33.509374Z",
+        "decline_reason": null,
+        "decline_note": null,
+        "job": {
+          "job_id": 39,
+          "job_status": "Pending",
+          "creator": {
+            "user_id": 59,
+            "name": "US24 MANUAL 20261016-104142 Creator"
+          },
+          "deadline": "2026-10-30T10:42:00.822959Z",
+          "target_responses": 10,
+          "surveys": [
+            {
+              "survey_id": 18,
+              "title": "US24 MANUAL 20261016-104142",
+              "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+              "survey_link": "https://example.test/us24-manual/20261016-104142",
+              "target_group": null,
+              "desired_responses": 10,
+              "deadline": "2026-10-30T10:42:00.822959Z"
+            }
+          ],
+          "brief": null
+        }
+      }
+    },
+    {
+      "after_step": 74,
+      "label": "acceptance-versus-withdrawal: exactly one success and one offer_not_pending conflict",
+      "result": "PASS",
+      "observed": {
+        "statuses": [
+          200,
+          409
+        ],
+        "response_steps": [
+          73,
+          74
+        ]
+      }
+    },
+    {
+      "after_step": 75,
+      "label": "acceptance-versus-withdrawal: one retained offer with the winning status",
+      "result": "PASS",
+      "observed": [
+        {
+          "offer_id": 26,
+          "job_id": 40,
+          "job_request_id": 28,
+          "marketer_id": 60,
+          "offered_price": "80.00",
+          "delivery_date": "2026-10-23",
+          "message": "Manual acceptance-versus-withdrawal test 20261016-104142",
+          "offer_status": "Withdrawn",
+          "created_at": "2026-10-16T03:43:33.92118Z"
+        }
+      ]
+    },
+    {
+      "after_step": 76,
+      "label": "acceptance-versus-withdrawal: job and invitation agree with the winning action",
+      "result": "PASS",
+      "observed": {
+        "job_request_id": 28,
+        "job_id": 40,
+        "marketer_id": 60,
+        "request_status": "Accepted",
+        "created_at": "2026-10-16T03:43:33.859548Z",
+        "responded_at": "2026-10-16T03:43:33.886733Z",
+        "decline_reason": null,
+        "decline_note": null,
+        "job": {
+          "job_id": 40,
+          "job_status": "Pending",
+          "creator": {
+            "user_id": 59,
+            "name": "US24 MANUAL 20261016-104142 Creator"
+          },
+          "deadline": "2026-10-30T10:42:00.822959Z",
+          "target_responses": 10,
+          "surveys": [
+            {
+              "survey_id": 18,
+              "title": "US24 MANUAL 20261016-104142",
+              "description": "Manual test fixture for offer withdrawal; no real survey responses are collected.",
+              "survey_link": "https://example.test/us24-manual/20261016-104142",
+              "target_group": null,
+              "desired_responses": 10,
+              "deadline": "2026-10-30T10:42:00.822959Z"
+            }
+          ],
+          "brief": null
+        }
+      }
+    }
+  ]
+}

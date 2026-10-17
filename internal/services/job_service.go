@@ -34,6 +34,33 @@ func (s *JobService) ListSurveys(ctx context.Context, actor Actor) ([]domain.Sur
 	return s.repo.ListSurveysByCreator(ctx, actor.UserID)
 }
 
+func (s *JobService) ListMyJobs(ctx context.Context, actor Actor) ([]domain.CreatorJobSummary, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	return s.repo.ListJobsByCreator(ctx, actor.UserID)
+}
+
+func (s *JobService) GetJob(ctx context.Context, actor Actor, jobID int32) (*domain.CreatorJobSummary, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	return s.repo.GetJobByCreator(ctx, actor.UserID, jobID)
+}
+
+func (s *JobService) ListJobRequests(ctx context.Context, actor Actor, jobID int32) ([]domain.SentJobRequest, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	return s.repo.ListJobRequestsByCreator(ctx, actor.UserID, jobID)
+}
+
 func (s *JobService) Create(ctx context.Context, actor Actor, input CreateJobInput) (*domain.Job, error) {
 	if err := s.requireCreator(ctx, actor); err != nil {
 		return nil, err

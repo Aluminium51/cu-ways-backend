@@ -22,6 +22,79 @@ func NewJobRepository(db *gorm.DB) *JobRepository {
 	return &JobRepository{db: db}
 }
 
+func (r *JobRepository) ListJobsByCreator(ctx context.Context, creatorID int32) ([]domain.CreatorJobSummary, error) {
+	var jobs []domain.Job
+	err := r.db.WithContext(ctx).
+		Where("user_id = ?", creatorID).
+		Preload("Surveys", func(db *gorm.DB) *gorm.DB {
+			return db.Order("surveys.survey_id ASC")
+		}).
+		Order("created_at DESC, job_id DESC").
+		Find(&jobs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]domain.CreatorJobSummary, 0, len(jobs))
+	for _, job := range jobs {
+		summaries = append(summaries, toCreatorJobSummary(job))
+	}
+	return summaries, nil
+}
+
+func (r *JobRepository) GetJobByCreator(ctx context.Context, creatorID, jobID int32) (*domain.CreatorJobSummary, error) {
+	job, err := findOwnedJob(r.db.WithContext(ctx), creatorID, jobID)
+	if err != nil {
+		return nil, mapJobRepositoryError(err)
+	}
+	surveys := make([]domain.JobSurveySummary, 0)
+	err = r.db.WithContext(ctx).
+		Table("surveys").
+		Select("surveys.survey_id, surveys.title").
+		Joins("JOIN is_used_in ON is_used_in.survey_id = surveys.survey_id").
+		Where("is_used_in.job_id = ?", jobID).
+		Order("surveys.survey_id ASC").
+		Scan(&surveys).Error
+	if err != nil {
+		return nil, err
+	}
+	summary := toCreatorJobSummary(*job)
+	summary.Surveys = surveys
+	return &summary, nil
+}
+
+func (r *JobRepository) ListJobRequestsByCreator(ctx context.Context, creatorID, jobID int32) ([]domain.SentJobRequest, error) {
+	if _, err := findOwnedJob(r.db.WithContext(ctx), creatorID, jobID); err != nil {
+		return nil, mapJobRepositoryError(err)
+	}
+	requests := make([]domain.SentJobRequest, 0)
+	err := r.db.WithContext(ctx).
+		Table("job_requests").
+		Select("job_requests.job_request_id, job_requests.job_id, job_requests.marketer_id, job_requests.request_status, job_requests.created_at, job_requests.responded_at, users.name AS marketer_name").
+		Joins("JOIN marketers ON marketers.user_id = job_requests.marketer_id").
+		Joins("JOIN users ON users.user_id = marketers.user_id").
+		Where("job_requests.job_id = ?", jobID).
+		Order("job_requests.created_at DESC, job_requests.job_request_id DESC").
+		Scan(&requests).Error
+	if err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
+func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
+	summary := domain.CreatorJobSummary{
+		JobID:     job.JobID,
+		JobStatus: job.JobStatus,
+		CreatedAt: job.CreatedAt,
+		Surveys:   make([]domain.JobSurveySummary, 0, len(job.Surveys)),
+	}
+	for _, survey := range job.Surveys {
+		summary.Surveys = append(summary.Surveys, domain.JobSurveySummary{SurveyID: survey.SurveyID, Title: survey.Title})
+	}
+	return summary
+}
+
 func (r *JobRepository) ListSurveysByCreator(ctx context.Context, creatorID int32) ([]domain.Survey, error) {
 	var surveys []domain.Survey
 	err := r.db.WithContext(ctx).
@@ -133,8 +206,14 @@ func (r *JobRepository) ListBriefs(ctx context.Context, creatorID, jobID int32) 
 func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int32, marketerIDs []int32, createdAt time.Time) ([]domain.JobRequest, error) {
 	requests := make([]domain.JobRequest, 0, len(marketerIDs))
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		// A hired job takes no new invitations. The job lock serializes this
+		// check with offer acceptance.
+		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+			return domain.ErrJobNotPending
 		}
 		var marketerIDsFound []int32
 		if err := tx.Table("marketers").

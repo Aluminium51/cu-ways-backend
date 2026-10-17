@@ -15,9 +15,9 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, and marketer invitations.
+    description: Creator job setup, survey links, briefs, marketer invitations, offer comparison, and offer acceptance.
   - name: Job Requests
-    description: Marketer review of and responses to job invitations.
+    description: Marketer review of and responses to job invitations, and offer submission.
 paths:
   /healthz:
     get:
@@ -972,6 +972,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/jobs:
+    get:
+      operationId: listMyJobs
+      summary: List jobs owned by the authenticated Creator
+      description: Jobs are ordered by created_at descending and then job_id descending. Each job includes its linked survey IDs and titles, ordered by survey_id ascending. An empty list is valid.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The Creator's job summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorJobSummaryListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: getJob
+      summary: Get a Creator-owned job summary
+      description: Returns the job's linked surveys ordered by survey_id ascending. The authenticated user must have active Creator membership and own the job.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The job summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorJobSummaryResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership or does not own the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The job ID is not a positive int32.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/surveys/{surveyId}:
     parameters:
       - name: id
@@ -1195,13 +1269,165 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: An active request already exists for a selected marketer.
+          description: An active request already exists for a selected marketer (code job_conflict), or the job has already hired a marketer (code job_not_pending).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Request is empty, contains duplicate IDs, or selects an unavailable marketer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: listJobRequests
+      summary: List invitation history for a Creator-owned job
+      description: Includes all request statuses, newest first by created_at and then job_request_id. Responses include marketer names only and do not expose contact or profile details. The authenticated user must have active Creator membership and own the job.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The job's invitation history. An empty list is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentJobRequestListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller does not have active Creator membership or does not own the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The job ID is not a positive int32.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/offers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listJobOffers
+      summary: Compare the offers submitted for a job
+      description: Returns every offer on a job the caller owns, oldest first, with the marketer's profile and rating history. The rating uses the same rule as the marketer detail endpoint - jobs count when Completed through the marketer's accepted offer, and only 1-5 reviews contribute to average_rating. Marketers with no rated jobs return average_rating null and is_rated false.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Accepted, Rejected, Withdrawn]
+      responses:
+        '200':
+          description: Offers for the job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOfferComparisonListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid job ID or unknown status filter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/offers/{offerId}/accept:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: acceptJobOffer
+      summary: Accept one offer and hire its marketer
+      description: In one transaction that rolls back completely on any failure, marks the job Accepted with accepted_offer_id, sets the offer to Accepted, sets every other Pending offer on the job to Rejected, and closes the other marketers' Pending or Accepted job requests. The hired marketer's request stays Accepted. Only a Pending offer on a Pending job can be accepted.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offer accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptOfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found) or the offer does not belong to the job (code offer_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job already has an accepted offer or is closed (code job_not_pending), or the offer is not Pending (code offer_not_pending).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid job or offer ID.
           content:
             application/json:
               schema:
@@ -1352,6 +1578,159 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/job-requests/{id}/offers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listMyJobRequestOffers
+      summary: List the marketer's offers for a job request
+      description: Returns the caller's offers for one request, newest first. The first item is the current offer; withdrawn and rejected offers remain as history.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offers for the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No request with this ID is addressed to the caller (code job_request_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: submitMyJobRequestOffer
+      summary: Submit a price offer for an accepted job request
+      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today or after the job deadline (the earliest linked survey deadline), using the Asia/Bangkok calendar.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitOfferRequest'
+      responses:
+        '201':
+          description: Offer submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No request with this ID is addressed to the caller (code job_request_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job has already hired a marketer (code job_not_pending), the request is not Accepted (code job_request_not_accepted), or it already has an active offer (code offer_already_exists).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Malformed body (code validation_error) or an invalid price, delivery date, or message (code invalid_offer; the message names the problem).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/me/offers/{id}/withdraw:
+    post:
+      operationId: withdrawMyOffer
+      summary: Withdraw the marketer's pending offer
+      description: >-
+        Changes only the authenticated marketer's Pending offer to Withdrawn and
+        returns the updated offer. No request body is required. The offer remains
+        in history with its original price, delivery date, message, and creation
+        time. The job and invitation are unchanged. A new offer can be submitted
+        through POST /api/v1/me/job-requests/{id}/offers while that invitation is
+        Accepted, the job is Pending, and no Pending or Accepted offer exists.
+        Withdrawal and acceptance serialize on the offer row; whichever obtains
+        that lock first wins, and the other action returns offer_not_pending.
+      tags: [Job Requests]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The offer ID, not the job request ID.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Offer withdrawn; offer_status is Withdrawn.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership (code marketer_profile_required).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The offer does not exist or belongs to another marketer (code offer_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The offer is Accepted, Rejected, or already Withdrawn (code offer_not_pending). No state is changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The offer ID is not a positive int32 (code validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -1361,7 +1740,7 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [name, email, password]
+      required: [name, email, password, phone]
       properties:
         name:
           type: string
@@ -1378,12 +1757,34 @@ components:
           maxLength: 128
         phone:
           type: string
-          nullable: true
-          maxLength: 20
+          description: A 10-digit Thai mobile number, digits only. Must be unique across accounts.
+          pattern: '^[0-9]{10}$'
+          minLength: 10
+          maxLength: 10
         line_id:
           type: string
           nullable: true
           maxLength: 50
+        marketer_profile:
+          $ref: '#/components/schemas/RegisterMarketerProfile'
+    RegisterMarketerProfile:
+      type: object
+      description: >-
+        Sent only when signing up as a Marketer. The account also keeps its Creator
+        membership. Availability status starts as `available`; expertise and campuses
+        are added later from the marketer profile.
+      properties:
+        bio:
+          type: string
+          maxLength: 5000
+        experience_years:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 80
+        availability_text:
+          type: string
+          maxLength: 5000
     LoginRequest:
       type: object
       required: [email, password]
@@ -1461,8 +1862,10 @@ components:
           maxLength: 255
         phone:
           type: string
-          nullable: true
-          maxLength: 20
+          description: A 10-digit Thai mobile number, digits only. Can be changed but not removed.
+          pattern: '^[0-9]{10}$'
+          minLength: 10
+          maxLength: 10
         line_id:
           type: string
           nullable: true
@@ -1864,6 +2267,52 @@ components:
           enum: [success]
         data:
           $ref: '#/components/schemas/Job'
+    JobSurveySummary:
+      type: object
+      required: [survey_id, title]
+      properties:
+        survey_id:
+          type: integer
+          format: int32
+        title:
+          type: string
+    CreatorJobSummary:
+      type: object
+      required: [job_id, job_status, created_at, surveys]
+      properties:
+        job_id:
+          type: integer
+          format: int32
+        job_status:
+          type: string
+          enum: [Pending, Accepted, In Progress, Completed, Cancelled]
+        created_at:
+          type: string
+          format: date-time
+        surveys:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobSurveySummary'
+    CreatorJobSummaryResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/CreatorJobSummary'
+    CreatorJobSummaryListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatorJobSummary'
     JobLinkResponse:
       type: object
       required: [status, data]
@@ -2055,6 +2504,145 @@ components:
                   allOf:
                     - $ref: '#/components/schemas/Brief'
                   nullable: true
+    SubmitOfferRequest:
+      type: object
+      additionalProperties: false
+      required: [offered_price, delivery_date]
+      properties:
+        offered_price:
+          type: string
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+          example: '9000.00'
+        delivery_date:
+          type: string
+          format: date
+          example: '2026-10-25'
+        message:
+          type: string
+          nullable: true
+          maxLength: 300
+    Offer:
+      type: object
+      required: [offer_id, job_id, job_request_id, marketer_id, offered_price, delivery_date, message, offer_status, created_at]
+      properties:
+        offer_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        job_request_id:
+          type: integer
+          format: int32
+          nullable: true
+        marketer_id:
+          type: integer
+          format: int32
+        offered_price:
+          type: string
+          example: '9000.00'
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        offer_status:
+          type: string
+          enum: [Pending, Accepted, Rejected, Withdrawn]
+        created_at:
+          type: string
+          format: date-time
+    OfferResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/Offer'
+    OfferListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+    MarketerRating:
+      type: object
+      required: [average_rating, review_count, completed_jobs, is_rated]
+      properties:
+        average_rating:
+          type: number
+          format: double
+          nullable: true
+        review_count:
+          type: integer
+          format: int64
+        completed_jobs:
+          type: integer
+          format: int64
+        is_rated:
+          type: boolean
+    JobOfferComparison:
+      allOf:
+        - $ref: '#/components/schemas/Offer'
+        - type: object
+          required: [marketer, rating]
+          properties:
+            marketer:
+              $ref: '#/components/schemas/MarketerProfile'
+            rating:
+              $ref: '#/components/schemas/MarketerRating'
+    JobOfferComparisonListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobOfferComparison'
+    AcceptOfferResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [job_id, job_status, accepted_offer_id, offer, rejected_offer_ids, closed_job_request_ids]
+          properties:
+            job_id:
+              type: integer
+              format: int32
+            job_status:
+              type: string
+              enum: [Accepted]
+            accepted_offer_id:
+              type: integer
+              format: int32
+            offer:
+              $ref: '#/components/schemas/Offer'
+            rejected_offer_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+            closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
     MarketerJobRequestListResponse:
       type: object
       required: [status, data]
@@ -2077,6 +2665,42 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobRequest'
+    SentJobRequest:
+      type: object
+      required: [job_request_id, job_id, marketer_id, request_status, created_at, responded_at, marketer_name]
+      properties:
+        job_request_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        marketer_id:
+          type: integer
+          format: int32
+        request_status:
+          type: string
+          enum: [Pending, Accepted, Declined, Closed]
+        created_at:
+          type: string
+          format: date-time
+        responded_at:
+          type: string
+          format: date-time
+          nullable: true
+        marketer_name:
+          type: string
+    SentJobRequestListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SentJobRequest'
     DeleteSurveyResponse:
       type: object
       required: [status, data]

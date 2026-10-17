@@ -32,11 +32,13 @@ type fakeAuthService struct {
 	loginResult    *services.AuthResult
 	loginErr       error
 	registerCtx    context.Context
+	registerInput  services.RegisterInput
 	loginCtx       context.Context
 }
 
-func (f *fakeAuthService) Register(ctx context.Context, _ services.RegisterInput) (*services.AuthResult, error) {
+func (f *fakeAuthService) Register(ctx context.Context, input services.RegisterInput) (*services.AuthResult, error) {
 	f.registerCtx = ctx
+	f.registerInput = input
 	return f.registerResult, f.registerErr
 }
 
@@ -69,7 +71,7 @@ func TestAuthHandlerRegisterReturnsTokenAndSanitizedUser(t *testing.T) {
 	app := newAuthHandlerTestApp(service)
 
 	requestContext := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
-	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple"}`)).WithContext(requestContext)
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}`)).WithContext(requestContext)
 	req.Header.Set("Content-Type", "application/json")
 	res, err := app.Test(req)
 	if err != nil {
@@ -144,7 +146,7 @@ func TestAuthHandlerRejectsInvalidRequest(t *testing.T) {
 func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	service := &fakeAuthService{registerErr: domain.ErrEmailAlreadyExists}
 	app := newAuthHandlerTestApp(service)
-	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple"}`))
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	res, err := app.Test(req)
@@ -233,5 +235,78 @@ func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	defer closeResponseBody(t, res.Body)
 	if service.loginCtx == nil || service.loginCtx.Value(authHandlerContextKey{}) != "request-value" {
 		t.Fatal("expected request context to reach auth service")
+	}
+}
+
+func postRegister(t *testing.T, service *fakeAuthService, body string) int {
+	t.Helper()
+	app := newAuthHandlerTestApp(service)
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	return res.StatusCode
+}
+
+func registeredResult() *services.AuthResult {
+	return &services.AuthResult{
+		User:      &domain.User{UserID: 7, Name: "Jane", Email: "jane@example.com", Role: domain.RoleUser},
+		Token:     "token",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+}
+
+func TestAuthHandlerRegisterRequiresPhone(t *testing.T) {
+	service := &fakeAuthService{registerResult: registeredResult()}
+	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple"}`)
+	if status != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 without a phone, got %d", status)
+	}
+	if service.registerCtx != nil {
+		t.Fatal("an invalid request must not reach the service")
+	}
+}
+
+func TestAuthHandlerRegisterPassesMarketerProfile(t *testing.T) {
+	service := &fakeAuthService{registerResult: registeredResult()}
+	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678",
+		"marketer_profile":{"bio":"Survey recruiter","experience_years":3,"availability_text":"Weekends"}}`)
+	if status != fiber.StatusCreated {
+		t.Fatalf("expected 201, got %d", status)
+	}
+	profile := service.registerInput.MarketerProfile
+	if profile == nil || profile.Bio != "Survey recruiter" || profile.ExperienceYears == nil || *profile.ExperienceYears != 3 || profile.AvailabilityText != "Weekends" {
+		t.Fatalf("expected the marketer profile to reach the service, got %+v", profile)
+	}
+}
+
+func TestAuthHandlerRegisterWithoutMarketerProfileIsACreator(t *testing.T) {
+	service := &fakeAuthService{registerResult: registeredResult()}
+	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}`)
+	if status != fiber.StatusCreated {
+		t.Fatalf("expected 201, got %d", status)
+	}
+	if service.registerInput.MarketerProfile != nil {
+		t.Fatal("expected no marketer profile for a creator sign-up")
+	}
+}
+
+func TestAuthHandlerRegisterRejectsOutOfRangeExperience(t *testing.T) {
+	service := &fakeAuthService{registerResult: registeredResult()}
+	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678",
+		"marketer_profile":{"experience_years":81}}`)
+	if status != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for 81 years, got %d", status)
+	}
+}
+
+func TestAuthHandlerMapsInvalidMarketerProfileToValidationError(t *testing.T) {
+	service := &fakeAuthService{registerErr: domain.ErrInvalidMarketerProfile}
+	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678","marketer_profile":{}}`)
+	if status != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", status)
 	}
 }

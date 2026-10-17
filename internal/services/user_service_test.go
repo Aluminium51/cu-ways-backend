@@ -13,6 +13,7 @@ import (
 type fakeUserRepository struct {
 	users      map[int32]*domain.User
 	creatorIDs map[int32]bool
+	marketers  map[int32]*domain.Marketer
 
 	findByEmailErr       error
 	createWithCreatorErr error
@@ -23,7 +24,7 @@ type fakeUserRepository struct {
 }
 
 func newFakeUserRepository(users ...*domain.User) *fakeUserRepository {
-	repo := &fakeUserRepository{users: make(map[int32]*domain.User), creatorIDs: make(map[int32]bool)}
+	repo := &fakeUserRepository{users: make(map[int32]*domain.User), creatorIDs: make(map[int32]bool), marketers: make(map[int32]*domain.Marketer)}
 	for _, user := range users {
 		copy := *user
 		repo.users[user.UserID] = &copy
@@ -41,7 +42,7 @@ func (f *fakeUserRepository) Create(ctx context.Context, user *domain.User) erro
 	return nil
 }
 
-func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain.User) error {
+func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain.User, marketer *domain.Marketer) error {
 	f.lastContext = ctx
 	if err := ctx.Err(); err != nil {
 		return err
@@ -55,6 +56,11 @@ func (f *fakeUserRepository) CreateWithCreator(ctx context.Context, user *domain
 	copy := *user
 	f.users[user.UserID] = &copy
 	f.creatorIDs[user.UserID] = true
+	if marketer != nil {
+		profile := *marketer
+		profile.UserID = user.UserID
+		f.marketers[user.UserID] = &profile
+	}
 	return nil
 }
 
@@ -180,22 +186,57 @@ func TestUserServiceListRequiresAdminAndAppliesDefaults(t *testing.T) {
 	}
 }
 
-func TestUserServiceUpdateCanClearNullableFields(t *testing.T) {
+func TestUserServiceUpdateCanClearLineID(t *testing.T) {
 	phone := "0812345678"
-	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
+	lineID := "jane.line"
+	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone, LineID: &lineID})
 	service := NewUserService(repo)
 	name := "Jane Updated"
 
 	user, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{
-		Name:     &name,
-		PhoneSet: true,
-		Phone:    nil,
+		Name:      &name,
+		LineIDSet: true,
+		LineID:    nil,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.Name != name || user.Phone != nil {
-		t.Fatalf("expected updated name and cleared phone, got %+v", user)
+	if user.Name != name || user.LineID != nil || user.Phone == nil {
+		t.Fatalf("expected updated name, cleared line ID and kept phone, got %+v", user)
+	}
+}
+
+func TestUserServiceUpdateRejectsClearingPhone(t *testing.T) {
+	phone := "0812345678"
+	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
+	service := NewUserService(repo)
+
+	_, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{PhoneSet: true, Phone: nil})
+	if !errors.Is(err, domain.ErrInvalidUser) {
+		t.Fatalf("expected invalid user when clearing the phone, got %v", err)
+	}
+	if got := repo.users[1].Phone; got == nil || *got != phone {
+		t.Fatalf("the stored phone must not change, got %v", got)
+	}
+}
+
+func TestUserServiceUpdateRequiresTenDigitPhone(t *testing.T) {
+	phone := "0812345678"
+	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
+	service := NewUserService(repo)
+
+	for _, candidate := range []string{"081234567", "08123456789", "08x2345678", "+668123456"} {
+		_, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{PhoneSet: true, Phone: stringPointer(candidate)})
+		if !errors.Is(err, domain.ErrInvalidUser) {
+			t.Fatalf("expected %q to be rejected, got %v", candidate, err)
+		}
+	}
+	user, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{PhoneSet: true, Phone: stringPointer(" 0888888989 ")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Phone == nil || *user.Phone != "0888888989" {
+		t.Fatalf("expected the trimmed 10-digit phone, got %v", user.Phone)
 	}
 }
 
@@ -226,23 +267,6 @@ func TestUserServiceUpdatePropagatesDuplicatePhone(t *testing.T) {
 	}
 }
 
-func TestUserServiceUpdateAllowsEmptyPhoneAndNormalizesToNil(t *testing.T) {
-	phone := "0812345678"
-	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
-	service := NewUserService(repo)
-	emptyPhone := "   "
-
-	user, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{
-		PhoneSet: true,
-		Phone:    &emptyPhone,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if user.Phone != nil {
-		t.Fatalf("expected cleared phone, got %v", *user.Phone)
-	}
-}
 
 func TestUserServiceDeleteSoftDeletesUser(t *testing.T) {
 	repo := newFakeUserRepository(&domain.User{UserID: 1, Email: "jane@example.com"})

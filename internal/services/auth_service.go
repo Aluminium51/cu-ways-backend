@@ -23,6 +23,17 @@ type RegisterInput struct {
 	Password string
 	Phone    *string
 	LineID   *string
+	// MarketerProfile is set when the user signs up as a Marketer. They keep
+	// the Creator membership every account gets.
+	MarketerProfile *RegisterMarketerProfileInput
+}
+
+// RegisterMarketerProfileInput is the marketer step of sign-up. Expertise,
+// campuses and availability status are completed later from the profile page.
+type RegisterMarketerProfileInput struct {
+	Bio              string
+	ExperienceYears  *int32
+	AvailabilityText string
 }
 
 type LoginInput struct {
@@ -59,11 +70,18 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 	if err := validatePassword(input.Password); err != nil {
 		return nil, err
 	}
+	if input.Phone == nil {
+		return nil, domain.ErrInvalidUser
+	}
 	phone, err := normalizePhone(input.Phone)
 	if err != nil {
 		return nil, err
 	}
 	lineID, err := normalizeContact(input.LineID, 50)
+	if err != nil {
+		return nil, err
+	}
+	marketer, err := registrationMarketer(input.MarketerProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +103,38 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 		Role:         domain.RoleUser,
 		CreatedAt:    s.now().UTC(),
 	}
-	if err := s.repo.CreateWithCreator(ctx, user); err != nil {
+	if err := s.repo.CreateWithCreator(ctx, user, marketer); err != nil {
 		return nil, err
 	}
 
 	return s.issueResult(ctx, user)
+}
+
+// registrationMarketer applies the same rules as a saved marketer profile. A
+// new marketer starts as available, the database default.
+func registrationMarketer(input *RegisterMarketerProfileInput) (*domain.Marketer, error) {
+	if input == nil {
+		return nil, nil
+	}
+	var experienceYears int32
+	if input.ExperienceYears != nil {
+		experienceYears = *input.ExperienceYears
+	}
+	profile, err := normalizeMarketerProfile(MarketerProfileInput{
+		Bio:                input.Bio,
+		ExperienceYears:    experienceYears,
+		AvailabilityStatus: string(domain.AvailabilityAvailable),
+		AvailabilityText:   input.AvailabilityText,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.Marketer{
+		Bio:                profile.bio,
+		ExperienceYears:    profile.experienceYears,
+		AvailabilityStatus: profile.availabilityStatus,
+		AvailabilityText:   profile.availabilityText,
+	}, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthResult, error) {

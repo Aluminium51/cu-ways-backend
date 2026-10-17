@@ -19,6 +19,108 @@ type fakeMarketerJobRequestRepository struct {
 	respondActor   int32
 	response       ports.JobRequestResponse
 	respondErr     error
+
+	found         *ports.MarketerJobRequest
+	findErr       error
+	createCalls   int
+	createdOffer  *domain.Offer
+	createErr     error
+	listOffersFor int32
+	withdrawCalls int
+	withdrawActor int32
+	withdrawID    int32
+	withdrawCtx   context.Context
+	withdrawErr   error
+}
+
+func (f *fakeMarketerJobRequestRepository) WithdrawOffer(ctx context.Context, marketerID, offerID int32) (*domain.Offer, error) {
+	f.withdrawCalls++
+	f.withdrawActor, f.withdrawID, f.withdrawCtx = marketerID, offerID, ctx
+	if f.withdrawErr != nil {
+		return nil, f.withdrawErr
+	}
+	return &domain.Offer{OfferID: offerID, UserID: marketerID, OfferStatus: domain.OfferStatusWithdrawn}, nil
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferUsesActorAndContext(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{}
+	service := newTestMarketerJobRequestService(repo, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	offer, err := service.WithdrawOffer(ctx, Actor{UserID: 9}, 31)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.withdrawActor != 9 || repo.withdrawID != 31 || repo.withdrawCtx != ctx || offer.OfferStatus != domain.OfferStatusWithdrawn {
+		t.Fatalf("withdrawal must use the authenticated actor and request context: repo=%+v offer=%+v", repo, offer)
+	}
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferRejectsBeforePersistence(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		actor    int32
+		marketer bool
+		offerID  int32
+		want     error
+	}{
+		{"non_marketer", 9, false, 31, domain.ErrMarketerRequired},
+		{"invalid_actor", 0, true, 31, domain.ErrMarketerRequired},
+		{"zero_offer", 9, true, 0, domain.ErrInvalidOffer},
+		{"negative_offer", 9, true, -1, domain.ErrInvalidOffer},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeMarketerJobRequestRepository{}
+			service := newTestMarketerJobRequestService(repo, tt.marketer)
+			if _, err := service.WithdrawOffer(context.Background(), Actor{UserID: tt.actor}, tt.offerID); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+			if repo.withdrawCalls != 0 {
+				t.Fatal("invalid withdrawal reached persistence")
+			}
+		})
+	}
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferPropagatesErrors(t *testing.T) {
+	for _, want := range []error{domain.ErrOfferNotFound, domain.ErrOfferNotPending, context.Canceled, errors.New("database unavailable")} {
+		repo := &fakeMarketerJobRequestRepository{withdrawErr: want}
+		service := newTestMarketerJobRequestService(repo, true)
+		if _, err := service.WithdrawOffer(context.Background(), Actor{UserID: 9}, 31); !errors.Is(err, want) {
+			t.Fatalf("expected %v, got %v", want, err)
+		}
+	}
+}
+
+func (f *fakeMarketerJobRequestRepository) FindForMarketer(_ context.Context, marketerID, requestID int32) (*ports.MarketerJobRequest, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	if f.found == nil {
+		return nil, domain.ErrJobRequestNotFound
+	}
+	item := *f.found
+	item.Request.JobRequestID = requestID
+	item.Request.MarketerID = marketerID
+	return &item, nil
+}
+
+func (f *fakeMarketerJobRequestRepository) CreateOffer(_ context.Context, marketerID, requestID int32, offer *domain.Offer) error {
+	f.createCalls++
+	if f.createErr != nil {
+		return f.createErr
+	}
+	offer.OfferID = 31
+	offer.JobID = 4
+	offer.UserID = marketerID
+	offer.JobRequestID = &requestID
+	f.createdOffer = offer
+	return nil
+}
+
+func (f *fakeMarketerJobRequestRepository) ListOffers(_ context.Context, _, requestID int32) ([]domain.Offer, error) {
+	f.listOffersFor = requestID
+	return []domain.Offer{}, nil
 }
 
 func (f *fakeMarketerJobRequestRepository) ListForMarketer(_ context.Context, marketerID int32, status *domain.JobRequestStatus) ([]ports.MarketerJobRequest, error) {
@@ -155,6 +257,140 @@ func TestMarketerJobRequestServiceRejectsInvalidDeclineDetailsBeforePersistence(
 	service := newTestMarketerJobRequestService(repo, true)
 	if _, err := service.Decline(context.Background(), Actor{UserID: 9}, 21, DeclineJobRequestInput{Note: &maxNote}); err != nil {
 		t.Fatalf("a %d-character note must be accepted: %v", domain.MaxJobRequestDeclineNoteLength, err)
+	}
+}
+
+func acceptedRequestWithDeadline(deadline *time.Time) *ports.MarketerJobRequest {
+	return &ports.MarketerJobRequest{
+		Request:   domain.JobRequest{JobID: 4, Status: domain.JobRequestStatusAccepted},
+		JobStatus: domain.JobStatusPending,
+		Surveys:   []domain.Survey{{SurveyID: 5, Deadline: deadline}},
+	}
+}
+
+func TestMarketerJobRequestServiceRefusesOffersOnceTheJobHired(t *testing.T) {
+	found := acceptedRequestWithDeadline(nil)
+	found.JobStatus = domain.JobStatusAccepted
+	repo := &fakeMarketerJobRequestRepository{found: found}
+	service := newTestMarketerJobRequestService(repo, true)
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-20"}); !errors.Is(err, domain.ErrJobNotPending) {
+		t.Fatalf("expected a hired job to refuse offers, got %v", err)
+	}
+	if repo.createCalls != 0 {
+		t.Fatal("offer for a hired job reached persistence")
+	}
+}
+
+func TestMarketerJobRequestServiceSubmitsPendingOfferForAcceptedRequest(t *testing.T) {
+	deadline := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+	repo := &fakeMarketerJobRequestRepository{found: acceptedRequestWithDeadline(&deadline)}
+	service := newTestMarketerJobRequestService(repo, true)
+	message := "  Faculty LINE groups and a campus booth.  "
+	offer, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{
+		OfferedPrice: "9000.5",
+		DeliveryDate: "2026-10-28",
+		Message:      &message,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.createCalls != 1 || offer.OfferStatus != domain.OfferStatusPending || offer.UserID != 9 || offer.JobRequestID == nil || *offer.JobRequestID != 21 {
+		t.Fatalf("unexpected offer: %+v", offer)
+	}
+	if offer.OfferedPrice.StringFixed(2) != "9000.50" {
+		t.Fatalf("unexpected price: %s", offer.OfferedPrice)
+	}
+	if offer.DeliveryDate == nil || offer.DeliveryDate.Format(time.DateOnly) != "2026-10-28" {
+		t.Fatalf("unexpected delivery date: %v", offer.DeliveryDate)
+	}
+	if offer.Message == nil || *offer.Message != "Faculty LINE groups and a campus booth." {
+		t.Fatalf("message must be trimmed, got %v", offer.Message)
+	}
+	if offer.CreatedAt.Location() != time.UTC {
+		t.Fatal("created_at must be UTC")
+	}
+}
+
+func TestMarketerJobRequestServiceAcceptsZeroPriceAndJobsWithoutDeadline(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{found: acceptedRequestWithDeadline(nil)}
+	service := newTestMarketerJobRequestService(repo, true)
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "0", DeliveryDate: "2027-03-01"}); err != nil {
+		t.Fatalf("zero price without a deadline must be accepted: %v", err)
+	}
+}
+
+func TestMarketerJobRequestServiceRejectsInvalidOfferFieldsBeforePersistence(t *testing.T) {
+	deadline := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+	longMessage := strings.Repeat("a", domain.MaxOfferMessageLength+1)
+	for name, input := range map[string]SubmitOfferInput{
+		"negative_price":   {OfferedPrice: "-1", DeliveryDate: "2026-10-20"},
+		"three_decimals":   {OfferedPrice: "10.001", DeliveryDate: "2026-10-20"},
+		"too_large":        {OfferedPrice: "100000000", DeliveryDate: "2026-10-20"},
+		"not_a_number":     {OfferedPrice: "abc", DeliveryDate: "2026-10-20"},
+		"missing_price":    {DeliveryDate: "2026-10-20"},
+		"bad_date":         {OfferedPrice: "10", DeliveryDate: "20/10/2026"},
+		"impossible_date":  {OfferedPrice: "10", DeliveryDate: "2026-02-30"},
+		"missing_delivery": {OfferedPrice: "10"},
+		"before_today":     {OfferedPrice: "10", DeliveryDate: "2026-10-13"},
+		"after_deadline":   {OfferedPrice: "10", DeliveryDate: "2026-10-29"},
+		"message_too_long": {OfferedPrice: "10", DeliveryDate: "2026-10-20", Message: &longMessage},
+	} {
+		repo := &fakeMarketerJobRequestRepository{found: acceptedRequestWithDeadline(&deadline)}
+		service := newTestMarketerJobRequestService(repo, true)
+		if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, input); !errors.Is(err, domain.ErrInvalidOffer) {
+			t.Fatalf("%s: expected invalid offer, got %v", name, err)
+		}
+		if repo.createCalls != 0 {
+			t.Fatalf("%s: invalid offer reached persistence", name)
+		}
+	}
+}
+
+func TestMarketerJobRequestServiceUsesBangkokCalendarForToday(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{found: acceptedRequestWithDeadline(nil)}
+	service := newTestMarketerJobRequestService(repo, true)
+	// The test clock is 2026-10-14 05:00 in Bangkok, which is still
+	// 2026-10-13 in UTC. The Bangkok date is today.
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-14"}); err != nil {
+		t.Fatalf("the Bangkok date must count as today: %v", err)
+	}
+}
+
+func TestMarketerJobRequestServiceRequiresAcceptedRequestForOffer(t *testing.T) {
+	for _, status := range []domain.JobRequestStatus{domain.JobRequestStatusPending, domain.JobRequestStatusDeclined, domain.JobRequestStatusClosed} {
+		found := acceptedRequestWithDeadline(nil)
+		found.Request.Status = status
+		repo := &fakeMarketerJobRequestRepository{found: found}
+		service := newTestMarketerJobRequestService(repo, true)
+		if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-20"}); !errors.Is(err, domain.ErrJobRequestNotAccepted) {
+			t.Fatalf("%s: expected not accepted, got %v", status, err)
+		}
+		if repo.createCalls != 0 {
+			t.Fatalf("%s: offer reached persistence", status)
+		}
+	}
+	repo := &fakeMarketerJobRequestRepository{}
+	service := newTestMarketerJobRequestService(repo, true)
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-20"}); !errors.Is(err, domain.ErrJobRequestNotFound) {
+		t.Fatalf("expected not found, got %v", err)
+	}
+}
+
+func TestMarketerJobRequestServicePropagatesDuplicateOffer(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{found: acceptedRequestWithDeadline(nil), createErr: domain.ErrOfferAlreadyExists}
+	service := newTestMarketerJobRequestService(repo, true)
+	if _, err := service.SubmitOffer(context.Background(), Actor{UserID: 9}, 21, SubmitOfferInput{OfferedPrice: "10", DeliveryDate: "2026-10-20"}); !errors.Is(err, domain.ErrOfferAlreadyExists) {
+		t.Fatalf("expected duplicate offer error, got %v", err)
+	}
+}
+
+func TestMarketerJobRequestServiceListOffersRequiresMarketer(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{}
+	if _, err := newTestMarketerJobRequestService(repo, false).ListOffers(context.Background(), Actor{UserID: 9}, 21); !errors.Is(err, domain.ErrMarketerRequired) {
+		t.Fatalf("expected marketer requirement, got %v", err)
+	}
+	if _, err := newTestMarketerJobRequestService(repo, true).ListOffers(context.Background(), Actor{UserID: 9}, 21); err != nil || repo.listOffersFor != 21 {
+		t.Fatalf("expected offers listed for request 21, got err=%v request=%d", err, repo.listOffersFor)
 	}
 }
 
