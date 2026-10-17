@@ -215,6 +215,35 @@ func TestUserServiceUpdateRejectsDuplicateAndEmptyPatch(t *testing.T) {
 	}
 }
 
+func TestUserServiceUpdatePropagatesDuplicatePhone(t *testing.T) {
+	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com"})
+	repo.updateErr = domain.ErrPhoneAlreadyExists
+	service := NewUserService(repo)
+	phone := "0812345678"
+
+	if _, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{PhoneSet: true, Phone: &phone}); !errors.Is(err, domain.ErrPhoneAlreadyExists) {
+		t.Fatalf("expected duplicate phone error, got %v", err)
+	}
+}
+
+func TestUserServiceUpdateAllowsEmptyPhoneAndNormalizesToNil(t *testing.T) {
+	phone := "0812345678"
+	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
+	service := NewUserService(repo)
+	emptyPhone := "   "
+
+	user, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{
+		PhoneSet: true,
+		Phone:    &emptyPhone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Phone != nil {
+		t.Fatalf("expected cleared phone, got %v", *user.Phone)
+	}
+}
+
 func TestUserServiceDeleteSoftDeletesUser(t *testing.T) {
 	repo := newFakeUserRepository(&domain.User{UserID: 1, Email: "jane@example.com"})
 	service := NewUserService(repo)

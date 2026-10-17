@@ -187,7 +187,10 @@ func normalizePhone(value *string) (*string, error) {
 		return nil, nil
 	}
 	normalized := strings.TrimSpace(*value)
-	if normalized == "" || utf8.RuneCountInString(normalized) > 20 {
+	if normalized == "" {
+		return nil, nil
+	}
+	if utf8.RuneCountInString(normalized) > 20 {
 		return nil, domain.ErrInvalidUser
 	}
 	for _, character := range normalized {

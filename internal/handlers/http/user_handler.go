@@ -257,7 +257,10 @@ func validateContactDTO(value *string, maxRunes int) error {
 		return nil
 	}
 	normalized := strings.TrimSpace(*value)
-	if normalized == "" || utf8.RuneCountInString(normalized) > maxRunes {
+	if normalized == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(normalized) > maxRunes {
 		return domain.ErrInvalidUser
 	}
 	return nil

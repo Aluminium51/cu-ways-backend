@@ -114,6 +114,103 @@ func TestUserHandlerUpdateCanClearNullableField(t *testing.T) {
 	}
 }
 
+func TestUserHandlerUpdateMapsDuplicateEmailToConflict(t *testing.T) {
+	service := &fakeUserService{
+		updateFn: func(_ context.Context, _ services.Actor, _ int32, _ services.UpdateUserInput) (*domain.User, error) {
+			return nil, domain.ErrEmailAlreadyExists
+		},
+	}
+	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+	app := newUserHandlerTestApp(service, claims)
+
+	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"email":"duplicate@example.com"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusConflict {
+		t.Fatalf("expected 409, got %d", res.StatusCode)
+	}
+
+	var envelope struct {
+		Status string `json:"status"`
+		Error  struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Status != "error" || envelope.Error.Code != "email_already_exists" {
+		t.Fatalf("unexpected error envelope: %+v", envelope)
+	}
+}
+
+func TestUserHandlerUpdateMapsDuplicatePhoneToConflict(t *testing.T) {
+	service := &fakeUserService{
+		updateFn: func(_ context.Context, _ services.Actor, _ int32, _ services.UpdateUserInput) (*domain.User, error) {
+			return nil, domain.ErrPhoneAlreadyExists
+		},
+	}
+	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+	app := newUserHandlerTestApp(service, claims)
+
+	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":"0812345678"}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusConflict {
+		t.Fatalf("expected 409, got %d", res.StatusCode)
+	}
+
+	var envelope struct {
+		Status string `json:"status"`
+		Error  struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Status != "error" || envelope.Error.Code != "phone_already_exists" {
+		t.Fatalf("unexpected error envelope: %+v", envelope)
+	}
+}
+
+func TestUserHandlerUpdateCanAcceptEmptyPhoneString(t *testing.T) {
+	var got services.UpdateUserInput
+	service := &fakeUserService{
+		updateFn: func(_ context.Context, _ services.Actor, userID int32, input services.UpdateUserInput) (*domain.User, error) {
+			got = input
+			return &domain.User{UserID: userID, Name: "Jane", Email: "jane@example.com"}, nil
+		},
+	}
+	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+	app := newUserHandlerTestApp(service, claims)
+
+	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":""}`))
+	request.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	if !got.PhoneSet {
+		t.Fatalf("expected phone to be set in patch, got %+v", got)
+	}
+}
+
 func TestUserHandlerListParsesPagination(t *testing.T) {
 	var gotQuery ports.UserListQuery
 	service := &fakeUserService{
