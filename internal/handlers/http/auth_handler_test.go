@@ -159,6 +159,63 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerMapsDuplicatePhoneToConflict(t *testing.T) {
+	service := &fakeAuthService{registerErr: domain.ErrPhoneAlreadyExists}
+	app := newAuthHandlerTestApp(service)
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusConflict {
+		t.Fatalf("expected 409, got %d", res.StatusCode)
+	}
+
+	var envelope struct {
+		Status string `json:"status"`
+		Error  struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Status != "error" || envelope.Error.Code != "phone_already_exists" {
+		t.Fatalf("unexpected error envelope: %+v", envelope)
+	}
+}
+
+func TestAuthHandlerRegisterAllowsEmptyPhone(t *testing.T) {
+	passwordHash := "stored-hash"
+	service := &fakeAuthService{registerResult: &services.AuthResult{
+		User: &domain.User{
+			UserID:       1,
+			Name:         "Jane Doe",
+			Email:        "jane@example.com",
+			PasswordHash: &passwordHash,
+			CreatedAt:    time.Now().UTC(),
+		},
+		Token:     "jwt-token",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	app := newAuthHandlerTestApp(service)
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple","phone":""}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusCreated {
+		t.Fatalf("expected 201, got %d", res.StatusCode)
+	}
+}
+
 func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	service := &fakeAuthService{loginErr: errors.New("stop after context capture")}
 	ctx := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
