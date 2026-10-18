@@ -112,7 +112,6 @@ func TestAuthServiceRegisterRejectsDuplicateEmail(t *testing.T) {
 	}
 }
 
-
 func TestAuthServiceRegisterPropagatesDuplicatePhoneError(t *testing.T) {
 	repo := newFakeUserRepository()
 	repo.createWithCreatorErr = domain.ErrPhoneAlreadyExists

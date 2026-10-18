@@ -267,7 +267,6 @@ func TestUserServiceUpdatePropagatesDuplicatePhone(t *testing.T) {
 	}
 }
 
-
 func TestUserServiceDeleteSoftDeletesUser(t *testing.T) {
 	repo := newFakeUserRepository(&domain.User{UserID: 1, Email: "jane@example.com"})
 	service := NewUserService(repo)
