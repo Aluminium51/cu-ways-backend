@@ -159,6 +159,66 @@ func TestAuthHandlerMapsDuplicateEmailToConflict(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerMapsDuplicatePhoneToConflict(t *testing.T) {
+	service := &fakeAuthService{registerErr: domain.ErrPhoneAlreadyExists}
+	app := newAuthHandlerTestApp(service)
+	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusConflict {
+		t.Fatalf("expected 409, got %d", res.StatusCode)
+	}
+
+	var envelope struct {
+		Status string `json:"status"`
+		Error  struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Status != "error" || envelope.Error.Code != "phone_already_exists" {
+		t.Fatalf("unexpected error envelope: %+v", envelope)
+	}
+}
+
+func TestAuthHandlerRegisterRejectsBlankPhoneBeforeService(t *testing.T) {
+	for name, phone := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			service := &fakeAuthService{registerResult: registeredResult()}
+			status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":`+phone+`}`)
+			if status != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s phone, got %d", name, status)
+			}
+			if service.registerCtx != nil {
+				t.Fatal("an invalid phone must be rejected before the service is called")
+			}
+		})
+	}
+}
+
+func TestAuthHandlerRegisterRejectsBlankLineIDBeforeService(t *testing.T) {
+	for name, lineID := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			service := &fakeAuthService{registerResult: registeredResult()}
+			status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678","line_id":`+lineID+`}`)
+			if status != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s line ID, got %d", name, status)
+			}
+			if service.registerCtx != nil {
+				t.Fatal("an invalid line ID must be rejected before the service is called")
+			}
+		})
+	}
+}
+
 func TestAuthHandlerPropagatesRequestContext(t *testing.T) {
 	service := &fakeAuthService{loginErr: errors.New("stop after context capture")}
 	ctx := context.WithValue(context.Background(), authHandlerContextKey{}, "request-value")
