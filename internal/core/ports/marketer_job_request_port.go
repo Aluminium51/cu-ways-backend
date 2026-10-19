@@ -46,4 +46,10 @@ type MarketerJobRequestRepository interface {
 	CreateOffer(ctx context.Context, marketerID, requestID int32, offer *domain.Offer) error
 	// ListOffers returns the marketer's offers for one request, newest first.
 	ListOffers(ctx context.Context, marketerID, requestID int32) ([]domain.Offer, error)
+	// WithdrawOffer atomically changes only marketerID's Pending offer to
+	// Withdrawn, keeping the record as history. Missing or foreign offers return
+	// domain.ErrOfferNotFound; resolved offers return domain.ErrOfferNotPending.
+	// It must serialize with acceptance without locking the job or request
+	// after the offer, which would invert acceptance's lock order.
+	WithdrawOffer(ctx context.Context, marketerID, offerID int32) (*domain.Offer, error)
 }

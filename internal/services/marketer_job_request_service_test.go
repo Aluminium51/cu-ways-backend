@@ -26,6 +26,70 @@ type fakeMarketerJobRequestRepository struct {
 	createdOffer  *domain.Offer
 	createErr     error
 	listOffersFor int32
+	withdrawCalls int
+	withdrawActor int32
+	withdrawID    int32
+	withdrawCtx   context.Context
+	withdrawErr   error
+}
+
+func (f *fakeMarketerJobRequestRepository) WithdrawOffer(ctx context.Context, marketerID, offerID int32) (*domain.Offer, error) {
+	f.withdrawCalls++
+	f.withdrawActor, f.withdrawID, f.withdrawCtx = marketerID, offerID, ctx
+	if f.withdrawErr != nil {
+		return nil, f.withdrawErr
+	}
+	return &domain.Offer{OfferID: offerID, UserID: marketerID, OfferStatus: domain.OfferStatusWithdrawn}, nil
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferUsesActorAndContext(t *testing.T) {
+	repo := &fakeMarketerJobRequestRepository{}
+	service := newTestMarketerJobRequestService(repo, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	offer, err := service.WithdrawOffer(ctx, Actor{UserID: 9}, 31)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.withdrawActor != 9 || repo.withdrawID != 31 || repo.withdrawCtx != ctx || offer.OfferStatus != domain.OfferStatusWithdrawn {
+		t.Fatalf("withdrawal must use the authenticated actor and request context: repo=%+v offer=%+v", repo, offer)
+	}
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferRejectsBeforePersistence(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		actor    int32
+		marketer bool
+		offerID  int32
+		want     error
+	}{
+		{"non_marketer", 9, false, 31, domain.ErrMarketerRequired},
+		{"invalid_actor", 0, true, 31, domain.ErrMarketerRequired},
+		{"zero_offer", 9, true, 0, domain.ErrInvalidOffer},
+		{"negative_offer", 9, true, -1, domain.ErrInvalidOffer},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeMarketerJobRequestRepository{}
+			service := newTestMarketerJobRequestService(repo, tt.marketer)
+			if _, err := service.WithdrawOffer(context.Background(), Actor{UserID: tt.actor}, tt.offerID); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+			if repo.withdrawCalls != 0 {
+				t.Fatal("invalid withdrawal reached persistence")
+			}
+		})
+	}
+}
+
+func TestMarketerJobRequestServiceWithdrawOfferPropagatesErrors(t *testing.T) {
+	for _, want := range []error{domain.ErrOfferNotFound, domain.ErrOfferNotPending, context.Canceled, errors.New("database unavailable")} {
+		repo := &fakeMarketerJobRequestRepository{withdrawErr: want}
+		service := newTestMarketerJobRequestService(repo, true)
+		if _, err := service.WithdrawOffer(context.Background(), Actor{UserID: 9}, 31); !errors.Is(err, want) {
+			t.Fatalf("expected %v, got %v", want, err)
+		}
+	}
 }
 
 func (f *fakeMarketerJobRequestRepository) FindForMarketer(_ context.Context, marketerID, requestID int32) (*ports.MarketerJobRequest, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -19,18 +20,33 @@ import (
 )
 
 type fakeJobService struct {
-	job         *domain.Job
-	createInput services.CreateJobInput
-	createCalls int
-	briefCalls  int
-	briefURL    string
-	briefs      []domain.Attachment
-	surveys     []domain.Survey
-	requests    []domain.JobRequest
+	job          *domain.Job
+	jobSummary   *domain.CreatorJobSummary
+	jobs         []domain.CreatorJobSummary
+	createInput  services.CreateJobInput
+	createCalls  int
+	briefCalls   int
+	briefURL     string
+	briefs       []domain.Attachment
+	surveys      []domain.Survey
+	requests     []domain.JobRequest
+	sentRequests []domain.SentJobRequest
 }
 
 func (f *fakeJobService) ListSurveys(context.Context, services.Actor) ([]domain.Survey, error) {
 	return f.surveys, nil
+}
+
+func (f *fakeJobService) ListMyJobs(context.Context, services.Actor) ([]domain.CreatorJobSummary, error) {
+	return f.jobs, nil
+}
+
+func (f *fakeJobService) GetJob(context.Context, services.Actor, int32) (*domain.CreatorJobSummary, error) {
+	return f.jobSummary, nil
+}
+
+func (f *fakeJobService) ListJobRequests(context.Context, services.Actor, int32) ([]domain.SentJobRequest, error) {
+	return f.sentRequests, nil
 }
 
 func (f *fakeJobService) Create(_ context.Context, actor services.Actor, input services.CreateJobInput) (*domain.Job, error) {
@@ -70,7 +86,10 @@ func jobHandlerApp(service *fakeJobService) *fiber.App {
 	})
 	handler := NewJobHandler(service)
 	app.Get("/me/surveys", handler.ListSurveys)
+	app.Get("/me/jobs", handler.ListMyJobs)
 	app.Post("/jobs", handler.Create)
+	app.Get("/jobs/:id", handler.GetJob)
+	app.Get("/jobs/:id/requests", handler.ListJobRequests)
 	app.Post("/jobs/:id/briefs", handler.AddBrief)
 	return app
 }
@@ -134,6 +153,144 @@ func TestJobHandlerReturnsOnlyAuthenticatedCreatorsSurveysAsArray(t *testing.T) 
 	}
 	if len(envelope.Data) != 1 || envelope.Data[0].SurveyID != 4 {
 		t.Fatalf("unexpected survey list: %+v", envelope.Data)
+	}
+}
+
+func TestJobHandlerReturnsJobSummariesWithoutWriteOnlyFields(t *testing.T) {
+	createdAt := time.Date(2026, 10, 13, 7, 30, 0, 0, time.UTC)
+	service := &fakeJobService{jobs: []domain.CreatorJobSummary{{
+		JobID: 12, JobStatus: domain.JobStatusInProgress, CreatedAt: createdAt,
+		Surveys: []domain.JobSurveySummary{{SurveyID: 3, Title: "Study"}},
+	}}}
+	res, err := jobHandlerApp(service).Test(httptest.NewRequest("GET", "/me/jobs", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Data []CreatorJobSummaryResponse `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if len(envelope.Data) != 1 || envelope.Data[0].JobID != 12 || envelope.Data[0].JobStatus != domain.JobStatusInProgress || !envelope.Data[0].CreatedAt.Equal(createdAt) || len(envelope.Data[0].Surveys) != 1 || envelope.Data[0].Surveys[0].SurveyID != 3 || envelope.Data[0].Surveys[0].Title != "Study" {
+		t.Fatalf("unexpected job summaries: %+v", envelope.Data)
+	}
+	for _, forbidden := range []string{"user_id", "accepted_offer_id", "survey_link", "description"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Errorf("job summary leaked field %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestJobHandlerReturnsEmptyMyJobsAsArray(t *testing.T) {
+	res, err := jobHandlerApp(&fakeJobService{jobs: []domain.CreatorJobSummary{}}).Test(httptest.NewRequest("GET", "/me/jobs", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data []CreatorJobSummaryResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data == nil || len(envelope.Data) != 0 {
+		t.Fatalf("expected an empty JSON array, got %#v", envelope.Data)
+	}
+}
+
+func TestJobHandlerReturnsOwnedJobSummary(t *testing.T) {
+	createdAt := time.Date(2026, 10, 13, 7, 30, 0, 0, time.UTC)
+	service := &fakeJobService{jobSummary: &domain.CreatorJobSummary{
+		JobID: 12, JobStatus: domain.JobStatusAccepted, CreatedAt: createdAt,
+		Surveys: []domain.JobSurveySummary{{SurveyID: 3, Title: "Study"}},
+	}}
+	res, err := jobHandlerApp(service).Test(httptest.NewRequest("GET", "/jobs/12", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data CreatorJobSummaryResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.JobID != 12 || envelope.Data.JobStatus != domain.JobStatusAccepted || !envelope.Data.CreatedAt.Equal(createdAt) || len(envelope.Data.Surveys) != 1 || envelope.Data.Surveys[0].SurveyID != 3 || envelope.Data.Surveys[0].Title != "Study" {
+		t.Fatalf("unexpected job summary: %+v", envelope.Data)
+	}
+}
+
+func TestJobHandlerReturnsNamedInvitationHistoryWithoutContactOrProfileFields(t *testing.T) {
+	createdAt := time.Date(2026, 10, 13, 8, 30, 0, 0, time.UTC)
+	respondedAt := createdAt.Add(time.Hour)
+	service := &fakeJobService{sentRequests: []domain.SentJobRequest{{
+		JobRequestID: 4, JobID: 12, MarketerID: 21, Status: domain.JobRequestStatusDeclined,
+		CreatedAt: createdAt, RespondedAt: &respondedAt, MarketerName: "Taylor Researcher",
+	}}}
+	res, err := jobHandlerApp(service).Test(httptest.NewRequest("GET", "/jobs/12/requests", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Data []SentJobRequestResponse `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if len(envelope.Data) != 1 {
+		t.Fatalf("expected one invitation, got %+v", envelope.Data)
+	}
+	request := envelope.Data[0]
+	if request.JobRequestID != 4 || request.JobID != 12 || request.MarketerID != 21 || request.Status != domain.JobRequestStatusDeclined || request.MarketerName != "Taylor Researcher" || request.RespondedAt == nil || !request.RespondedAt.Equal(respondedAt) {
+		t.Fatalf("unexpected invitation history: %+v", request)
+	}
+	for _, forbidden := range []string{"email", "phone", "bio", "expertise", "availability"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Errorf("invitation response leaked profile/contact field %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestJobHandlerReturnsEmptyInvitationHistoryAsArray(t *testing.T) {
+	res, err := jobHandlerApp(&fakeJobService{sentRequests: []domain.SentJobRequest{}}).Test(httptest.NewRequest("GET", "/jobs/12/requests", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	var envelope struct {
+		Data []SentJobRequestResponse `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data == nil || len(envelope.Data) != 0 {
+		t.Fatalf("expected an empty JSON array, got %#v", envelope.Data)
 	}
 }
 
