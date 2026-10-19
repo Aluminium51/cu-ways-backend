@@ -211,30 +211,65 @@ func TestUserHandlerUpdateMapsDuplicatePhoneToConflict(t *testing.T) {
 	}
 }
 
-func TestUserHandlerUpdateCanAcceptEmptyPhoneString(t *testing.T) {
-	var got services.UpdateUserInput
-	service := &fakeUserService{
-		updateFn: func(_ context.Context, _ services.Actor, userID int32, input services.UpdateUserInput) (*domain.User, error) {
-			got = input
-			return &domain.User{UserID: userID, Name: "Jane", Email: "jane@example.com"}, nil
-		},
-	}
-	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
-	app := newUserHandlerTestApp(service, claims)
+func TestUserHandlerUpdateRejectsBlankPhoneBeforeService(t *testing.T) {
+	for name, phone := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			called := false
+			service := &fakeUserService{
+				updateFn: func(_ context.Context, _ services.Actor, userID int32, _ services.UpdateUserInput) (*domain.User, error) {
+					called = true
+					return &domain.User{UserID: userID, Name: "Jane", Email: "jane@example.com"}, nil
+				},
+			}
+			claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+			app := newUserHandlerTestApp(service, claims)
 
-	request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":""}`))
-	request.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer closeResponseBody(t, res.Body)
+			request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"phone":`+phone+`}`))
+			request.Header.Set("Content-Type", "application/json")
+			res, err := app.Test(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeResponseBody(t, res.Body)
 
-	if res.StatusCode != fiber.StatusOK {
-		t.Fatalf("expected 200, got %d", res.StatusCode)
+			if res.StatusCode != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s phone, got %d", name, res.StatusCode)
+			}
+			if called {
+				t.Fatal("an invalid phone must be rejected before the service is called")
+			}
+		})
 	}
-	if !got.PhoneSet {
-		t.Fatalf("expected phone to be set in patch, got %+v", got)
+}
+
+func TestUserHandlerUpdateRejectsBlankLineIDBeforeService(t *testing.T) {
+	for name, lineID := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			called := false
+			service := &fakeUserService{
+				updateFn: func(_ context.Context, _ services.Actor, userID int32, _ services.UpdateUserInput) (*domain.User, error) {
+					called = true
+					return &domain.User{UserID: userID, Name: "Jane", Email: "jane@example.com"}, nil
+				},
+			}
+			claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
+			app := newUserHandlerTestApp(service, claims)
+
+			request := httptest.NewRequest("PUT", "/users/1", strings.NewReader(`{"line_id":`+lineID+`}`))
+			request.Header.Set("Content-Type", "application/json")
+			res, err := app.Test(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeResponseBody(t, res.Body)
+
+			if res.StatusCode != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s line ID, got %d", name, res.StatusCode)
+			}
+			if called {
+				t.Fatal("an invalid line ID must be rejected before the service is called")
+			}
+		})
 	}
 }
 

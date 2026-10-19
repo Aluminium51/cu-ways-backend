@@ -189,30 +189,33 @@ func TestAuthHandlerMapsDuplicatePhoneToConflict(t *testing.T) {
 	}
 }
 
-func TestAuthHandlerRegisterAllowsEmptyPhone(t *testing.T) {
-	passwordHash := "stored-hash"
-	service := &fakeAuthService{registerResult: &services.AuthResult{
-		User: &domain.User{
-			UserID:       1,
-			Name:         "Jane Doe",
-			Email:        "jane@example.com",
-			PasswordHash: &passwordHash,
-			CreatedAt:    time.Now().UTC(),
-		},
-		Token:     "jwt-token",
-		ExpiresAt: time.Now().Add(time.Hour),
-	}}
-	app := newAuthHandlerTestApp(service)
-	req := httptest.NewRequest("POST", "/auth/register", strings.NewReader(`{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple","phone":""}`))
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := app.Test(req)
-	if err != nil {
-		t.Fatal(err)
+func TestAuthHandlerRegisterRejectsBlankPhoneBeforeService(t *testing.T) {
+	for name, phone := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			service := &fakeAuthService{registerResult: registeredResult()}
+			status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":`+phone+`}`)
+			if status != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s phone, got %d", name, status)
+			}
+			if service.registerCtx != nil {
+				t.Fatal("an invalid phone must be rejected before the service is called")
+			}
+		})
 	}
-	defer closeResponseBody(t, res.Body)
-	if res.StatusCode != fiber.StatusCreated {
-		t.Fatalf("expected 201, got %d", res.StatusCode)
+}
+
+func TestAuthHandlerRegisterRejectsBlankLineIDBeforeService(t *testing.T) {
+	for name, lineID := range map[string]string{"empty": `""`, "whitespace": `"   "`} {
+		t.Run(name, func(t *testing.T) {
+			service := &fakeAuthService{registerResult: registeredResult()}
+			status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678","line_id":`+lineID+`}`)
+			if status != fiber.StatusUnprocessableEntity {
+				t.Fatalf("expected 422 for %s line ID, got %d", name, status)
+			}
+			if service.registerCtx != nil {
+				t.Fatal("an invalid line ID must be rejected before the service is called")
+			}
+		})
 	}
 }
 

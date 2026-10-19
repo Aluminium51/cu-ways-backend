@@ -131,7 +131,7 @@ Register:
 ```powershell
 curl.exe -X POST http://localhost:8081/api/v1/auth/register `
   -H "Content-Type: application/json" `
-  -d '{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple"}'
+  -d '{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}'
 ```
 
 Login:
@@ -189,6 +189,10 @@ User CRUD endpoints are available under `/api/v1/users`:
 
 List requests support `page` and `page_size` query parameters. Pages start at `1`, the default page size is `20`, and the maximum page size is `100`. Deleted users are soft-deleted and excluded from normal reads and lists.
 
+Registration requires a 10-digit phone number. User updates may omit the phone; any supplied phone must contain 10 digits. Surrounding whitespace is trimmed before storage. Phones are unique, and a duplicate returns `409 phone_already_exists`.
+
+User updates only change fields included in the request. Send `{"line_id":null}` to clear a LINE ID; a phone can be changed but not cleared.
+
 Protected requests require a JWT whose `sub` claim is the numeric user ID. The `role` claim must be `admin` for administrator access.
 
 ## Marketer and Survey APIs
@@ -196,8 +200,6 @@ Protected requests require a JWT whose `sub` claim is the numeric user ID. The `
 Marketer profile fields are saved through `PATCH /api/v1/me/marketer-profile`. Only `availability_status` is required; `bio`, `experience_years`, and `availability_text` are optional and default to an empty string/0 when omitted (the columns are `NOT NULL`, so omitted values are stored as empty rather than SQL `NULL`). Expertise and campus values use the curated catalog; their arrays may be empty.
 
 The initial expertise slugs are `survey-distribution`, `participant-recruitment`, `data-collection`, `quantitative-analysis`, `qualitative-analysis`, and `report-preparation`. The initial campus slugs are `cu-main-campus`, `cu-health-sciences-campus`, `off-campus`, and `online-remote`. Availability is `available`, `limited`, or `unavailable`.
-
-Phone numbers are optional, stored as trimmed digits, and must be unique whenever present. A duplicate phone returns `409 phone_already_exists`.
 
 ```powershell
 curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `

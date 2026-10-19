@@ -225,7 +225,7 @@ func TestUserServiceUpdateRequiresTenDigitPhone(t *testing.T) {
 	repo := newFakeUserRepository(&domain.User{UserID: 1, Name: "Jane", Email: "jane@example.com", Phone: &phone})
 	service := NewUserService(repo)
 
-	for _, candidate := range []string{"081234567", "08123456789", "08x2345678", "+668123456"} {
+	for _, candidate := range []string{"", "   ", "081234567", "08123456789", "08x2345678", "+668123456"} {
 		_, err := service.Update(context.Background(), Actor{UserID: 1}, 1, UpdateUserInput{PhoneSet: true, Phone: stringPointer(candidate)})
 		if !errors.Is(err, domain.ErrInvalidUser) {
 			t.Fatalf("expected %q to be rejected, got %v", candidate, err)

@@ -225,7 +225,7 @@ func TestAuthServiceRegisterRequiresPhone(t *testing.T) {
 	repo := newFakeUserRepository()
 	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
 
-	for name, phone := range map[string]*string{"missing": nil, "blank": stringPointer("   ")} {
+	for name, phone := range map[string]*string{"missing": nil, "empty": stringPointer(""), "blank": stringPointer("   ")} {
 		t.Run(name, func(t *testing.T) {
 			_, err := service.Register(context.Background(), RegisterInput{
 				Name:     "Jane",
