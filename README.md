@@ -366,3 +366,13 @@ Accepted types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `
 not required. Branch names are not validated by CI.
 
 The current migrations include a foundation baseline, the domain schema, the user soft-delete column, authentication columns, and normalized marketer profile/search tables. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
+
+## Saved job details
+
+Migration `000010_job_details` adds persisted job titles, descriptions, exact decimal THB compensation, and a date-only job deadline. Older jobs retain empty or null optional details. Creation remains compatible with callers that send only survey IDs.
+
+`PATCH /api/v1/jobs/{id}` saves an owned Pending job's title, description, budget, and deadline. An optional nonempty `survey_ids` selection is replaced in the same transaction, with ownership checked before any changes. Accepted jobs reject metadata edits with 409. Creator summaries and Marketer invitations expose the saved metadata. Their effective delivery deadline is the earlier of the job date and the earliest linked survey deadline; offer submission validates the same rule, including under the repository's job lock.
+
+The authenticated marketer detail endpoint also returns its qualifying review count, alongside the completed-job count and average rating, so frontend detail pages do not need to search for the profile.
+
+Creator job summaries include `pending_offer_count`, the number of offers awaiting a decision. Withdrawn and rejected history is excluded. This is computed on read and requires no migration.

@@ -56,7 +56,11 @@ func (f *fakeJobRepository) CreateWithSurveys(_ context.Context, job *domain.Job
 	return job, nil
 }
 
-func (f *fakeJobRepository) AddSurvey(context.Context, int32, int32, int32) error    { return nil }
+func (f *fakeJobRepository) AddSurvey(context.Context, int32, int32, int32) error { return nil }
+func (f *fakeJobRepository) UpdateDetails(_ context.Context, creatorID, jobID int32, details *domain.Job) error {
+	f.creatorID, f.jobID, f.createdJob = creatorID, jobID, details
+	return nil
+}
 func (f *fakeJobRepository) RemoveSurvey(context.Context, int32, int32, int32) error { return nil }
 
 func (f *fakeJobRepository) CreateBrief(_ context.Context, _ int32, _ int32, attachment *domain.Attachment) error {

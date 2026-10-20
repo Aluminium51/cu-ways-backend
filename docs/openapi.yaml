@@ -1046,6 +1046,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: updateJobDetails
+      summary: Save the details of an owned Pending job
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateJobDetailsRequest'
+      responses:
+        '200':
+          description: Saved job details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorJobSummaryResponse'
+        '401':
+          description: Authentication required.
+        '403':
+          description: Creator membership or ownership required.
+        '404':
+          description: Job not found.
+        '409':
+          description: Job is no longer Pending.
+        '422':
+          description: Invalid job details.
   /api/v1/jobs/{id}/surveys/{surveyId}:
     parameters:
       - name: id
@@ -2225,6 +2254,20 @@ components:
       type: object
       required: [survey_ids]
       properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        budget:
+          type: string
+          nullable: true
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+        deadline:
+          type: string
+          format: date
+          nullable: true
         survey_ids:
           type: array
           minItems: 1
@@ -2233,10 +2276,50 @@ components:
             type: integer
             format: int32
             minimum: 1
+    UpdateJobDetailsRequest:
+      type: object
+      required: [title]
+      properties:
+        survey_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            format: int32
+            minimum: 1
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        budget:
+          type: string
+          nullable: true
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+        deadline:
+          type: string
+          format: date
+          nullable: true
     Job:
       type: object
       required: [job_id, user_id, accepted_offer_id, job_status, created_at, survey_ids]
       properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        budget:
+          type: string
+          nullable: true
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
         job_id:
           type: integer
           format: int32
@@ -2280,6 +2363,29 @@ components:
       type: object
       required: [job_id, job_status, created_at, surveys]
       properties:
+        pending_offer_count:
+          type: integer
+          minimum: 0
+          description: Number of offers awaiting the Creator decision, excluding withdrawn and rejected offers.
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        budget:
+          type: string
+          nullable: true
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        effective_deadline:
+          type: string
+          format: date-time
+          nullable: true
+          description: Earlier of the saved job deadline and the earliest linked survey deadline.
         job_id:
           type: integer
           format: int32
@@ -2468,6 +2574,13 @@ components:
                 deadline:
                   type: string
                   format: date-time
+                  nullable: true
+                title:
+                  type: string
+                description:
+                  type: string
+                budget:
+                  type: string
                   nullable: true
                 target_responses:
                   type: integer
@@ -2768,7 +2881,7 @@ components:
           enum: [success]
         data:
           type: object
-          required: [profile, services, total_completed_jobs, average_rating]
+          required: [profile, services, total_completed_jobs, average_rating, review_count]
           properties:
             profile:
               $ref: '#/components/schemas/MarketerProfile'
@@ -2777,6 +2890,10 @@ components:
               description: Active service listings only.
               items:
                 $ref: '#/components/schemas/Service'
+            review_count:
+              type: integer
+              format: int64
+              minimum: 0
             total_completed_jobs:
               type: integer
               format: int64

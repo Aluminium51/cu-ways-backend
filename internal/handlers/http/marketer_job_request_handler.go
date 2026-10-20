@@ -60,6 +60,9 @@ type MarketerJobRequestResponse struct {
 }
 
 type MarketerJobRequestJobResponse struct {
+	Title           string                     `json:"title"`
+	Description     string                     `json:"description"`
+	Budget          *string                    `json:"budget"`
 	JobID           int32                      `json:"job_id"`
 	JobStatus       domain.JobStatus           `json:"job_status"`
 	Creator         MarketerJobRequestCreator  `json:"creator"`
@@ -247,6 +250,7 @@ func offerValidationError(err error) error {
 
 func toMarketerJobRequestResponse(item *ports.MarketerJobRequest) MarketerJobRequestResponse {
 	job := MarketerJobRequestJobResponse{
+		Title: item.Title, Description: item.Description, Budget: item.Budget,
 		JobID:     item.Request.JobID,
 		JobStatus: item.JobStatus,
 		Creator:   MarketerJobRequestCreator{UserID: item.CreatorID, Name: item.CreatorName},
@@ -273,7 +277,7 @@ func toMarketerJobRequestResponse(item *ports.MarketerJobRequest) MarketerJobReq
 	if hasTarget {
 		job.TargetResponses = &target
 	}
-	job.Deadline = domain.EarliestSurveyDeadline(item.Surveys)
+	job.Deadline = domain.EffectiveJobDeadline(item.Deadline, item.Surveys)
 	if item.CurrentBrief != nil {
 		brief := toBriefResponse(*item.CurrentBrief)
 		job.Brief = &brief

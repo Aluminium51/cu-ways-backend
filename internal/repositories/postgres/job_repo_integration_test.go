@@ -370,3 +370,36 @@ RETURNING survey_id`, creatorID, fmt.Sprintf("Survey %s", label), "https://examp
 	}
 	return surveyID
 }
+
+func TestJobSummaryCountsOnlyPendingOffers(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	ctx := context.Background()
+	creatorID := createIntegrationCreator(t, db, "count-owner")
+	otherID := createIntegrationCreator(t, db, "count-other")
+	repo := NewJobRepository(db)
+	survey := createIntegrationSurvey(t, db, creatorID, "count")
+	job, err := repo.CreateWithSurveys(ctx, &domain.Job{UserID: creatorID, JobStatus: domain.JobStatusPending, CreatedAt: time.Now().UTC()}, []int32{survey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	statuses := []domain.OfferStatus{domain.OfferStatusPending, domain.OfferStatusPending, domain.OfferStatusWithdrawn, domain.OfferStatusRejected}
+	for i, status := range statuses {
+		marketer := createIntegrationMarketerNamed(t, db, fmt.Sprintf("Count marketer %d", i), fmt.Sprintf("count-%d", i))
+		offer := submitIntegrationOffer(t, db, creatorID, job.JobID, marketer, "100")
+		if err := db.Model(&domain.Offer{}).Where("offer_id = ?", offer.OfferID).Update("offer_status", status).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	summaries, err := repo.ListJobsByCreator(ctx, creatorID)
+	if err != nil || len(summaries) != 1 || summaries[0].PendingOfferCount != 2 {
+		t.Fatalf("unexpected list count: %+v, %v", summaries, err)
+	}
+	summary, err := repo.GetJobByCreator(ctx, creatorID, job.JobID)
+	if err != nil || summary.PendingOfferCount != 2 {
+		t.Fatalf("unexpected detail count: %+v, %v", summary, err)
+	}
+	foreign, err := repo.ListJobsByCreator(ctx, otherID)
+	if err != nil || len(foreign) != 0 {
+		t.Fatalf("foreign jobs leaked: %+v, %v", foreign, err)
+	}
+}

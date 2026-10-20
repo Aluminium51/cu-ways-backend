@@ -10,6 +10,10 @@ import (
 // MarketerJobRequest is the read model a Marketer sees for one invitation:
 // the request itself plus the job context needed to decide on it.
 type MarketerJobRequest struct {
+	Title        string
+	Description  string
+	Budget       *string
+	Deadline     *time.Time
 	Request      domain.JobRequest
 	JobStatus    domain.JobStatus
 	CreatorID    int32
