@@ -2363,6 +2363,10 @@ components:
       type: object
       required: [job_id, job_status, created_at, surveys]
       properties:
+        pending_offer_count:
+          type: integer
+          minimum: 0
+          description: Number of offers awaiting the Creator decision, excluding withdrawn and rejected offers.
         title:
           type: string
           maxLength: 200

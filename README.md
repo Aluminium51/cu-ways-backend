@@ -374,3 +374,5 @@ Migration `000010_job_details` adds persisted job titles, descriptions, exact de
 `PATCH /api/v1/jobs/{id}` saves an owned Pending job's title, description, budget, and deadline. An optional nonempty `survey_ids` selection is replaced in the same transaction, with ownership checked before any changes. Accepted jobs reject metadata edits with 409. Creator summaries and Marketer invitations expose the saved metadata. Their effective delivery deadline is the earlier of the job date and the earliest linked survey deadline; offer submission validates the same rule, including under the repository's job lock.
 
 The authenticated marketer detail endpoint also returns its qualifying review count, alongside the completed-job count and average rating, so frontend detail pages do not need to search for the profile.
+
+Creator job summaries include `pending_offer_count`, the number of offers awaiting a decision. Withdrawn and rejected history is excluded. This is computed on read and requires no migration.

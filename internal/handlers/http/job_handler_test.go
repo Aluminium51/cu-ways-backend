@@ -162,7 +162,7 @@ func TestJobHandlerReturnsOnlyAuthenticatedCreatorsSurveysAsArray(t *testing.T) 
 func TestJobHandlerReturnsJobSummariesWithoutPrivateSurveyFields(t *testing.T) {
 	createdAt := time.Date(2026, 10, 13, 7, 30, 0, 0, time.UTC)
 	service := &fakeJobService{jobs: []domain.CreatorJobSummary{{
-		JobID: 12, JobStatus: domain.JobStatusInProgress, CreatedAt: createdAt,
+		JobID: 12, JobStatus: domain.JobStatusInProgress, CreatedAt: createdAt, PendingOfferCount: 2,
 		Surveys: []domain.JobSurveySummary{{SurveyID: 3, Title: "Study"}},
 	}}}
 	res, err := jobHandlerApp(service).Test(httptest.NewRequest("GET", "/me/jobs", nil))
@@ -183,7 +183,7 @@ func TestJobHandlerReturnsJobSummariesWithoutPrivateSurveyFields(t *testing.T) {
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if len(envelope.Data) != 1 || envelope.Data[0].JobID != 12 || envelope.Data[0].JobStatus != domain.JobStatusInProgress || !envelope.Data[0].CreatedAt.Equal(createdAt) || len(envelope.Data[0].Surveys) != 1 || envelope.Data[0].Surveys[0].SurveyID != 3 || envelope.Data[0].Surveys[0].Title != "Study" {
+	if len(envelope.Data) != 1 || envelope.Data[0].PendingOfferCount != 2 || envelope.Data[0].JobID != 12 || envelope.Data[0].JobStatus != domain.JobStatusInProgress || !envelope.Data[0].CreatedAt.Equal(createdAt) || len(envelope.Data[0].Surveys) != 1 || envelope.Data[0].Surveys[0].SurveyID != 3 || envelope.Data[0].Surveys[0].Title != "Study" {
 		t.Fatalf("unexpected job summaries: %+v", envelope.Data)
 	}
 	for _, forbidden := range []string{"user_id", "accepted_offer_id", "survey_link"} {

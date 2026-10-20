@@ -140,6 +140,7 @@ type JobSurveySummaryResponse struct {
 }
 
 type CreatorJobSummaryResponse struct {
+	PendingOfferCount int64 `json:"pending_offer_count"`
 	JobDetailsResponse
 	EffectiveDeadline *time.Time                 `json:"effective_deadline"`
 	JobID             int32                      `json:"job_id"`
@@ -400,6 +401,7 @@ func toJobRequestResponse(request domain.JobRequest) JobRequestResponse {
 
 func toCreatorJobSummaryResponse(job domain.CreatorJobSummary) CreatorJobSummaryResponse {
 	result := CreatorJobSummaryResponse{
+		PendingOfferCount:  job.PendingOfferCount,
 		JobDetailsResponse: jobDetailsResponse(job.Title, job.Description, job.Budget, job.Deadline),
 		EffectiveDeadline:  job.EffectiveDeadline,
 		JobID:              job.JobID,

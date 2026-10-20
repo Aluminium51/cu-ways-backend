@@ -25,6 +25,7 @@ func NewJobRepository(db *gorm.DB) *JobRepository {
 func (r *JobRepository) ListJobsByCreator(ctx context.Context, creatorID int32) ([]domain.CreatorJobSummary, error) {
 	var jobs []domain.Job
 	err := r.db.WithContext(ctx).
+		Select("jobs.*, (SELECT COUNT(*) FROM offers WHERE offers.job_id = jobs.job_id AND offers.offer_status = ?) AS pending_offer_count", domain.OfferStatusPending).
 		Where("user_id = ?", creatorID).
 		Preload("Surveys", func(db *gorm.DB) *gorm.DB {
 			return db.Order("surveys.survey_id ASC")
@@ -60,6 +61,9 @@ func (r *JobRepository) GetJobByCreator(ctx context.Context, creatorID, jobID in
 	}
 	job.Surveys = surveys
 	summary := toCreatorJobSummary(*job)
+	if err := r.db.WithContext(ctx).Model(&domain.Offer{}).Where("job_id = ? AND offer_status = ?", jobID, domain.OfferStatusPending).Count(&summary.PendingOfferCount).Error; err != nil {
+		return nil, err
+	}
 	return &summary, nil
 }
 
@@ -84,7 +88,8 @@ func (r *JobRepository) ListJobRequestsByCreator(ctx context.Context, creatorID,
 
 func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
 	summary := domain.CreatorJobSummary{
-		Title: job.Title, Description: job.Description, Budget: job.Budget,
+		PendingOfferCount: job.PendingOfferCount,
+		Title:             job.Title, Description: job.Description, Budget: job.Budget,
 		Deadline: job.Deadline, EffectiveDeadline: domain.EffectiveJobDeadline(job.Deadline, job.Surveys),
 		JobID:     job.JobID,
 		JobStatus: job.JobStatus,
