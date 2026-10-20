@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
@@ -12,6 +13,62 @@ import (
 
 type CreateJobInput struct {
 	SurveyIDs []int32
+	JobDetailsInput
+}
+
+type JobDetailsInput struct {
+	SurveyIDs   []int32
+	Title       string
+	Description string
+	Budget      *string
+	Deadline    *string
+}
+
+func jobDetails(input JobDetailsInput) (*domain.Job, error) {
+	job := &domain.Job{Title: strings.TrimSpace(input.Title), Description: strings.TrimSpace(input.Description)}
+	if utf8.RuneCountInString(job.Title) > 200 || utf8.RuneCountInString(job.Description) > 5000 {
+		return nil, domain.ErrInvalidJob
+	}
+	if input.Budget != nil {
+		price, err := parsePrice(*input.Budget)
+		if err != nil {
+			return nil, domain.ErrInvalidJob
+		}
+		job.Budget = &price
+	}
+	if input.Deadline != nil {
+		date, err := time.Parse(time.DateOnly, *input.Deadline)
+		if err != nil {
+			return nil, domain.ErrInvalidJob
+		}
+		job.Deadline = &date
+	}
+	return job, nil
+}
+
+func (s *JobService) UpdateDetails(ctx context.Context, actor Actor, jobID int32, input JobDetailsInput) (*domain.CreatorJobSummary, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 || strings.TrimSpace(input.Title) == "" {
+		return nil, domain.ErrInvalidJob
+	}
+	details, err := jobDetails(input)
+	if err != nil {
+		return nil, err
+	}
+	if input.SurveyIDs != nil {
+		if err := validateIDs(input.SurveyIDs); err != nil {
+			return nil, err
+		}
+		for _, id := range input.SurveyIDs {
+			details.Surveys = append(details.Surveys, domain.Survey{SurveyID: id})
+		}
+	}
+	if err := s.repo.UpdateDetails(ctx, actor.UserID, jobID, details); err != nil {
+		return nil, err
+	}
+	return s.repo.GetJobByCreator(ctx, actor.UserID, jobID)
 }
 
 type CreateJobRequestsInput struct {
@@ -68,11 +125,13 @@ func (s *JobService) Create(ctx context.Context, actor Actor, input CreateJobInp
 	if err := validateIDs(input.SurveyIDs); err != nil {
 		return nil, err
 	}
-	job := &domain.Job{
-		UserID:    actor.UserID,
-		JobStatus: domain.JobStatusPending,
-		CreatedAt: time.Now().UTC(),
+	job, err := jobDetails(input.JobDetailsInput)
+	if err != nil {
+		return nil, err
 	}
+	job.UserID = actor.UserID
+	job.JobStatus = domain.JobStatusPending
+	job.CreatedAt = time.Now().UTC()
 	return s.repo.CreateWithSurveys(ctx, job, input.SurveyIDs)
 }
 

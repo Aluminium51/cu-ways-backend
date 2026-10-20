@@ -76,6 +76,7 @@ type MarketerSearchResponse struct {
 }
 
 type MarketerDetailResponse struct {
+	ReviewCount        int64                   `json:"review_count"`
 	Profile            MarketerProfileResponse `json:"profile"`
 	Services           []ServiceResponse       `json:"services"`
 	TotalCompletedJobs int64                   `json:"total_completed_jobs"`
@@ -112,6 +113,7 @@ func (h *MarketerHandler) GetDetail(c *fiber.Ctx) error {
 		serviceResponses = append(serviceResponses, toServiceResponse(&detail.Marketer.Services[index]))
 	}
 	return response.Success(c, fiber.StatusOK, MarketerDetailResponse{
+		ReviewCount:        detail.ReviewCount,
 		Profile:            toMarketerProfileResponse(&detail.Marketer),
 		Services:           serviceResponses,
 		TotalCompletedJobs: detail.TotalCompletedJobs,

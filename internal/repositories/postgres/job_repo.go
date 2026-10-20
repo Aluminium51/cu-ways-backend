@@ -47,10 +47,10 @@ func (r *JobRepository) GetJobByCreator(ctx context.Context, creatorID, jobID in
 	if err != nil {
 		return nil, mapJobRepositoryError(err)
 	}
-	surveys := make([]domain.JobSurveySummary, 0)
+	surveys := make([]domain.Survey, 0)
 	err = r.db.WithContext(ctx).
 		Table("surveys").
-		Select("surveys.survey_id, surveys.title").
+		Select("surveys.*").
 		Joins("JOIN is_used_in ON is_used_in.survey_id = surveys.survey_id").
 		Where("is_used_in.job_id = ?", jobID).
 		Order("surveys.survey_id ASC").
@@ -58,8 +58,8 @@ func (r *JobRepository) GetJobByCreator(ctx context.Context, creatorID, jobID in
 	if err != nil {
 		return nil, err
 	}
+	job.Surveys = surveys
 	summary := toCreatorJobSummary(*job)
-	summary.Surveys = surveys
 	return &summary, nil
 }
 
@@ -84,6 +84,8 @@ func (r *JobRepository) ListJobRequestsByCreator(ctx context.Context, creatorID,
 
 func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
 	summary := domain.CreatorJobSummary{
+		Title: job.Title, Description: job.Description, Budget: job.Budget,
+		Deadline: job.Deadline, EffectiveDeadline: domain.EffectiveJobDeadline(job.Deadline, job.Surveys),
 		JobID:     job.JobID,
 		JobStatus: job.JobStatus,
 		CreatedAt: job.CreatedAt,
@@ -93,6 +95,42 @@ func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
 		summary.Surveys = append(summary.Surveys, domain.JobSurveySummary{SurveyID: survey.SurveyID, Title: survey.Title})
 	}
 	return summary
+}
+
+func (r *JobRepository) UpdateDetails(ctx context.Context, creatorID, jobID int32, details *domain.Job) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
+			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
+		}
+		if details.Surveys != nil {
+			ids := make([]int32, 0, len(details.Surveys))
+			for _, survey := range details.Surveys {
+				ids = append(ids, survey.SurveyID)
+			}
+			if _, err := surveysForCreator(tx, creatorID, ids); err != nil {
+				return err
+			}
+			if err := tx.Where("job_id = ?", jobID).Delete(&domain.JobSurvey{}).Error; err != nil {
+				return err
+			}
+			links := make([]domain.JobSurvey, 0, len(ids))
+			for _, id := range ids {
+				links = append(links, domain.JobSurvey{JobID: jobID, SurveyID: id})
+			}
+			if err := tx.Create(&links).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(job).Updates(map[string]any{
+			"title": details.Title, "description": details.Description,
+			"budget": details.Budget, "deadline": details.Deadline,
+		}).Error
+	})
+	return mapJobRepositoryError(err)
 }
 
 func (r *JobRepository) ListSurveysByCreator(ctx context.Context, creatorID int32) ([]domain.Survey, error) {

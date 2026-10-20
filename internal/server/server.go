@@ -132,6 +132,7 @@ func New(deps Dependencies) *fiber.App {
 	api.Get("/me/jobs", protectedUsers, jobHandler.ListMyJobs)
 	api.Post("/jobs", protectedUsers, jobHandler.Create)
 	api.Get("/jobs/:id", protectedUsers, jobHandler.GetJob)
+	api.Patch("/jobs/:id", protectedUsers, jobHandler.UpdateDetails)
 	api.Post("/jobs/:id/surveys/:surveyId", protectedUsers, jobHandler.AddSurvey)
 	api.Delete("/jobs/:id/surveys/:surveyId", protectedUsers, jobHandler.RemoveSurvey)
 	api.Post("/jobs/:id/briefs", protectedUsers, jobHandler.AddBrief)

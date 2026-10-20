@@ -138,7 +138,7 @@ func (s *MarketerJobRequestService) SubmitOffer(ctx context.Context, actor Actor
 	if request.Request.Status != domain.JobRequestStatusAccepted {
 		return nil, domain.ErrJobRequestNotAccepted
 	}
-	if deadline := domain.EarliestSurveyDeadline(request.Surveys); deadline != nil && deliveryDate.After(calendarDate(*deadline)) {
+	if deadline := domain.EffectiveJobDeadline(request.Deadline, request.Surveys); deadline != nil && deliveryDate.After(calendarDate(*deadline)) {
 		return nil, errors.Join(domain.ErrInvalidOffer, errors.New("delivery_date cannot be after the job deadline"))
 	}
 

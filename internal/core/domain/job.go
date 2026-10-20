@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"github.com/shopspring/decimal"
+	"time"
+)
 
 type JobStatus string
 
@@ -13,11 +16,15 @@ const (
 )
 
 type Job struct {
-	JobID           int32     `gorm:"column:job_id;primaryKey;autoIncrement"`
-	UserID          int32     `gorm:"column:user_id;not null"`
-	AcceptedOfferID *int32    `gorm:"column:accepted_offer_id;uniqueIndex"`
-	JobStatus       JobStatus `gorm:"column:job_status;type:varchar(20);not null"`
-	CreatedAt       time.Time `gorm:"column:created_at;type:timestamp;not null"`
+	Title           string           `gorm:"column:title"`
+	Description     string           `gorm:"column:description"`
+	Budget          *decimal.Decimal `gorm:"column:budget;type:numeric(10,2)"`
+	Deadline        *time.Time       `gorm:"column:deadline;type:date"`
+	JobID           int32            `gorm:"column:job_id;primaryKey;autoIncrement"`
+	UserID          int32            `gorm:"column:user_id;not null"`
+	AcceptedOfferID *int32           `gorm:"column:accepted_offer_id;uniqueIndex"`
+	JobStatus       JobStatus        `gorm:"column:job_status;type:varchar(20);not null"`
+	CreatedAt       time.Time        `gorm:"column:created_at;type:timestamp;not null"`
 
 	Creator       *Creator     `gorm:"foreignKey:UserID;references:UserID"`
 	AcceptedOffer *Offer       `gorm:"foreignKey:JobID,AcceptedOfferID;references:JobID,OfferID"`
@@ -32,10 +39,15 @@ func (Job) TableName() string { return "jobs" }
 
 // CreatorJobSummary contains the small set of job fields returned to its owner.
 type CreatorJobSummary struct {
-	JobID     int32              `gorm:"column:job_id"`
-	JobStatus JobStatus          `gorm:"column:job_status"`
-	CreatedAt time.Time          `gorm:"column:created_at"`
-	Surveys   []JobSurveySummary `gorm:"-"`
+	Title             string
+	Description       string
+	Budget            *decimal.Decimal
+	Deadline          *time.Time
+	EffectiveDeadline *time.Time
+	JobID             int32              `gorm:"column:job_id"`
+	JobStatus         JobStatus          `gorm:"column:job_status"`
+	CreatedAt         time.Time          `gorm:"column:created_at"`
+	Surveys           []JobSurveySummary `gorm:"-"`
 }
 
 type JobSurveySummary struct {
@@ -123,6 +135,16 @@ func EarliestSurveyDeadline(surveys []Survey) *time.Time {
 		if deadline != nil && (earliest == nil || deadline.Before(*earliest)) {
 			earliest = deadline
 		}
+	}
+	return earliest
+}
+
+// EffectiveJobDeadline preserves the survey delivery limit while allowing a
+// Creator to request an earlier date. Both workspaces and offer validation use it.
+func EffectiveJobDeadline(deadline *time.Time, surveys []Survey) *time.Time {
+	earliest := EarliestSurveyDeadline(surveys)
+	if deadline != nil && (earliest == nil || deadline.Before(*earliest)) {
+		return deadline
 	}
 	return earliest
 }

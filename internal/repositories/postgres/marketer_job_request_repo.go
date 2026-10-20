@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
@@ -59,6 +60,18 @@ func (r *MarketerJobRequestRepository) CreateOffer(ctx context.Context, marketer
 		}
 		if err := requirePendingJob(tx, jobIDs[0], "SHARE"); err != nil {
 			return err
+		}
+		// Recheck against the scope protected by the job lock. A concurrent
+		// Creator edit must not let an offer pass using a stale deadline.
+		var job domain.Job
+		if err := tx.Preload("Surveys").First(&job, jobIDs[0]).Error; err != nil {
+			return err
+		}
+		if deadline := domain.EffectiveJobDeadline(job.Deadline, job.Surveys); deadline != nil && offer.DeliveryDate != nil {
+			date := deadline.In(time.FixedZone("Asia/Bangkok", 7*60*60)).Format(time.DateOnly)
+			if offer.DeliveryDate.Format(time.DateOnly) > date {
+				return domain.ErrInvalidOffer
+			}
 		}
 		request, err := lockMarketerJobRequest(tx, marketerID, requestID)
 		if err != nil {
@@ -204,6 +217,13 @@ func loadMarketerJobRequests(db, query *gorm.DB) ([]ports.MarketerJobRequest, er
 	for _, request := range requests {
 		item := ports.MarketerJobRequest{Request: request, Surveys: []domain.Survey{}}
 		if job := request.Job; job != nil {
+			item.Title = job.Title
+			item.Description = job.Description
+			item.Deadline = job.Deadline
+			if job.Budget != nil {
+				value := job.Budget.StringFixed(2)
+				item.Budget = &value
+			}
 			item.JobStatus = job.JobStatus
 			item.CreatorID = job.UserID
 			item.CreatorName = creatorNames[job.UserID]
