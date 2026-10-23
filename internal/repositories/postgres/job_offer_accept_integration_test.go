@@ -153,8 +153,8 @@ func TestJobOfferRepositoryAcceptOfferRollsBackEveryChangeOnFailure(t *testing.T
 	db := openRepositoryIntegrationTransaction(t)
 	f := newOfferAcceptanceFixture(t, db, "accept-rollback")
 
-	// Fail the final job update, after requests are closed and offers are
-	// rejected and accepted inside the same transaction.
+	// Fail the final job update, after requests are closed and competing
+	// offers are locked inside the same transaction.
 	jobUpdateFailure := errors.New("injected job update failure")
 	callbackName := "test:fail_offer_acceptance_job_update"
 	if err := db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {

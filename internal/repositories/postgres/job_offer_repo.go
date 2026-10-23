@@ -3,10 +3,12 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -111,21 +113,23 @@ RETURNING job_request_id`, domain.JobRequestStatusClosed, jobID, offer.UserID,
 			Scan(&closed).Error; err != nil {
 			return err
 		}
+		// Lock the competing Pending offers so a concurrent withdrawal cannot
+		// change them between this read and the trigger rejecting them.
 		var rejected []int32
-		if err := tx.Raw(`
-UPDATE offers SET offer_status = ?
-WHERE job_id = ? AND offer_id <> ? AND offer_status = ?
-RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferStatusPending).
-			Scan(&rejected).Error; err != nil {
+		if err := tx.Model(&domain.Offer{}).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("job_id = ? AND offer_id <> ? AND offer_status = ?", jobID, offerID, domain.OfferStatusPending).
+			Pluck("offer_id", &rejected).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&domain.Offer{}).Where("offer_id = ?", offerID).
-			Update("offer_status", domain.OfferStatusAccepted).Error; err != nil {
-			return err
+		// trg_validate_job_accepted_offer sets the job Accepted, and
+		// trg_sync_offer_status_after_job_accept accepts this offer and rejects
+		// the locked competitors.
+		if err := tx.Model(job).Clauses(clause.Returning{}).
+			Update("accepted_offer_id", offerID).Error; err != nil {
+			return mapAcceptedOfferTriggerError(err)
 		}
-		if err := tx.Model(&domain.Job{}).Where("job_id = ?", jobID).
-			Updates(map[string]any{"job_status": domain.JobStatusAccepted, "accepted_offer_id": offerID}).Error; err != nil {
-			return err
+		if job.JobStatus != domain.JobStatusAccepted {
+			return fmt.Errorf("job %d is %s after accepting offer %d", jobID, job.JobStatus, offerID)
 		}
 		slices.Sort(closed)
 		slices.Sort(rejected)
@@ -136,8 +140,6 @@ RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferSta
 			rejected = []int32{}
 		}
 
-		job.JobStatus = domain.JobStatusAccepted
-		job.AcceptedOfferID = &offer.OfferID
 		offer.OfferStatus = domain.OfferStatusAccepted
 		result = ports.OfferAcceptance{Job: *job, Offer: offer, RejectedOfferIDs: rejected, ClosedJobRequestIDs: closed}
 		return nil
@@ -146,6 +148,19 @@ RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferSta
 		return nil, err
 	}
 	return &result, nil
+}
+
+// acceptedOfferMismatchCode is the SQLSTATE raised by
+// trg_validate_job_accepted_offer when accepted_offer_id names an offer from
+// another job or one that is no longer active.
+const acceptedOfferMismatchCode = "CW001"
+
+func mapAcceptedOfferTriggerError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == acceptedOfferMismatchCode {
+		return errors.Join(domain.ErrAcceptedOfferMismatch, err)
+	}
+	return err
 }
 
 func marketerExpertise(db *gorm.DB, marketerIDs []int32) (map[int32][]domain.Expertise, error) {
