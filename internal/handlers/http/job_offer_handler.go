@@ -133,6 +133,8 @@ func mapJobOfferError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job already has an accepted offer or is closed", err)
 	case errors.Is(err, domain.ErrOfferNotPending):
 		return response.NewAppError(fiber.StatusConflict, "offer_not_pending", "only a pending offer can be accepted", err)
+	case errors.Is(err, domain.ErrAcceptedOfferMismatch):
+		return response.NewAppError(fiber.StatusConflict, "accepted_offer_mismatch", "the offer does not match this job", err)
 	case errors.Is(err, domain.ErrInvalidJob), errors.Is(err, domain.ErrInvalidOffer):
 		return validationError(err)
 	default:

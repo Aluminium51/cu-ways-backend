@@ -133,10 +133,11 @@ func TestOfferAcceptanceWinsBeforeConcurrentWithdrawal(t *testing.T) {
 	acceptDB := openRepositoryIntegrationDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	// Acceptance has already locked the job and selected offer at this point.
+	// Acceptance has already locked the job and selected offer at this point;
+	// the paused jobs update fires the triggers that accept the offer.
 	reached := pauseOnce(t, func(name string, fn func(*gorm.DB)) error {
 		return acceptDB.Callback().Update().Before("gorm:update").Register(name, fn)
-	}, "offers", "test:pause_acceptance_before_withdrawal")
+	}, "jobs", "test:pause_acceptance_before_withdrawal")
 	acceptErr := make(chan error, 1)
 	go func() {
 		_, err := NewJobOfferRepository(acceptDB).AcceptOffer(ctx, f.creatorID, f.jobID, f.hiredOffer.OfferID)
