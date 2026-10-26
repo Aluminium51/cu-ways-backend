@@ -52,5 +52,5 @@ var (
 	ErrJobNotPending      = errors.New("job is no longer open for offers")
 
 	ErrJobNotAccepted        = errors.New("only an accepted job can be started")
-	ErrAcceptedOfferMismatch = errors.New("accepted offer does not match the job")
+	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
 )

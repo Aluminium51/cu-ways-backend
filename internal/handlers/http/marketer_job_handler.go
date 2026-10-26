@@ -37,7 +37,7 @@ func (h *MarketerJobHandler) Start(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
@@ -64,7 +64,7 @@ func mapMarketerJobError(err error) error {
 	case errors.Is(err, domain.ErrJobNotAccepted):
 		return response.NewAppError(fiber.StatusConflict, "job_not_accepted", "only an accepted job can be started", err)
 	case errors.Is(err, domain.ErrAcceptedOfferMismatch):
-		return response.NewAppError(fiber.StatusConflict, "accepted_offer_mismatch", "the job's accepted offer does not match this job", err)
+		return response.NewAppError(fiber.StatusConflict, "accepted_offer_mismatch", "the job's accepted offer is no longer accepted", err)
 	case errors.Is(err, domain.ErrInvalidJob):
 		return validationError(err)
 	default:

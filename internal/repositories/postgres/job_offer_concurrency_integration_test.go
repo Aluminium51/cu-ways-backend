@@ -180,11 +180,10 @@ func TestOfferSubmissionWaitsForAcceptanceAndIsRefusedWhenAcceptanceStartsFirst(
 	defer cancel()
 
 	// Hold the acceptance open after it has locked the job and closed the
-	// competing requests, then start the submission inside that window. The
-	// paused jobs update is the one that fires the acceptance triggers.
+	// competing requests, then start the submission inside that window.
 	reached := pauseOnce(t, func(name string, fn func(*gorm.DB)) error {
 		return acceptDB.Callback().Update().Before("gorm:update").Register(name, fn)
-	}, "jobs", "test:pause_offer_accept")
+	}, "offers", "test:pause_offer_accept")
 	acceptErr := make(chan error, 1)
 	go func() {
 		_, err := NewJobOfferRepository(acceptDB).AcceptOffer(ctx, f.creatorID, f.jobID, f.hiredOffer.OfferID)

@@ -366,7 +366,7 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000008_job_request_responses` adds optional, constrained decline reason and note columns to `job_requests`.
 - `000009_offer_submissions` links offers to their job request, adds delivery date and message columns, and allows one active offer per request.
 - `000010_job_details` adds job title, description, budget, and deadline columns.
-- `000011_job_accept_triggers` adds triggers on `jobs.accepted_offer_id` that reject an offer from another job or an inactive offer with a mismatch exception, set a Pending job to Accepted, and sync the job's offers to Accepted or Rejected.
+- `000011_job_accept_triggers` adds a guard trigger on `jobs.accepted_offer_id` that refuses to hire on a job that has left Pending, to leave a hiring job Pending, or to point at an offer that is not the job's only Accepted active offer. It changes no rows; the application performs the transition.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.

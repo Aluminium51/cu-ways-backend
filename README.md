@@ -282,14 +282,9 @@ Withdraw an offer with `POST /api/v1/me/offers/:id/withdraw` and no request body
 
 The Marketer hired through a job's accepted offer starts the job with `POST /api/v1/jobs/:id/start` and no request body. The endpoint requires a JWT and active Marketer membership. It moves an `Accepted` job to `In Progress` and returns `job_id`, `job_status`, `accepted_offer_id`, and the accepted `offer`, which is unchanged.
 
-Ownership is checked before the job status, so other marketers cannot learn a job's state. A job whose accepted offer belongs to another marketer, or that has no accepted offer yet, returns `403 job_forbidden`. A job that is not `Accepted` (already `In Progress`, `Completed`, or `Cancelled`) returns `409 job_not_accepted`. An accepted offer that belongs to another job or is no longer `Accepted` returns `409 accepted_offer_mismatch`. The job row is locked while starting, so only one concurrent start succeeds.
+Ownership is checked before the job status, so other marketers cannot learn a job's state. A job whose accepted offer belongs to another marketer, or that has no accepted offer yet, returns `403 job_forbidden`. A job that is not `Accepted` (already `In Progress`, `Completed`, or `Cancelled`) returns `409 job_not_accepted`. An accepted offer that is no longer `Accepted` returns `409 accepted_offer_mismatch`. The job row is locked while starting, so only one concurrent start succeeds.
 
-Migration `000011_job_accept_triggers` keeps hiring consistent in the database, whichever code path sets `jobs.accepted_offer_id`:
-
-- `trg_validate_job_accepted_offer` runs before the update. It raises SQLSTATE `CW001` (a mismatch exception that aborts the transaction) when the offer does not belong to the job or is `Withdrawn` or `Rejected`. On a `Pending` job it sets `job_status` to `Accepted`, unless the same statement sets another status explicitly, as the development seeder does.
-- `trg_sync_offer_status_after_job_accept` runs after the update on a `Pending` job. It sets the chosen offer to `Accepted` and every other `Pending` offer on the job to `Rejected`.
-
-Offer acceptance relies on these triggers for the job and offer statuses; closing the other marketers' invitations stays in the application transaction.
+The hiring and start transitions are domain rules (`domain.Job.AcceptOffer` and `domain.Job.Start`); the repositories lock the rows, apply the rule, and persist the result. Migration `000011_job_accept_triggers` adds `trg_guard_job_accepted_offer`, an integrity guard that never changes a row. Before `jobs.accepted_offer_id` is set, it raises `check_violation` unless the job is still `Pending`, the same statement moves the job out of `Pending`, the offer belongs to the job and is already `Accepted`, and no other offer on the job is `Pending` or `Accepted`. Clearing the column is allowed so hired jobs can be deleted. Because the application sets every status itself, rolling back this migration does not change API behavior.
 
 ## Database tools
 

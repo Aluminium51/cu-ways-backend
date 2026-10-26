@@ -1420,7 +1420,7 @@ paths:
     post:
       operationId: acceptJobOffer
       summary: Accept one offer and hire its marketer
-      description: In one transaction that rolls back completely on any failure, marks the job Accepted with accepted_offer_id, sets the offer to Accepted, sets every other Pending offer on the job to Rejected, and closes the other marketers' Pending or Accepted job requests. The hired marketer's request stays Accepted. Only a Pending offer on a Pending job can be accepted. The job and offer statuses are derived by database triggers on jobs.accepted_offer_id, which also abort the transaction if the offer does not belong to the job.
+      description: In one transaction that rolls back completely on any failure, marks the job Accepted with accepted_offer_id, sets the offer to Accepted, sets every other Pending offer on the job to Rejected, and closes the other marketers' Pending or Accepted job requests. The hired marketer's request stays Accepted. Only a Pending offer on a Pending job can be accepted.
       tags: [Jobs]
       security:
         - bearerAuth: []
@@ -1450,7 +1450,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: The job already has an accepted offer or is closed (code job_not_pending), the offer is not Pending (code offer_not_pending), or the database rejected the offer as not matching the job (code accepted_offer_mismatch).
+          description: The job already has an accepted offer or is closed (code job_not_pending), or the offer is not Pending (code offer_not_pending).
           content:
             application/json:
               schema:
@@ -1476,7 +1476,7 @@ paths:
       description: >-
         Moves an Accepted job to In Progress. No request body is required. Only
         the marketer who owns the job's accepted offer may start it, and that
-        offer must belong to the job and still be Accepted. Ownership is checked
+        offer must still be Accepted. Ownership is checked
         before the job status, so other marketers cannot learn a job's state.
         The accepted offer is unchanged. The job is locked while starting, so
         only one of several concurrent starts succeeds.
@@ -1509,7 +1509,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: The job is not Accepted, for example already In Progress or Completed (code job_not_accepted), or its accepted offer belongs to another job or is no longer Accepted (code accepted_offer_mismatch). No state is changed.
+          description: The job is not Accepted, for example already In Progress or Completed (code job_not_accepted), or its accepted offer is no longer Accepted (code accepted_offer_mismatch). No state is changed.
           content:
             application/json:
               schema:

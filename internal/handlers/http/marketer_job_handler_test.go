@@ -111,3 +111,14 @@ func TestMarketerJobHandlerStartMapsErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePathIDNamesTheParameter(t *testing.T) {
+	for _, value := range []string{"abc", "0", "-1", "2147483648"} {
+		if _, err := parsePathID(value, "job"); err == nil || err.Error() != "invalid job id" {
+			t.Fatalf("%q: expected invalid job id, got %v", value, err)
+		}
+	}
+	if id, err := parsePathID(" 12 ", "job"); err != nil || id != 12 {
+		t.Fatalf("expected 12, got %d %v", id, err)
+	}
+}

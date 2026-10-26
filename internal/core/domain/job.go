@@ -38,6 +38,47 @@ type Job struct {
 
 func (Job) TableName() string { return "jobs" }
 
+// AcceptOffer hires the Marketer behind offer. Only a Pending offer on a
+// Pending job without an accepted offer can be accepted. On success the job is
+// Accepted with accepted_offer_id set and the offer is Accepted; rejecting
+// competing offers is left to the caller.
+func (j *Job) AcceptOffer(offer *Offer) error {
+	if j.JobStatus != JobStatusPending || j.AcceptedOfferID != nil {
+		return ErrJobNotPending
+	}
+	if offer.JobID != j.JobID {
+		return ErrOfferNotFound
+	}
+	if offer.OfferStatus != OfferStatusPending {
+		return ErrOfferNotPending
+	}
+	offerID := offer.OfferID
+	j.JobStatus = JobStatusAccepted
+	j.AcceptedOfferID = &offerID
+	offer.OfferStatus = OfferStatusAccepted
+	return nil
+}
+
+// Start moves an Accepted job to In Progress for the Marketer who owns its
+// accepted offer. Ownership is checked before status so other Marketers cannot
+// learn the job's state: a job without an accepted offer, or whose accepted
+// offer belongs to someone else, returns ErrJobForbidden. An accepted offer
+// that is no longer Accepted returns ErrAcceptedOfferMismatch, and a job that
+// is not Accepted returns ErrJobNotAccepted.
+func (j *Job) Start(marketerID int32, accepted *Offer) error {
+	if j.AcceptedOfferID == nil || accepted == nil || accepted.OfferID != *j.AcceptedOfferID || accepted.UserID != marketerID {
+		return ErrJobForbidden
+	}
+	if accepted.OfferStatus != OfferStatusAccepted {
+		return ErrAcceptedOfferMismatch
+	}
+	if j.JobStatus != JobStatusAccepted {
+		return ErrJobNotAccepted
+	}
+	j.JobStatus = JobStatusInProgress
+	return nil
+}
+
 // CreatorJobSummary contains the small set of job fields returned to its owner.
 type CreatorJobSummary struct {
 	PendingOfferCount int64

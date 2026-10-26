@@ -45,7 +45,7 @@ func (h *JobOfferHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
@@ -84,11 +84,11 @@ func (h *JobOfferHandler) Accept(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
-	offerID, err := parseUserID(c.Params("offerId"))
+	offerID, err := parsePathID(c.Params("offerId"), "offer")
 	if err != nil {
 		return validationError(err)
 	}
@@ -133,8 +133,6 @@ func mapJobOfferError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job already has an accepted offer or is closed", err)
 	case errors.Is(err, domain.ErrOfferNotPending):
 		return response.NewAppError(fiber.StatusConflict, "offer_not_pending", "only a pending offer can be accepted", err)
-	case errors.Is(err, domain.ErrAcceptedOfferMismatch):
-		return response.NewAppError(fiber.StatusConflict, "accepted_offer_mismatch", "the offer does not match this job", err)
 	case errors.Is(err, domain.ErrInvalidJob), errors.Is(err, domain.ErrInvalidOffer):
 		return validationError(err)
 	default:

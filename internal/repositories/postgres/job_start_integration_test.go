@@ -19,68 +19,90 @@ func jobStatusOf(t *testing.T, db *gorm.DB, jobID int32) (domain.JobStatus, *int
 	return job.JobStatus, job.AcceptedOfferID
 }
 
-func TestAcceptedOfferTriggerAcceptsPendingJobAndSyncsOffers(t *testing.T) {
-	db := openRepositoryIntegrationTransaction(t)
-	f := newOfferAcceptanceFixture(t, db, "trigger-sync")
-
-	// Update only the column, as any code path might, and let the triggers
-	// derive the rest.
-	if err := db.Exec(`UPDATE jobs SET accepted_offer_id = ? WHERE job_id = ?`, f.hiredOffer.OfferID, f.jobID).Error; err != nil {
+// execGuarded runs one statement inside a savepoint, so a guard exception does
+// not abort the shared test transaction, and returns the statement's error.
+func execGuarded(t *testing.T, db *gorm.DB, sql string, args ...any) error {
+	t.Helper()
+	if err := db.SavePoint("before_guard").Error; err != nil {
 		t.Fatal(err)
 	}
-	status, accepted := jobStatusOf(t, db, f.jobID)
-	if status != domain.JobStatusAccepted || accepted == nil || *accepted != f.hiredOffer.OfferID {
-		t.Fatalf("job is %s with accepted offer %v", status, accepted)
+	err := db.Exec(sql, args...).Error
+	if rollbackErr := db.RollbackTo("before_guard").Error; rollbackErr != nil {
+		t.Fatal(rollbackErr)
 	}
-	if got := offerStatus(t, db, f.hiredOffer.OfferID); got != domain.OfferStatusAccepted {
-		t.Fatalf("accepted offer is %s", got)
-	}
-	if got := offerStatus(t, db, f.competingOffer.OfferID); got != domain.OfferStatusRejected {
-		t.Fatalf("competing offer is %s", got)
+	return err
+}
+
+func requireGuardViolation(t *testing.T, err error) {
+	t.Helper()
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23514" || pgErr.ConstraintName != "trg_guard_job_accepted_offer" {
+		t.Fatalf("expected the accepted offer guard to refuse the update, got %v", err)
 	}
 }
 
-func TestAcceptedOfferTriggerRaisesMismatchAndAbortsUpdate(t *testing.T) {
+func TestAcceptedOfferGuardRefusesInconsistentHires(t *testing.T) {
 	db := openRepositoryIntegrationTransaction(t)
-	f := newOfferAcceptanceFixture(t, db, "trigger-mismatch")
-	other := newOfferAcceptanceFixture(t, db, "trigger-mismatch-other")
-	if err := db.Model(&domain.Offer{}).Where("offer_id = ?", f.competingOffer.OfferID).Update("offer_status", domain.OfferStatusWithdrawn).Error; err != nil {
-		t.Fatal(err)
-	}
+	f := newOfferAcceptanceFixture(t, db, "guard-hire")
+	other := newOfferAcceptanceFixture(t, db, "guard-hire-other")
 
-	for name, offerID := range map[string]int32{
-		"offer_from_another_job": other.hiredOffer.OfferID,
-		"withdrawn_offer":        f.competingOffer.OfferID,
-	} {
-		t.Run(name, func(t *testing.T) {
-			// The raised exception aborts the statement; a savepoint keeps the
-			// shared test transaction usable for the assertions.
-			if err := db.SavePoint("before_mismatch").Error; err != nil {
+	for name, update := range map[string]func() error{
+		// The guard never derives statuses, so a column-only write that would
+		// leave the job Pending and the offers untouched is refused.
+		"job_left_pending": func() error {
+			return execGuarded(t, db, `UPDATE jobs SET accepted_offer_id = ? WHERE job_id = ?`, f.hiredOffer.OfferID, f.jobID)
+		},
+		"offer_not_accepted": func() error {
+			return execGuarded(t, db, `UPDATE jobs SET accepted_offer_id = ?, job_status = 'Accepted' WHERE job_id = ?`, f.hiredOffer.OfferID, f.jobID)
+		},
+		"offer_from_another_job": func() error {
+			return execGuarded(t, db, `UPDATE jobs SET accepted_offer_id = ?, job_status = 'Accepted' WHERE job_id = ?`, other.hiredOffer.OfferID, f.jobID)
+		},
+		"competing_offer_still_pending": func() error {
+			if err := db.SavePoint("competing").Error; err != nil {
 				t.Fatal(err)
 			}
-			err := db.Exec(`UPDATE jobs SET accepted_offer_id = ? WHERE job_id = ?`, offerID, f.jobID).Error
-			if rollbackErr := db.RollbackTo("before_mismatch").Error; rollbackErr != nil {
-				t.Fatal(rollbackErr)
+			defer db.RollbackTo("competing")
+			if err := db.Model(&domain.Offer{}).Where("offer_id = ?", f.hiredOffer.OfferID).Update("offer_status", domain.OfferStatusAccepted).Error; err != nil {
+				t.Fatal(err)
 			}
-			var pgErr *pgconn.PgError
-			if !errors.As(err, &pgErr) || pgErr.Code != acceptedOfferMismatchCode || pgErr.ConstraintName != "trg_validate_job_accepted_offer" {
-				t.Fatalf("expected the mismatch exception, got %v", err)
-			}
-			if !errors.Is(mapAcceptedOfferTriggerError(err), domain.ErrAcceptedOfferMismatch) {
-				t.Fatalf("mismatch exception was not mapped: %v", err)
-			}
+			return execGuarded(t, db, `UPDATE jobs SET accepted_offer_id = ?, job_status = 'Accepted' WHERE job_id = ?`, f.hiredOffer.OfferID, f.jobID)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireGuardViolation(t, update())
 		})
 	}
 
 	status, accepted := jobStatusOf(t, db, f.jobID)
 	if status != domain.JobStatusPending || accepted != nil {
-		t.Fatalf("aborted update changed the job: %s %v", status, accepted)
+		t.Fatalf("refused updates changed the job: %s %v", status, accepted)
 	}
 	if got := offerStatus(t, db, f.hiredOffer.OfferID); got != domain.OfferStatusPending {
-		t.Fatalf("aborted update changed an offer: %s", got)
+		t.Fatalf("refused updates changed an offer: %s", got)
 	}
-	if got := offerStatus(t, db, other.hiredOffer.OfferID); got != domain.OfferStatusPending {
-		t.Fatalf("aborted update changed another job's offer: %s", got)
+}
+
+func TestAcceptedOfferGuardRefusesRehiringAfterPending(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	ctx := context.Background()
+	f := newOfferAcceptanceFixture(t, db, "guard-rehire")
+	if _, err := NewJobOfferRepository(db).AcceptOffer(ctx, f.creatorID, f.jobID, f.hiredOffer.OfferID); err != nil {
+		t.Fatal(err)
+	}
+	// Reopen the competitor so pointing the job at it would otherwise look like
+	// a valid hire.
+	if err := db.Model(&domain.Offer{}).Where("offer_id = ?", f.competingOffer.OfferID).Update("offer_status", domain.OfferStatusPending).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	requireGuardViolation(t, execGuarded(t, db, `UPDATE jobs SET accepted_offer_id = ? WHERE job_id = ?`, f.competingOffer.OfferID, f.jobID))
+	if _, err := NewMarketerJobRepository(db).StartJob(ctx, f.hiredOffer.UserID, f.jobID); err != nil {
+		t.Fatalf("the hired marketer should still be able to start the job: %v", err)
+	}
+	status, accepted := jobStatusOf(t, db, f.jobID)
+	if status != domain.JobStatusInProgress || accepted == nil || *accepted != f.hiredOffer.OfferID {
+		t.Fatalf("job changed unexpectedly: %s %v", status, accepted)
 	}
 }
 
