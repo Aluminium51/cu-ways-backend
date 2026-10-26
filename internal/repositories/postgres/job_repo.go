@@ -330,7 +330,8 @@ func findOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
 	return &job, nil
 }
 
-func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
+// lockJob locks the job FOR UPDATE until the transaction ends.
+func lockJob(tx *gorm.DB, jobID int32) (*domain.Job, error) {
 	var job domain.Job
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("job_id = ?", jobID).First(&job).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -338,10 +339,18 @@ func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
 		}
 		return nil, err
 	}
+	return &job, nil
+}
+
+func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
+	job, err := lockJob(tx, jobID)
+	if err != nil {
+		return nil, err
+	}
 	if job.UserID != creatorID {
 		return nil, domain.ErrJobForbidden
 	}
-	return &job, nil
+	return job, nil
 }
 
 func mapJobRepositoryError(err error) error {

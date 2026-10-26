@@ -1461,6 +1461,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/start:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: startJob
+      summary: Start an accepted job as its hired marketer
+      description: >-
+        Moves an Accepted job to In Progress. No request body is required. Only
+        the marketer who owns the job's accepted offer may start it, and that
+        offer must still be Accepted. Ownership is checked
+        before the job status, so other marketers cannot learn a job's state.
+        The accepted offer is unchanged. The job is locked while starting, so
+        only one of several concurrent starts succeeds.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Job started; job_status is In Progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartJobResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Marketer membership (code marketer_profile_required), or the job has no accepted offer owned by the caller (code job_forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job is not Accepted, for example already In Progress or Completed (code job_not_accepted), or its accepted offer is no longer Accepted (code accepted_offer_mismatch). No state is changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The job ID is not a positive int32 (code validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/me/job-requests:
     get:
       operationId: listMyJobRequests
@@ -2724,6 +2783,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobOfferComparison'
+    StartJobResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [job_id, job_status, accepted_offer_id, offer]
+          properties:
+            job_id:
+              type: integer
+              format: int32
+            job_status:
+              type: string
+              enum: [In Progress]
+            accepted_offer_id:
+              type: integer
+              format: int32
+            offer:
+              $ref: '#/components/schemas/Offer'
     AcceptOfferResponse:
       type: object
       required: [status, data]

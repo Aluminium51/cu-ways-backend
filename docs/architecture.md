@@ -118,6 +118,7 @@ Current ports:
 - `JobRepository` for Creator job creation, survey linking, Brief history, and marketer invitations.
 - `MarketerJobRequestRepository` for listing and atomically answering the job requests addressed to a Marketer, and for submitting, listing, and atomically withdrawing their offers.
 - `JobOfferRepository` for listing a Creator's job offers with Marketer profiles and rating history, and for atomically accepting one offer.
+- `MarketerJobRepository` for the hired Marketer to start a job after checking they own its accepted offer.
 - `PasswordHasher` for password hashing and comparison.
 - `TokenVerifier` for JWT verification.
 - `TokenIssuer` for short-lived JWT access-token issuance.
@@ -142,6 +143,7 @@ Current services:
 - `JobService`, which creates jobs with owned surveys, manages survey links and Brief history, and invites Marketers.
 - `MarketerJobRequestService`, which lets Marketers list, accept, and decline the job requests sent to them, submit one active offer per accepted request, and withdraw their Pending offers while retaining history and allowing resubmission.
 - `JobOfferService`, which lets Creators compare the offers on their jobs and accept one, rejecting competing offers and closing other invitations in one transaction.
+- `MarketerJobService`, which lets the Marketer hired through the accepted offer move an Accepted job to In Progress.
 
 Feature services should:
 
@@ -363,6 +365,8 @@ SQL migrations are the source of truth for PostgreSQL schema changes.
 - `000007_creator_job_workflows` adds active invitation uniqueness and the `job_requests` history table.
 - `000008_job_request_responses` adds optional, constrained decline reason and note columns to `job_requests`.
 - `000009_offer_submissions` links offers to their job request, adds delivery date and message columns, and allows one active offer per request.
+- `000010_job_details` adds job title, description, budget, and deadline columns.
+- `000011_job_accept_triggers` adds a guard trigger on `jobs.accepted_offer_id` that refuses to hire on a job that has left Pending, to leave a hiring job Pending, or to point at an offer that is not the job's only Accepted active offer. It changes no rows; the application performs the transition.
 - Admin seeding is deliberately a command, not a migration, so credentials never become part of migration history.
 - Use `.up.sql` for forward changes and `.down.sql` for rollback behavior.
 - Run `make migrate-up` after starting PostgreSQL.
@@ -436,4 +440,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, offer comparison, offer acceptance, and offer withdrawal. Payment, review, and refresh-token workflows remain future work.
+The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, offer comparison, offer acceptance, offer withdrawal, and starting a hired job. Payment, review, and refresh-token workflows remain future work.
