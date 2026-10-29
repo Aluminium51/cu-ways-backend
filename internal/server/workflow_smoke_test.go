@@ -63,6 +63,7 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "offer_submission_requires_authentication", method: "POST", path: "/api/v1/me/job-requests/1/offers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_offers_require_authentication", path: "/api/v1/jobs/1/offers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "offer_acceptance_requires_authentication", method: "POST", path: "/api/v1/jobs/1/offers/1/accept", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "review_submission_requires_authentication", method: "POST", path: "/api/v1/jobs/1/reviews", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "unknown_route", path: "/__workflow_smoke_missing", status: 404, envelope: "error", errorCode: "not_found"},
 	}
 

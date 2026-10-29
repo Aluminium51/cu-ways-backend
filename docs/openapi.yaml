@@ -15,7 +15,7 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, marketer invitations, offer comparison, and offer acceptance.
+    description: Creator job setup, survey links, briefs, marketer invitations, offers, and reviews.
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
@@ -1320,6 +1320,76 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/reviews:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: submitJobReview
+      summary: Submit a review for a completed Job
+      description: The authenticated Creator must own the Job, and its status must be Completed. Only one review may be submitted for each Job. The server records created_at.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              additionalProperties: false
+              properties:
+                rating:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Review created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the Job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Job is not Completed (code job_not_completed) or already has a review (code review_already_exists).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid Job ID, rating, or JSON body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/me/job-requests:
     get:
       operationId: listMyJobRequests
@@ -2354,6 +2424,34 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Offer'
+    ReviewResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [review_id, job_id, rating, comment, created_at]
+          properties:
+            review_id:
+              type: integer
+              format: int32
+            job_id:
+              type: integer
+              format: int32
+            rating:
+              type: integer
+              format: int32
+              minimum: 1
+              maximum: 5
+            comment:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
     MarketerRating:
       type: object
       required: [average_rating, review_count, completed_jobs, is_rated]
