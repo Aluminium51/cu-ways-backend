@@ -112,6 +112,23 @@ func TestAuthServiceRegisterRejectsDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestAuthServiceRegisterPropagatesDuplicatePhoneError(t *testing.T) {
+	repo := newFakeUserRepository()
+	repo.createWithCreatorErr = domain.ErrPhoneAlreadyExists
+	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+
+	phone := "0812345678"
+	_, err := service.Register(context.Background(), RegisterInput{
+		Name:     "Jane",
+		Email:    "jane@example.com",
+		Password: "correct horse battery staple",
+		Phone:    &phone,
+	})
+	if !errors.Is(err, domain.ErrPhoneAlreadyExists) {
+		t.Fatalf("expected duplicate phone error, got %v", err)
+	}
+}
+
 func TestAuthServiceRegisterPropagatesRegistrationRepositoryError(t *testing.T) {
 	repo := newFakeUserRepository()
 	repo.createWithCreatorErr = errors.New("registration persistence failed")
@@ -208,7 +225,7 @@ func TestAuthServiceRegisterRequiresPhone(t *testing.T) {
 	repo := newFakeUserRepository()
 	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
 
-	for name, phone := range map[string]*string{"missing": nil, "blank": stringPointer("   ")} {
+	for name, phone := range map[string]*string{"missing": nil, "empty": stringPointer(""), "blank": stringPointer("   ")} {
 		t.Run(name, func(t *testing.T) {
 			_, err := service.Register(context.Background(), RegisterInput{
 				Name:     "Jane",

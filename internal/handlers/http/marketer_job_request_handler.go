@@ -20,6 +20,7 @@ type marketerJobRequestService interface {
 	Decline(context.Context, services.Actor, int32, services.DeclineJobRequestInput) (*domain.JobRequest, error)
 	SubmitOffer(context.Context, services.Actor, int32, services.SubmitOfferInput) (*domain.Offer, error)
 	ListOffers(context.Context, services.Actor, int32) ([]domain.Offer, error)
+	WithdrawOffer(context.Context, services.Actor, int32) (*domain.Offer, error)
 }
 
 type MarketerJobRequestHandler struct {
@@ -59,6 +60,9 @@ type MarketerJobRequestResponse struct {
 }
 
 type MarketerJobRequestJobResponse struct {
+	Title           string                     `json:"title"`
+	Description     string                     `json:"description"`
+	Budget          *string                    `json:"budget"`
 	JobID           int32                      `json:"job_id"`
 	JobStatus       domain.JobStatus           `json:"job_status"`
 	Creator         MarketerJobRequestCreator  `json:"creator"`
@@ -179,6 +183,22 @@ func (h *MarketerJobRequestHandler) SubmitOffer(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusCreated, toOfferResponse(offer))
 }
 
+func (h *MarketerJobRequestHandler) WithdrawOffer(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	offerID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	offer, err := h.service.WithdrawOffer(c.UserContext(), actor, offerID)
+	if err != nil {
+		return mapMarketerJobRequestError(err)
+	}
+	return response.Success(c, fiber.StatusOK, toOfferResponse(offer))
+}
+
 func (h *MarketerJobRequestHandler) ListOffers(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -230,6 +250,7 @@ func offerValidationError(err error) error {
 
 func toMarketerJobRequestResponse(item *ports.MarketerJobRequest) MarketerJobRequestResponse {
 	job := MarketerJobRequestJobResponse{
+		Title: item.Title, Description: item.Description, Budget: item.Budget,
 		JobID:     item.Request.JobID,
 		JobStatus: item.JobStatus,
 		Creator:   MarketerJobRequestCreator{UserID: item.CreatorID, Name: item.CreatorName},
@@ -256,7 +277,7 @@ func toMarketerJobRequestResponse(item *ports.MarketerJobRequest) MarketerJobReq
 	if hasTarget {
 		job.TargetResponses = &target
 	}
-	job.Deadline = domain.EarliestSurveyDeadline(item.Surveys)
+	job.Deadline = domain.EffectiveJobDeadline(item.Deadline, item.Surveys)
 	if item.CurrentBrief != nil {
 		brief := toBriefResponse(*item.CurrentBrief)
 		job.Brief = &brief
@@ -278,6 +299,10 @@ func mapMarketerJobRequestError(err error) error {
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
 	case errors.Is(err, domain.ErrOfferAlreadyExists):
 		return response.NewAppError(fiber.StatusConflict, "offer_already_exists", "an active offer already exists for this job request", err)
+	case errors.Is(err, domain.ErrOfferNotFound):
+		return response.NewAppError(fiber.StatusNotFound, "offer_not_found", "offer was not found", err)
+	case errors.Is(err, domain.ErrOfferNotPending):
+		return response.NewAppError(fiber.StatusConflict, "offer_not_pending", "only a pending offer can be withdrawn", err)
 	case errors.Is(err, domain.ErrInvalidOffer):
 		return offerValidationError(err)
 	case errors.Is(err, domain.ErrInvalidJobRequest):

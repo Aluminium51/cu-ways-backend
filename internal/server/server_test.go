@@ -87,10 +87,13 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 		"    delete:\n      operationId: deleteUser",
 		"  /api/v1/me/marketer-profile:\n    get:",
 		"  /api/v1/me/services:\n    get:",
+		"  /api/v1/me/jobs:\n    get:\n      operationId: listMyJobs",
+		"  /api/v1/jobs/{id}:\n    parameters:",
 		"  /api/v1/marketers:\n    get:",
 		"  /api/v1/marketers/{id}:\n    get:",
 		"  /api/v1/surveys:\n    post:",
 		"  /api/v1/surveys/{id}:\n    parameters:",
+		"      operationId: listJobRequests",
 	} {
 		if !strings.Contains(spec, expected) {
 			t.Errorf("expected served OpenAPI specification to contain %q", expected)

@@ -165,7 +165,20 @@ func marketerSearchResultIDs(page ports.MarketerPage) []int32 {
 func TestServiceRepositoryUpdateAdvancesUpdatedAt(t *testing.T) {
 	db := openRepositoryIntegrationTransaction(t)
 	ownerID := createIntegrationMarketer(t, db, "timestamp-owner")
-	service := createIntegrationService(t, db, ownerID, "Original", "500.00")
+	// Compare timestamps from the database clock, even when Docker and the host
+	// have different wall clocks. clock_timestamp also preserves the assertion
+	// against a trigger that incorrectly uses the transaction-start timestamp.
+	var databaseNow time.Time
+	if err := db.Raw("SELECT clock_timestamp()").Scan(&databaseNow).Error; err != nil {
+		t.Fatal(err)
+	}
+	service := &domain.Service{
+		UserID: ownerID, ServiceType: "Original", Price: decimal.RequireFromString("500.00"),
+		CreatedAt: databaseNow, UpdatedAt: databaseNow,
+	}
+	if err := NewServiceRepository(db).Create(context.Background(), service); err != nil {
+		t.Fatalf("create timestamp fixture: %v", err)
+	}
 	if err := db.Exec("SELECT pg_sleep(0.01)").Error; err != nil {
 		t.Fatal(err)
 	}

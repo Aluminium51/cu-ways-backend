@@ -64,12 +64,14 @@ func (r *MarketerProfileRepository) FindDetail(ctx context.Context, userID int32
 	}
 
 	var performance struct {
+		ReviewCount        int64
 		TotalCompletedJobs int64
 		AverageRating      *float64
 	}
 	if err := r.db.WithContext(ctx).Raw(`
 SELECT
     COUNT(*) AS total_completed_jobs,
+    COUNT(review.rating) FILTER (WHERE review.rating BETWEEN 1 AND 5) AS review_count,
     AVG(review.rating) FILTER (WHERE review.rating BETWEEN 1 AND 5)::float8 AS average_rating
 FROM jobs AS job
 JOIN offers AS accepted_offer
@@ -83,6 +85,7 @@ WHERE job.job_status = ?
 	}
 
 	return &domain.MarketerDetail{
+		ReviewCount:        performance.ReviewCount,
 		Marketer:           *profile,
 		TotalCompletedJobs: performance.TotalCompletedJobs,
 		AverageRating:      performance.AverageRating,

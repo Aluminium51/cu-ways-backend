@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/shopspring/decimal"
 	"net/url"
 	"time"
 
@@ -15,7 +16,11 @@ import (
 
 type jobService interface {
 	ListSurveys(context.Context, services.Actor) ([]domain.Survey, error)
+	ListMyJobs(context.Context, services.Actor) ([]domain.CreatorJobSummary, error)
+	GetJob(context.Context, services.Actor, int32) (*domain.CreatorJobSummary, error)
+	ListJobRequests(context.Context, services.Actor, int32) ([]domain.SentJobRequest, error)
 	Create(context.Context, services.Actor, services.CreateJobInput) (*domain.Job, error)
+	UpdateDetails(context.Context, services.Actor, int32, services.JobDetailsInput) (*domain.CreatorJobSummary, error)
 	AddSurvey(context.Context, services.Actor, int32, int32) error
 	RemoveSurvey(context.Context, services.Actor, int32, int32) error
 	AddBrief(context.Context, services.Actor, int32, string) (*domain.Attachment, error)
@@ -33,6 +38,58 @@ func NewJobHandler(service jobService) *JobHandler {
 
 type CreateJobDTO struct {
 	SurveyIDs []int32 `json:"survey_ids" validate:"required,min=1,dive,gt=0"`
+	JobDetailsDTO
+}
+
+type JobDetailsDTO struct {
+	SurveyIDs   []int32 `json:"survey_ids" validate:"omitempty,min=1,dive,gt=0"`
+	Title       string  `json:"title" validate:"max=200"`
+	Description string  `json:"description" validate:"max=5000"`
+	Budget      *string `json:"budget"`
+	Deadline    *string `json:"deadline"`
+}
+
+type JobDetailsResponse struct {
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Budget      *string    `json:"budget"`
+	Deadline    *time.Time `json:"deadline"`
+}
+
+func jobDetailsResponse(title, description string, budget *decimal.Decimal, deadline *time.Time) JobDetailsResponse {
+	result := JobDetailsResponse{Title: title, Description: description, Deadline: deadline}
+	if budget != nil {
+		value := budget.StringFixed(2)
+		result.Budget = &value
+	}
+	return result
+}
+
+func (d JobDetailsDTO) input() services.JobDetailsInput {
+	return services.JobDetailsInput{Title: d.Title, Description: d.Description, Budget: d.Budget, Deadline: d.Deadline, SurveyIDs: d.SurveyIDs}
+}
+
+func (h *JobHandler) UpdateDetails(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	var dto JobDetailsDTO
+	if err := decodeStrictJSON(c, &dto); err != nil {
+		return validationError(err)
+	}
+	if err := utils.Validate(dto); err != nil {
+		return validationError(err)
+	}
+	job, err := h.service.UpdateDetails(c.UserContext(), actor, jobID, dto.input())
+	if err != nil {
+		return mapJobError(err)
+	}
+	return response.Success(c, fiber.StatusOK, toCreatorJobSummaryResponse(*job))
 }
 
 type CreateJobRequestsDTO struct {
@@ -44,6 +101,7 @@ type CreateBriefDTO struct {
 }
 
 type JobResponse struct {
+	JobDetailsResponse
 	JobID           int32            `json:"job_id"`
 	UserID          int32            `json:"user_id"`
 	AcceptedOfferID *int32           `json:"accepted_offer_id"`
@@ -76,6 +134,31 @@ type JobRequestResponse struct {
 	DeclineNote   *string                 `json:"decline_note"`
 }
 
+type JobSurveySummaryResponse struct {
+	SurveyID int32  `json:"survey_id"`
+	Title    string `json:"title"`
+}
+
+type CreatorJobSummaryResponse struct {
+	PendingOfferCount int64 `json:"pending_offer_count"`
+	JobDetailsResponse
+	EffectiveDeadline *time.Time                 `json:"effective_deadline"`
+	JobID             int32                      `json:"job_id"`
+	JobStatus         domain.JobStatus           `json:"job_status"`
+	CreatedAt         time.Time                  `json:"created_at"`
+	Surveys           []JobSurveySummaryResponse `json:"surveys"`
+}
+
+type SentJobRequestResponse struct {
+	JobRequestID int32                   `json:"job_request_id"`
+	JobID        int32                   `json:"job_id"`
+	MarketerID   int32                   `json:"marketer_id"`
+	Status       domain.JobRequestStatus `json:"request_status"`
+	CreatedAt    time.Time               `json:"created_at"`
+	RespondedAt  *time.Time              `json:"responded_at"`
+	MarketerName string                  `json:"marketer_name"`
+}
+
 func (h *JobHandler) ListSurveys(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -92,6 +175,58 @@ func (h *JobHandler) ListSurveys(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, items)
 }
 
+func (h *JobHandler) ListMyJobs(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobs, err := h.service.ListMyJobs(c.UserContext(), actor)
+	if err != nil {
+		return mapJobError(err)
+	}
+	items := make([]CreatorJobSummaryResponse, 0, len(jobs))
+	for _, job := range jobs {
+		items = append(items, toCreatorJobSummaryResponse(job))
+	}
+	return response.Success(c, fiber.StatusOK, items)
+}
+
+func (h *JobHandler) GetJob(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	job, err := h.service.GetJob(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapJobError(err)
+	}
+	return response.Success(c, fiber.StatusOK, toCreatorJobSummaryResponse(*job))
+}
+
+func (h *JobHandler) ListJobRequests(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	requests, err := h.service.ListJobRequests(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapJobError(err)
+	}
+	items := make([]SentJobRequestResponse, 0, len(requests))
+	for _, request := range requests {
+		items = append(items, toSentJobRequestResponse(request))
+	}
+	return response.Success(c, fiber.StatusOK, items)
+}
+
 func (h *JobHandler) Create(c *fiber.Ctx) error {
 	actor, err := actorFromRequest(c)
 	if err != nil {
@@ -104,7 +239,7 @@ func (h *JobHandler) Create(c *fiber.Ctx) error {
 	if err := utils.Validate(dto); err != nil {
 		return validationError(err)
 	}
-	job, err := h.service.Create(c.UserContext(), actor, services.CreateJobInput{SurveyIDs: dto.SurveyIDs})
+	job, err := h.service.Create(c.UserContext(), actor, services.CreateJobInput{SurveyIDs: dto.SurveyIDs, JobDetailsInput: dto.input()})
 	if err != nil {
 		return mapJobError(err)
 	}
@@ -228,12 +363,13 @@ func parseJobAndSurveyIDs(c *fiber.Ctx) (int32, int32, error) {
 
 func toJobResponse(job *domain.Job) JobResponse {
 	result := JobResponse{
-		JobID:           job.JobID,
-		UserID:          job.UserID,
-		AcceptedOfferID: job.AcceptedOfferID,
-		JobStatus:       job.JobStatus,
-		CreatedAt:       job.CreatedAt,
-		SurveyIDs:       make([]int32, 0, len(job.Surveys)),
+		JobDetailsResponse: jobDetailsResponse(job.Title, job.Description, job.Budget, job.Deadline),
+		JobID:              job.JobID,
+		UserID:             job.UserID,
+		AcceptedOfferID:    job.AcceptedOfferID,
+		JobStatus:          job.JobStatus,
+		CreatedAt:          job.CreatedAt,
+		SurveyIDs:          make([]int32, 0, len(job.Surveys)),
 	}
 	for _, survey := range job.Surveys {
 		result.SurveyIDs = append(result.SurveyIDs, survey.SurveyID)
@@ -260,6 +396,34 @@ func toJobRequestResponse(request domain.JobRequest) JobRequestResponse {
 		RespondedAt:   respondedAt,
 		DeclineReason: request.DeclineReason,
 		DeclineNote:   request.DeclineNote,
+	}
+}
+
+func toCreatorJobSummaryResponse(job domain.CreatorJobSummary) CreatorJobSummaryResponse {
+	result := CreatorJobSummaryResponse{
+		PendingOfferCount:  job.PendingOfferCount,
+		JobDetailsResponse: jobDetailsResponse(job.Title, job.Description, job.Budget, job.Deadline),
+		EffectiveDeadline:  job.EffectiveDeadline,
+		JobID:              job.JobID,
+		JobStatus:          job.JobStatus,
+		CreatedAt:          job.CreatedAt,
+		Surveys:            make([]JobSurveySummaryResponse, 0, len(job.Surveys)),
+	}
+	for _, survey := range job.Surveys {
+		result.Surveys = append(result.Surveys, JobSurveySummaryResponse{SurveyID: survey.SurveyID, Title: survey.Title})
+	}
+	return result
+}
+
+func toSentJobRequestResponse(request domain.SentJobRequest) SentJobRequestResponse {
+	return SentJobRequestResponse{
+		JobRequestID: request.JobRequestID,
+		JobID:        request.JobID,
+		MarketerID:   request.MarketerID,
+		Status:       request.Status,
+		CreatedAt:    request.CreatedAt,
+		RespondedAt:  request.RespondedAt,
+		MarketerName: request.MarketerName,
 	}
 }
 
