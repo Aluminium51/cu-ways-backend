@@ -259,6 +259,20 @@ The offer comparison lists every offer on the Creator's job, oldest first. Each 
 
 Accepting an offer is one transaction that rolls back completely on any failure. The job becomes `Accepted` with `accepted_offer_id` set, the offer becomes `Accepted`, every other `Pending` offer on the job becomes `Rejected`, and the other Marketers' `Pending` or `Accepted` job requests become `Closed`; the hired Marketer's request stays `Accepted`. The response lists `rejected_offer_ids` and `closed_job_request_ids`. Only a `Pending` offer on a `Pending` job can be accepted: a job that already has an accepted offer returns `409 job_not_pending`, a non-pending offer returns `409 offer_not_pending`, and an offer from another job returns `404 offer_not_found`. Offer submission and acceptance both lock the job before any job request, so they never deadlock: a submission in progress finishes first and its offer is rejected, and a later one is refused.
 
+## Creator Payments
+
+`POST /api/v1/jobs/:id/payments` requires a JWT, Creator membership, and ownership of the Job. Submit a supported `method` (`PromptPay`, `Bank Transfer`, or `Credit Card`) and decimal-string `amount`, for example:
+
+```json
+{"method":"PromptPay","amount":"1500.00"}
+```
+
+The Job must be `Accepted`, `In Progress`, or `Completed` with a valid accepted offer. The amount must exactly equal that offer's price; invalid amounts or methods return `422 validation_error`, and a different amount returns `422 payment_amount_mismatch` without storing a row. Amounts follow the existing monetary limits: non-negative, at most two decimal places, and no more than `99999999.99`; zero is allowed when the offer is free.
+
+Success returns `201` with `payment_id`, `job_id`, `method`, `amount` formatted to two decimal places, `payment_status: Pending`, server-assigned UTC `created_at`, and `paid_at: null`. Status and timestamps cannot be supplied by the client. An existing `Pending` or `Paid` payment returns `409 payment_already_exists`; `Failed` and `Refunded` records remain as history and permit another attempt. Other state conflicts return `409 job_not_payable` or `409 accepted_offer_required`.
+
+Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. It records a payment request without charging a provider or changing the Job status. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
+
 ## Marketer Job Requests
 
 Marketer job request endpoints require a JWT and active Marketer membership. A marketer only sees and answers requests addressed to them; another marketer's request returns `404 job_request_not_found`.

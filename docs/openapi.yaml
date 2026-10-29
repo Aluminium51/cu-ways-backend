@@ -1461,6 +1461,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/payments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: createJobPayment
+      summary: Record a Pending payment for a Job
+      description: The caller must have Creator membership and own the Job. The Job must be Accepted, In Progress, or Completed with a valid accepted offer. Amount must exactly match the accepted offer price. An existing Pending or Paid payment blocks creation; Failed and Refunded history is retained. The server sets Pending, created_at, and paid_at null. This endpoint records a payment request and does not charge a payment provider or change the Job status.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Pending payment recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing Creator membership (creator_required) or the caller does not own the Job (forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job was not found (job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Job is not payable (job_not_payable), has no valid accepted offer (accepted_offer_required), or already has a Pending or Paid payment (payment_already_exists).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid ID, method, amount, or JSON body (validation_error), or amount does not equal the accepted offer price (payment_amount_mismatch). No payment is created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/me/job-requests:
     get:
       operationId: listMyJobRequests
@@ -2687,6 +2746,54 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Offer'
+    CreatePaymentRequest:
+      type: object
+      required: [method, amount]
+      additionalProperties: false
+      properties:
+        method:
+          type: string
+          enum: [PromptPay, Bank Transfer, Credit Card]
+        amount:
+          type: string
+          description: Non-negative decimal amount with at most two decimal places, up to 99999999.99. Must exactly equal the accepted offer price; zero is allowed for a zero-priced offer.
+          example: '1500.00'
+    PaymentResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [payment_id, job_id, method, amount, payment_status, created_at, paid_at]
+          properties:
+            payment_id:
+              type: integer
+              format: int32
+            job_id:
+              type: integer
+              format: int32
+            method:
+              type: string
+              enum: [PromptPay, Bank Transfer, Credit Card]
+            amount:
+              type: string
+              description: Amount formatted with exactly two decimal places.
+              example: '1500.00'
+            payment_status:
+              type: string
+              enum: [Pending]
+            created_at:
+              type: string
+              format: date-time
+              description: Creation time assigned by the server in UTC.
+            paid_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: Null for a newly created Pending payment.
     MarketerRating:
       type: object
       required: [average_rating, review_count, completed_jobs, is_rated]

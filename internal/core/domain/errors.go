@@ -50,4 +50,10 @@ var (
 	ErrOfferNotFound      = errors.New("offer not found")
 	ErrOfferNotPending    = errors.New("offer is no longer pending")
 	ErrJobNotPending      = errors.New("job is no longer open for offers")
+
+	ErrInvalidPayment        = errors.New("invalid payment method or amount")
+	ErrJobNotPayable         = errors.New("job is not eligible for payment")
+	ErrAcceptedOfferRequired = errors.New("a valid accepted offer is required")
+	ErrPaymentAmountMismatch = errors.New("payment amount must match the accepted offer price")
+	ErrPaymentAlreadyExists  = errors.New("a pending or paid payment already exists for this job")
 )
