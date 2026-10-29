@@ -20,7 +20,7 @@
 
 ## Files and responsibilities
 
-- `migrations/000010_review_rating_range.up.sql` and `.down.sql`: tighten/restore the rating check; retain the existing unique Job constraint.
+- `migrations/000011_review_rating_range.up.sql` and `.down.sql`: tighten/restore the rating check after `dev`'s `000010_job_details` migration; retain the existing unique Job constraint.
 - `internal/core/domain/errors.go`: review-specific invalid, incomplete-Job, and duplicate errors.
 - `internal/core/ports/review_port.go`: focused submit-review repository interface.
 - `internal/services/review_service.go` and `_test.go`: Creator membership, Job ID, rating validation, server timestamp, and repository delegation.
