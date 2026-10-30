@@ -260,6 +260,8 @@ The offer comparison lists every offer on the Creator's job, oldest first. Each 
 
 Accepting an offer is one transaction that rolls back completely on any failure. The job becomes `Accepted` with `accepted_offer_id` set, the offer becomes `Accepted`, every other `Pending` offer on the job becomes `Rejected`, and the other Marketers' `Pending` or `Accepted` job requests become `Closed`; the hired Marketer's request stays `Accepted`. The response lists `rejected_offer_ids` and `closed_job_request_ids`. Only a `Pending` offer on a `Pending` job can be accepted: a job that already has an accepted offer returns `409 job_not_pending`, a non-pending offer returns `409 offer_not_pending`, and an offer from another job returns `404 offer_not_found`. Offer submission and acceptance both lock the job before any job request, so they never deadlock: a submission in progress finishes first and its offer is rejected, and a later one is refused.
 
+The database permits a Job to transition to `Completed` only after that Job has a `Proof` attachment and an `accepted_offer_id`. This rule applies to status updates, including direct SQL updates; existing completed Jobs are not changed. Attachments are linked to Jobs but do not record who uploaded them, so this check cannot verify the Proof uploader.
+
 ## Creator Payments
 
 `POST /api/v1/jobs/:id/payments` requires a JWT, Creator membership, and ownership of the Job. Submit a supported `method` (`PromptPay`, `Bank Transfer`, or `Credit Card`) and decimal-string `amount`, for example:

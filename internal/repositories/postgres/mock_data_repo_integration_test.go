@@ -20,7 +20,7 @@ func TestMockDataRepositoryIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var users, creators, marketers, services, jobs, reviews int64
+	var users, creators, marketers, services, jobs, reviews, proofs int64
 	if err := db.Table("users").Where("email LIKE ?", "mock.%@example.test").Count(&users).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -39,8 +39,11 @@ func TestMockDataRepositoryIsIdempotent(t *testing.T) {
 	if err := db.Table("reviews AS review").Joins("JOIN jobs AS job ON job.job_id = review.job_id").Joins("JOIN users ON users.user_id = job.user_id").Where("users.email LIKE ?", "mock.creator-only.%@example.test").Count(&reviews).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Table("attachments AS attachment").Joins("JOIN jobs AS job ON job.job_id = attachment.job_id").Joins("JOIN users ON users.user_id = job.user_id").Where("users.email LIKE ? AND attachment.attachment_type = 'Proof'", "mock.creator-only.%@example.test").Count(&proofs).Error; err != nil {
+		t.Fatal(err)
+	}
 
-	if users != int64(summary.Users) || creators != int64(summary.Creators) || marketers != int64(summary.Marketers) || services != 17 || jobs != int64(len(seed.Jobs)) || reviews != int64(len(seed.Jobs)) {
-		t.Fatalf("unexpected mock data counts: users=%d creators=%d marketers=%d services=%d jobs=%d reviews=%d", users, creators, marketers, services, jobs, reviews)
+	if users != int64(summary.Users) || creators != int64(summary.Creators) || marketers != int64(summary.Marketers) || services != 17 || jobs != int64(len(seed.Jobs)) || reviews != int64(len(seed.Jobs)) || proofs != int64(len(seed.Jobs)) {
+		t.Fatalf("unexpected mock data counts: users=%d creators=%d marketers=%d services=%d jobs=%d reviews=%d proofs=%d", users, creators, marketers, services, jobs, reviews, proofs)
 	}
 }
