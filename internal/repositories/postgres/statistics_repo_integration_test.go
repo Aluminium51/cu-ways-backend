@@ -98,6 +98,11 @@ VALUES (?, ?, ?, ?, ?)
 RETURNING offer_id`, jobID, marketerID, decimal.RequireFromString("100.00"), domain.OfferStatusAccepted, time.Now().UTC()).Scan(&offerID).Error; err != nil {
 		t.Fatalf("create accepted offer fixture: %v", err)
 	}
+	if status == domain.JobStatusCompleted {
+		if err := db.Exec(`INSERT INTO attachments (job_id, attachment_type, url, upload_at) VALUES (?, 'Proof', ?, ?)`, jobID, "https://example.invalid/proof", time.Now().UTC()).Error; err != nil {
+			t.Fatalf("create Proof fixture: %v", err)
+		}
+	}
 	if err := db.Exec(`UPDATE jobs SET accepted_offer_id = ?, job_status = ? WHERE job_id = ?`, offerID, status, jobID).Error; err != nil {
 		t.Fatalf("accept offer fixture: %v", err)
 	}
