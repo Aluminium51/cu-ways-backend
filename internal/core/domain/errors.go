@@ -50,4 +50,8 @@ var (
 	ErrOfferNotFound      = errors.New("offer not found")
 	ErrOfferNotPending    = errors.New("offer is no longer pending")
 	ErrJobNotPending      = errors.New("job is no longer open for offers")
+
+	ErrInvalidReview       = errors.New("rating must be between 1 and 5")
+	ErrJobNotCompleted     = errors.New("job is not completed")
+	ErrReviewAlreadyExists = errors.New("review already exists for this job")
 )
