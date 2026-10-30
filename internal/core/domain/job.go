@@ -32,7 +32,7 @@ type Job struct {
 	Offers        []Offer      `gorm:"foreignKey:JobID;references:JobID"`
 	Surveys       []Survey     `gorm:"many2many:is_used_in;joinForeignKey:JobID;joinReferences:SurveyID"`
 	Attachments   []Attachment `gorm:"foreignKey:JobID;references:JobID"`
-	Payment       *Payment     `gorm:"foreignKey:JobID;references:JobID"`
+	Payments      []Payment    `gorm:"foreignKey:JobID;references:JobID"`
 	Review        *Review      `gorm:"foreignKey:JobID;references:JobID"`
 }
 
