@@ -66,7 +66,7 @@ func TestPaymentHandlerCreatesPayment(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := envelope.Data
-	if res.StatusCode != 201 || envelope.Status != "success" || repo.creatorID != 8 || p.PaymentID != 31 || p.JobID != 12 || p.Amount != "1500.00" || p.Method != domain.PaymentMethodPromptPay || p.PaymentStatus != domain.PaymentStatusPending || p.CreatedAt == nil || p.PaidAt != nil {
+	if res.StatusCode != 201 || envelope.Status != "success" || repo.creatorID != 8 || p.PaymentID != 31 || p.JobID != 12 || p.Amount != "1500.00" || p.Method != domain.PaymentMethodPromptPay || p.PaymentStatus != domain.PaymentStatusPaid || p.CreatedAt == nil || p.PaidAt == nil || !p.PaidAt.Equal(*p.CreatedAt) {
 		t.Fatalf("unexpected response: %d %+v", res.StatusCode, envelope)
 	}
 }

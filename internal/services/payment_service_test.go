@@ -28,7 +28,7 @@ func (f *fakePaymentRepository) CreateForCreatorJob(_ context.Context, creatorID
 	return p, nil
 }
 
-func TestPaymentServiceCreatesPendingPayment(t *testing.T) {
+func TestPaymentServiceCreatesPaidPayment(t *testing.T) {
 	for _, method := range []domain.PaymentMethod{domain.PaymentMethodPromptPay, domain.PaymentMethodBankTransfer, domain.PaymentMethodCreditCard} {
 		repo := &fakePaymentRepository{}
 		before := time.Now().UTC()
@@ -36,7 +36,7 @@ func TestPaymentServiceCreatesPendingPayment(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if repo.creatorID != 8 || repo.jobID != 12 || p.PaymentID != 3 || p.JobID != 12 || p.Amount.StringFixed(2) != "1500.00" || p.Method != method || p.PaymentStatus != domain.PaymentStatusPending || p.PaidAt != nil || p.CreatedAt == nil || p.CreatedAt.Before(before) || p.CreatedAt.After(time.Now().UTC()) {
+		if repo.creatorID != 8 || repo.jobID != 12 || p.PaymentID != 3 || p.JobID != 12 || p.Amount.StringFixed(2) != "1500.00" || p.Method != method || p.PaymentStatus != domain.PaymentStatusPaid || p.PaidAt == nil || p.CreatedAt == nil || !p.PaidAt.Equal(*p.CreatedAt) || p.CreatedAt.Location() != time.UTC || p.CreatedAt.Before(before) || p.CreatedAt.After(time.Now().UTC()) {
 			t.Fatalf("unexpected payment: %+v", p)
 		}
 	}

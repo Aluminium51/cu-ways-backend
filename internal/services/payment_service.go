@@ -45,6 +45,6 @@ func (s *PaymentService) Create(ctx context.Context, actor Actor, jobID int32, i
 	}
 	now := time.Now().UTC()
 	return s.repo.CreateForCreatorJob(ctx, actor.UserID, jobID, &domain.Payment{
-		JobID: jobID, Method: input.Method, Amount: amount, PaymentStatus: domain.PaymentStatusPending, CreatedAt: &now,
+		JobID: jobID, Method: input.Method, Amount: amount, PaymentStatus: domain.PaymentStatusPaid, CreatedAt: &now, PaidAt: &now,
 	})
 }

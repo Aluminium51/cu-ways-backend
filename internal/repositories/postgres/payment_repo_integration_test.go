@@ -15,10 +15,10 @@ import (
 
 func newPayment() *domain.Payment {
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	return &domain.Payment{Amount: decimal.RequireFromString("100.00"), Method: domain.PaymentMethodPromptPay, PaymentStatus: domain.PaymentStatusPending, CreatedAt: &now}
+	return &domain.Payment{Amount: decimal.RequireFromString("100.00"), Method: domain.PaymentMethodPromptPay, PaymentStatus: domain.PaymentStatusPaid, CreatedAt: &now, PaidAt: &now}
 }
 
-func TestPaymentRepositoryPersistsPendingPayments(t *testing.T) {
+func TestPaymentRepositoryPersistsPaidPayments(t *testing.T) {
 	db := openRepositoryIntegrationTransaction(t)
 	creator := createIntegrationCreator(t, db, "payment-success")
 	marketer := createIntegrationMarketer(t, db, "payment-success")
@@ -35,7 +35,7 @@ func TestPaymentRepositoryPersistsPendingPayments(t *testing.T) {
 			if err := db.First(&stored, "payment_id = ?", result.PaymentID).Error; err != nil {
 				t.Fatal(err)
 			}
-			if stored.JobID != jobID || stored.Method != method || stored.Amount.StringFixed(2) != "100.00" || stored.PaymentStatus != domain.PaymentStatusPending || stored.PaidAt != nil || stored.CreatedAt == nil || !stored.CreatedAt.Equal(*input.CreatedAt) {
+			if stored.JobID != jobID || stored.Method != method || stored.Amount.StringFixed(2) != "100.00" || stored.PaymentStatus != domain.PaymentStatusPaid || stored.PaidAt == nil || stored.CreatedAt == nil || !stored.CreatedAt.Equal(*input.CreatedAt) || !stored.PaidAt.Equal(*input.PaidAt) {
 				t.Fatalf("unexpected stored payment: %+v", stored)
 			}
 			var job domain.Job
@@ -186,7 +186,7 @@ func TestPaymentMigrationPreservesLegacyRows(t *testing.T) {
 	db := openRepositoryIntegrationTransaction(t)
 	read := func(direction string) string {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "000011_payment_creation."+direction+".sql"))
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "000012_payment_creation."+direction+".sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

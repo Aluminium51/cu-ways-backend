@@ -56,4 +56,7 @@ var (
 	ErrAcceptedOfferRequired = errors.New("a valid accepted offer is required")
 	ErrPaymentAmountMismatch = errors.New("payment amount must match the accepted offer price")
 	ErrPaymentAlreadyExists  = errors.New("a pending or paid payment already exists for this job")
+	ErrInvalidReview         = errors.New("rating must be between 1 and 5")
+	ErrJobNotCompleted       = errors.New("job is not completed")
+	ErrReviewAlreadyExists   = errors.New("review already exists for this job")
 )
