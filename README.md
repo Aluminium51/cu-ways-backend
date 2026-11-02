@@ -210,6 +210,13 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
 
 Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. Add `keyword` (up to 100 characters) for a case-insensitive partial match against the marketer's name, bio, or any of their services' type/scope text; a marketer with several matching services still appears once. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by marketer name, then `user_id` ascending.
 
+Signed-in users can read their transaction history from `GET /api/v1/me/transactions`. It lists only Completed jobs that have a Paid payment and in which the caller is the owning Creator or the hired Marketer, with the job title, creator and marketer names, accepted price, payment method, `paid_at`, and `payout_status`. The caller is taken from the token, so no user id is accepted. Use `role=creator` or `role=marketer` to view one side, `keyword` (up to 100 characters) to search the title, names, payment method, or an exact job number, and `page` / `page_size` (default 10, maximum 50). Results are ordered by newest payment, then `job_id` descending, and the response includes `total`. `paid_at` is the time the payment was recorded because jobs do not store a completion time, and `payout_status` is derived (always `Released` for a listed job), not stored.
+
+```powershell
+curl.exe "http://localhost:8081/api/v1/me/transactions?role=creator&keyword=survey&page=1&page_size=10" `
+  -H "Authorization: Bearer $token"
+```
+
 Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
 
 ```powershell
