@@ -59,4 +59,6 @@ var (
 	ErrInvalidReview         = errors.New("rating must be between 1 and 5")
 	ErrJobNotCompleted       = errors.New("job is not completed")
 	ErrReviewAlreadyExists   = errors.New("review already exists for this job")
+
+	ErrInvalidTransactionQuery = errors.New("invalid transaction history query")
 )

@@ -161,6 +161,10 @@ func New(deps Dependencies) *fiber.App {
 	reviewService := services.NewReviewService(reviewRepo, memberships)
 	reviewHandler := httpapi.NewReviewHandler(reviewService)
 	api.Post("/jobs/:id/reviews", protectedUsers, reviewHandler.Submit)
+	transactionRepo := postgres.NewTransactionRepository(deps.DB)
+	transactionService := services.NewTransactionService(transactionRepo)
+	transactionHandler := httpapi.NewTransactionHandler(transactionService)
+	api.Get("/me/transactions", protectedUsers, transactionHandler.List)
 
 	return app
 }
