@@ -21,17 +21,18 @@ func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 
 // transactionBase selects Completed Jobs whose accepted offer has a Paid
 // payment. A Job can hold failed or refunded payments as history, so only the
-// latest Paid one is joined. The user filter is applied here, from the
-// authenticated user id, so another user's Jobs can never be returned.
+// latest Paid one is joined, looked up per Job after the user filter narrows the
+// rows. The user filter is applied here, from the authenticated user id, so
+// another user's Jobs can never be returned.
 func (r *TransactionRepository) transactionBase(ctx context.Context, query ports.TransactionQuery) *gorm.DB {
-	paid := r.db.WithContext(ctx).Table("payments AS p").
-		Select("DISTINCT ON (p.job_id) p.job_id, p.method, p.paid_at").
-		Where("p.payment_status = ?", domain.PaymentStatusPaid).
-		Order("p.job_id, p.paid_at DESC NULLS LAST, p.payment_id DESC")
-
 	base := r.db.WithContext(ctx).Table("jobs AS j").
 		Joins("JOIN offers AS o ON o.job_id = j.job_id AND o.offer_id = j.accepted_offer_id").
-		Joins("JOIN (?) AS pay ON pay.job_id = j.job_id", paid).
+		Joins(`JOIN LATERAL (
+SELECT p.method, p.paid_at FROM payments AS p
+WHERE p.job_id = j.job_id AND p.payment_status = ?
+ORDER BY p.paid_at DESC NULLS LAST, p.payment_id DESC
+LIMIT 1
+) AS pay ON TRUE`, domain.PaymentStatusPaid).
 		Joins("JOIN users AS cu ON cu.user_id = j.user_id").
 		Joins("JOIN users AS mu ON mu.user_id = o.user_id").
 		Where("j.job_status = ?", domain.JobStatusCompleted)

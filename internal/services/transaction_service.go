@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -13,6 +14,8 @@ const (
 	DefaultTransactionPage     = 1
 	DefaultTransactionPageSize = 10
 	MaxTransactionPageSize     = 50
+	// MaxTransactionPage matches the documented int32 page range and keeps (page-1)*page_size from overflowing into a negative offset.
+	MaxTransactionPage = math.MaxInt32
 )
 
 type TransactionService struct {
@@ -41,7 +44,7 @@ func (s *TransactionService) List(ctx context.Context, actor Actor, query ports.
 	if query.PageSize < 1 {
 		query.PageSize = DefaultTransactionPageSize
 	}
-	if query.PageSize > MaxTransactionPageSize {
+	if query.Page > MaxTransactionPage || query.PageSize > MaxTransactionPageSize {
 		return ports.TransactionPage{}, domain.ErrInvalidTransactionQuery
 	}
 

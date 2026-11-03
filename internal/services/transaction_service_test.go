@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -50,6 +51,8 @@ func TestTransactionServiceRejectsInvalidQueries(t *testing.T) {
 		"unknown role":       {Role: "admin"},
 		"keyword too long":   {Keyword: strings.Repeat("a", MaxKeywordLength+1)},
 		"page size too high": {PageSize: MaxTransactionPageSize + 1},
+		"page too high":      {Page: MaxTransactionPage + 1},
+		"page max int":       {Page: math.MaxInt},
 	} {
 		t.Run(name, func(t *testing.T) {
 			repo := &fakeTransactionRepository{}

@@ -1594,7 +1594,7 @@ paths:
     get:
       operationId: listMyTransactions
       summary: List my transaction history
-      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by the newest payment first, then by job_id descending. paid_at is the time the payment was recorded, because jobs do not store a separate completion time. payout_status is derived rather than stored (every listed job is Completed with a Paid payment, so it is always Released) and does not mean that money moved through a payment gateway.
+      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by the newest payment first, then by job_id descending. paid_at is the time the payment was recorded, because jobs do not store a separate completion time. payout_status is derived rather than stored. Every listed job is Completed with a Paid payment (the Creator's confirmation of payment), so it is always Released, which means the simulated payout was recorded when the job completed. It does not confirm that the Marketer received money, and no money moves through a payment gateway.
       tags: [Jobs]
       security:
         - bearerAuth: []
@@ -1621,6 +1621,7 @@ paths:
             type: integer
             format: int32
             minimum: 1
+            maximum: 2147483647
             default: 1
         - name: page_size
           in: query
@@ -2350,7 +2351,7 @@ components:
         payout_status:
           type: string
           enum: [Released]
-          description: Derived from the job being Completed with a Paid payment. It is not stored and no money moves through a payment gateway.
+          description: Derived from the job being Completed with a Paid payment. It is not stored. Released means the simulated payout was recorded at job completion; it does not confirm that the Marketer received money, and no money moves through a payment gateway.
     TransactionListResponse:
       type: object
       required: [items, page, page_size, total]
