@@ -53,4 +53,15 @@ var (
 
 	ErrJobNotAccepted        = errors.New("only an accepted job can be started")
 	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
+
+	ErrInvalidPayment        = errors.New("invalid payment method or amount")
+	ErrJobNotPayable         = errors.New("job is not eligible for payment")
+	ErrAcceptedOfferRequired = errors.New("a valid accepted offer is required")
+	ErrPaymentAmountMismatch = errors.New("payment amount must match the accepted offer price")
+	ErrPaymentAlreadyExists  = errors.New("a pending or paid payment already exists for this job")
+	ErrInvalidReview         = errors.New("rating must be between 1 and 5")
+	ErrJobNotCompleted       = errors.New("job is not completed")
+	ErrReviewAlreadyExists   = errors.New("review already exists for this job")
+
+	ErrInvalidTransactionQuery = errors.New("invalid transaction history query")
 )

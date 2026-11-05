@@ -2,7 +2,7 @@
 
 Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, offer comparison, offer acceptance, offer withdrawal, and starting a hired job. Payment, review, and refresh-token workflows remain future work.
+The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, offer comparison, offer acceptance, offer withdrawal, starting a hired job, Creator payment confirmation, and completed-job reviews. Refresh-token workflows remain future work.
 
 For the full design rules, see [docs/architecture.md](docs/architecture.md).
 
@@ -210,6 +210,13 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
 
 Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. Add `keyword` (up to 100 characters) for a case-insensitive partial match against the marketer's name, bio, or any of their services' type/scope text; a marketer with several matching services still appears once. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by marketer name, then `user_id` ascending.
 
+Signed-in users can read their transaction history from `GET /api/v1/me/transactions`. It lists only Completed jobs that have a Paid payment and in which the caller is the owning Creator or the hired Marketer, with the job title, creator and marketer names, accepted price, payment method, `paid_at`, and `payout_status`. The caller is taken from the token, so no user id is accepted. Use `role=creator` or `role=marketer` to view one side, `keyword` (up to 100 characters) to search the title, names, payment method, or an exact job number, and `page` / `page_size` (default 10, maximum 50). Results are ordered by newest payment, then `job_id` descending, and the response includes `total`. `paid_at` is the time the payment was recorded because jobs do not store a completion time, and `payout_status` is derived, not stored: it is always `Released` for a listed job, meaning the simulated payout was recorded at completion, not that the Marketer received money.
+
+```powershell
+curl.exe "http://localhost:8081/api/v1/me/transactions?role=creator&keyword=survey&page=1&page_size=10" `
+  -H "Authorization: Bearer $token"
+```
+
 Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
 
 ```powershell
@@ -250,6 +257,7 @@ Creator job setup endpoints require a JWT and active Creator membership. A job m
 | `GET` | `/api/v1/jobs/:id/requests` | Read all invitation history for an owned job |
 | `GET` | `/api/v1/jobs/:id/offers` | Compare offers with each Marketer's profile and rating; filter with `?status=Pending` |
 | `POST` | `/api/v1/jobs/:id/offers/:offerId/accept` | Accept one `Pending` offer and hire its Marketer |
+| `POST` | `/api/v1/jobs/:id/reviews` | Submit one 1–5 star review with optional comment after completion |
 
 All job read routes require a JWT and active Creator membership. The job list is scoped to the authenticated Creator. Per-job reads check ownership and return the existing forbidden/not-found errors. Job summaries include only the job ID, status, creation time, and linked survey IDs/titles. Jobs sort newest first by creation time and ID; surveys sort by ID. Invitation history includes every status, sorted newest first by creation time and request ID, and returns marketer names without email, phone, or profile fields. Empty job and request lists return `data: []`.
 
@@ -258,6 +266,26 @@ Brief changes create new attachment rows, preserving earlier versions. Invitatio
 The offer comparison lists every offer on the Creator's job, oldest first. Each item includes the offer (price, delivery date, message, status), the Marketer's public profile, and a `rating` with `average_rating`, `review_count`, `completed_jobs`, and `is_rated`. The rating follows the marketer detail rule: completed jobs won through an accepted offer, averaging only valid 1–5 reviews. A Marketer without rated jobs returns `average_rating: null` and `is_rated: false`.
 
 Accepting an offer is one transaction that rolls back completely on any failure. The job becomes `Accepted` with `accepted_offer_id` set, the offer becomes `Accepted`, every other `Pending` offer on the job becomes `Rejected`, and the other Marketers' `Pending` or `Accepted` job requests become `Closed`; the hired Marketer's request stays `Accepted`. The response lists `rejected_offer_ids` and `closed_job_request_ids`. Only a `Pending` offer on a `Pending` job can be accepted: a job that already has an accepted offer returns `409 job_not_pending`, a non-pending offer returns `409 offer_not_pending`, and an offer from another job returns `404 offer_not_found`. Offer submission and acceptance both lock the job before any job request, so they never deadlock: a submission in progress finishes first and its offer is rejected, and a later one is refused.
+
+The database permits a Job to transition to `Completed` only after that Job has a `Proof` attachment and an `accepted_offer_id`. This rule applies to status updates, including direct SQL updates; existing completed Jobs are not changed. Attachments are linked to Jobs but do not record who uploaded them, so this check cannot verify the Proof uploader.
+
+## Creator Payments
+
+`POST /api/v1/jobs/:id/payments` requires a JWT, Creator membership, and ownership of the Job. Submit a supported `method` (`PromptPay`, `Bank Transfer`, or `Credit Card`) and decimal-string `amount`, for example:
+
+```json
+{"method":"PromptPay","amount":"1500.00"}
+```
+
+The Job must be `Accepted`, `In Progress`, or `Completed` with a valid accepted offer. The amount must exactly equal that offer's price; invalid amounts or methods return `422 validation_error`, and a different amount returns `422 payment_amount_mismatch` without storing a row. Amounts follow the existing monetary limits: non-negative, at most two decimal places, and no more than `99999999.99`; zero is allowed when the offer is free.
+
+When the Creator confirms the record, success returns `201` with `payment_id`, `job_id`, `method`, `amount` formatted to two decimal places, `payment_status: Paid`, and server-assigned UTC `created_at` and `paid_at`. Both timestamps use the same instant. Status and timestamps cannot be supplied by the client. An existing `Pending` or `Paid` payment returns `409 payment_already_exists`; `Failed` and `Refunded` records remain as history and permit another attempt. Other state conflicts return `409 job_not_payable` or `409 accepted_offer_required`.
+
+Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. `Paid` records the Creator's confirmation; no payment gateway processes money, and the Job status does not change. Statistics that count `Paid` payments include these confirmations. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
+
+## Creator Reviews
+
+For a `Completed` job, its Creator can submit `{"rating": 1}` through `{"rating": 5}` with an optional `comment`. The response contains the stored review and server-generated `created_at`. A second review returns `409 review_already_exists`; a job that is not `Completed` returns `409 job_not_completed`.
 
 ## Marketer Job Requests
 
