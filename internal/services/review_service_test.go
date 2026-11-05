@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
+	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 )
 
 type fakeReviewRepository struct {
@@ -15,6 +16,11 @@ type fakeReviewRepository struct {
 	review    *domain.Review
 	calls     int
 	err       error
+
+	listQuery ports.MarketerReviewQuery
+	listCalls int
+	listPage  ports.MarketerReviewPage
+	listErr   error
 }
 
 func (f *fakeReviewRepository) CreateForCreatorJob(_ context.Context, creatorID, jobID int32, review *domain.Review) (*domain.Review, error) {
@@ -25,6 +31,15 @@ func (f *fakeReviewRepository) CreateForCreatorJob(_ context.Context, creatorID,
 	}
 	review.ReviewID = 41
 	return review, nil
+}
+
+func (f *fakeReviewRepository) ListForMarketer(_ context.Context, query ports.MarketerReviewQuery) (ports.MarketerReviewPage, error) {
+	f.listCalls++
+	f.listQuery = query
+	if f.listErr != nil {
+		return ports.MarketerReviewPage{}, f.listErr
+	}
+	return f.listPage, nil
 }
 
 func TestReviewServiceSubmitsAsAuthenticatedCreator(t *testing.T) {

@@ -102,6 +102,8 @@ func New(deps Dependencies) *fiber.App {
 	marketerRepo := postgres.NewMarketerProfileRepository(deps.DB)
 	marketerService := services.NewMarketerService(marketerRepo, catalogRepo, memberships)
 	marketerHandler := httpapi.NewMarketerHandler(marketerService)
+	marketerReviewService := services.NewMarketerReviewService(postgres.NewReviewRepository(deps.DB), marketerRepo, memberships)
+	marketerReviewHandler := httpapi.NewMarketerReviewHandler(marketerReviewService)
 	serviceRepo := postgres.NewServiceRepository(deps.DB)
 	serviceService := services.NewServiceService(serviceRepo, memberships)
 	serviceHandler := httpapi.NewServiceHandler(serviceService)
@@ -114,6 +116,7 @@ func New(deps Dependencies) *fiber.App {
 
 	api.Get("/marketers", protectedUsers, marketerHandler.Search)
 	api.Get("/marketers/:id", protectedUsers, marketerHandler.GetDetail)
+	api.Get("/marketers/:id/reviews", protectedUsers, marketerReviewHandler.List)
 	api.Get("/me/marketer-profile", protectedUsers, marketerHandler.GetProfile)
 	api.Patch("/me/marketer-profile", protectedUsers, marketerHandler.SaveProfile)
 	api.Get("/me/services", protectedUsers, serviceHandler.List)
