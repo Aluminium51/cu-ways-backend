@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -201,9 +202,14 @@ func actorFromRequest(c *fiber.Ctx) (services.Actor, error) {
 }
 
 func parseUserID(value string) (int32, error) {
+	return parsePathID(value, "user")
+}
+
+// parsePathID parses a positive int32 path parameter; name labels the error.
+func parsePathID(value, name string) (int32, error) {
 	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 32)
 	if err != nil || parsed < 1 {
-		return 0, errors.New("invalid user id")
+		return 0, fmt.Errorf("invalid %s id", name)
 	}
 	return int32(parsed), nil
 }

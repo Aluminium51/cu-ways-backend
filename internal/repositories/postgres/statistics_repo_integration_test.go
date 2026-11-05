@@ -98,6 +98,12 @@ VALUES (?, ?, ?, ?, ?)
 RETURNING offer_id`, jobID, marketerID, decimal.RequireFromString("100.00"), domain.OfferStatusAccepted, time.Now().UTC()).Scan(&offerID).Error; err != nil {
 		t.Fatalf("create accepted offer fixture: %v", err)
 	}
+	if status == domain.JobStatusPending {
+		// A Pending job has not hired anyone. trg_guard_job_accepted_offer
+		// forbids linking an accepted offer while the job is still Pending,
+		// so leave the job unhired (accepted_offer_id stays NULL).
+		return jobID
+	}
 	if status == domain.JobStatusCompleted {
 		if err := db.Exec(`INSERT INTO attachments (job_id, attachment_type, url, upload_at) VALUES (?, 'Proof', ?, ?)`, jobID, "https://example.invalid/proof", time.Now().UTC()).Error; err != nil {
 			t.Fatalf("create Proof fixture: %v", err)

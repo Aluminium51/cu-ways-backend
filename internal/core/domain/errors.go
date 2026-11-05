@@ -51,6 +51,9 @@ var (
 	ErrOfferNotPending    = errors.New("offer is no longer pending")
 	ErrJobNotPending      = errors.New("job is no longer open for offers")
 
+	ErrJobNotAccepted        = errors.New("only an accepted job can be started")
+	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
+
 	ErrInvalidPayment        = errors.New("invalid payment method or amount")
 	ErrJobNotPayable         = errors.New("job is not eligible for payment")
 	ErrAcceptedOfferRequired = errors.New("a valid accepted offer is required")
