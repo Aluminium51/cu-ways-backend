@@ -210,12 +210,16 @@ curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
 
 Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. Add `keyword` (up to 100 characters) for a case-insensitive partial match against the marketer's name, bio, or any of their services' type/scope text; a marketer with several matching services still appears once. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by marketer name, then `user_id` ascending.
 
-Signed-in users can read their transaction history from `GET /api/v1/me/transactions`. It lists only Completed jobs that have a Paid payment and in which the caller is the owning Creator or the hired Marketer, with the job title, creator and marketer names, accepted price, payment method, `paid_at`, and `payout_status`. The caller is taken from the token, so no user id is accepted. Use `role=creator` or `role=marketer` to view one side, `keyword` (up to 100 characters) to search the title, names, payment method, or an exact job number, and `page` / `page_size` (default 10, maximum 50). Results are ordered by newest payment, then `job_id` descending, and the response includes `total`. `paid_at` is the time the payment was recorded because jobs do not store a completion time, and `payout_status` is derived, not stored: it is always `Released` for a listed job, meaning the simulated payout was recorded at completion, not that the Marketer received money.
+Signed-in users can read their transaction history from `GET /api/v1/me/transactions`. It lists only Completed jobs that have a Paid payment and in which the caller is the owning Creator or the hired Marketer, with the job title, creator and marketer names, accepted price, payment method, `paid_at`, and `payout_status`. The caller is taken from the token, so no user id is accepted. Use `role=creator` or `role=marketer` to view one side, `keyword` (up to 100 characters) to search the title, names, payment method, or an exact job number, and `page` / `page_size` (default 10, maximum 50). Results are ordered by newest completion, with unknown completion times last, then `job_id` descending. The response includes `total`, the payment-recorded time `paid_at`, the nullable `completed_at`, and a Creator-side `has_review` flag, and `payout_status` is derived, not stored: it is always `Released` for a listed job, meaning the simulated payout was recorded at completion, not that the Marketer received money.
 
 ```powershell
 curl.exe "http://localhost:8081/api/v1/me/transactions?role=creator&keyword=survey&page=1&page_size=10" `
   -H "Authorization: Bearer $token"
 ```
+
+The owning Creator and hired Marketer can read the accepted job and saved payment with `GET /api/v1/jobs/:id/payments`. A Paid record shows a simulated payout of Held until completion and Released after completion. The owning Creator completes an In Progress job with `POST /api/v1/jobs/:id/complete` after the matching Paid payment and delivery proof are saved. The operation saves the completion time once and returns the saved result on repeat requests. Migration 000015 adds the timestamp and leaves historical completion times unknown.
+
+The owning Creator can read a completed job's saved review with `GET /api/v1/jobs/:id/reviews`. The response contains `review: null` when no review has been submitted.
 
 Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
 
@@ -282,6 +286,18 @@ The Job must be `Accepted`, `In Progress`, or `Completed` with a valid accepted 
 When the Creator confirms the record, success returns `201` with `payment_id`, `job_id`, `method`, `amount` formatted to two decimal places, `payment_status: Paid`, and server-assigned UTC `created_at` and `paid_at`. Both timestamps use the same instant. Status and timestamps cannot be supplied by the client. An existing `Pending` or `Paid` payment returns `409 payment_already_exists`; `Failed` and `Refunded` records remain as history and permit another attempt. Other state conflicts return `409 job_not_payable` or `409 accepted_offer_required`.
 
 Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. `Paid` records the Creator's confirmation; no payment gateway processes money, and the Job status does not change. Statistics that count `Paid` payments include these confirmations. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
+
+## Proof of Delivery
+
+`POST /api/v1/jobs/:id/proofs` lets the Marketer whose offer was accepted save a delivery link while the Job is `In Progress`:
+
+```json
+{ "url": "https://forms.gle/abc123", "attachment_type": "Proof" }
+```
+
+`attachment_type` is optional and defaults to `Proof`; any other value returns `422 invalid_attachment_type`, and the database `chk_attachment_type` constraint independently limits stored types to `Brief`, `Proof` or `Other`. The URL is trimmed and must be an absolute HTTP or HTTPS link (`422 invalid_proof_url`). The server sets `upload_at`. Other Marketers and the Creator get `403 forbidden`; a Job in any other status returns `409 job_not_in_progress`. Saving Proof does not complete the Job.
+
+`GET /api/v1/jobs/:id/proofs` returns the Job's Proof rows newest first to its Creator and its accepted Marketer.
 
 ## Creator Reviews
 

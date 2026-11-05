@@ -53,7 +53,11 @@ func (h *PaymentHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return mapPaymentError(err)
 	}
-	return response.Success(c, fiber.StatusCreated, PaymentResponse{PaymentID: p.PaymentID, JobID: p.JobID, Method: p.Method, Amount: p.Amount.StringFixed(2), PaymentStatus: p.PaymentStatus, CreatedAt: p.CreatedAt, PaidAt: p.PaidAt})
+	return response.Success(c, fiber.StatusCreated, paymentResponse(p))
+}
+
+func paymentResponse(p *domain.Payment) PaymentResponse {
+	return PaymentResponse{PaymentID: p.PaymentID, JobID: p.JobID, Method: p.Method, Amount: p.Amount.StringFixed(2), PaymentStatus: p.PaymentStatus, CreatedAt: p.CreatedAt, PaidAt: p.PaidAt}
 }
 
 func mapPaymentError(err error) error {

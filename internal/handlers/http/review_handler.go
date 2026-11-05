@@ -57,10 +57,14 @@ func (h *ReviewHandler) Submit(c *fiber.Ctx) error {
 	if err != nil {
 		return mapReviewError(err)
 	}
-	return response.Success(c, fiber.StatusCreated, ReviewResponse{
+	return response.Success(c, fiber.StatusCreated, reviewResponse(review))
+}
+
+func reviewResponse(review *domain.Review) ReviewResponse {
+	return ReviewResponse{
 		ReviewID: review.ReviewID, JobID: review.JobID, Rating: review.Rating,
 		Comment: review.Comment, CreatedAt: review.CreatedAt,
-	})
+	}
 }
 
 func mapReviewError(err error) error {

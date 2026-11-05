@@ -10,6 +10,16 @@ const (
 	AttachmentTypeOther AttachmentType = "Other"
 )
 
+// IsValid reports whether the type is one the attachments table accepts.
+func (t AttachmentType) IsValid() bool {
+	switch t {
+	case AttachmentTypeBrief, AttachmentTypeProof, AttachmentTypeOther:
+		return true
+	default:
+		return false
+	}
+}
+
 type Attachment struct {
 	AttachmentID   int32          `gorm:"column:attachment_id;primaryKey;autoIncrement"`
 	JobID          int32          `gorm:"column:job_id;not null"`
