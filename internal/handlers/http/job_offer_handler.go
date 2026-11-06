@@ -45,7 +45,7 @@ func (h *JobOfferHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
@@ -84,11 +84,11 @@ func (h *JobOfferHandler) Accept(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
-	offerID, err := parseUserID(c.Params("offerId"))
+	offerID, err := parsePathID(c.Params("offerId"), "offer")
 	if err != nil {
 		return validationError(err)
 	}

@@ -67,6 +67,7 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "offer_withdrawal_requires_authentication", method: "POST", path: "/api/v1/me/offers/1/withdraw", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_offers_require_authentication", path: "/api/v1/jobs/1/offers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "offer_acceptance_requires_authentication", method: "POST", path: "/api/v1/jobs/1/offers/1/accept", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_start_requires_authentication", method: "POST", path: "/api/v1/jobs/1/start", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "payment_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/payments", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "proof_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/proofs", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "proof_list_requires_authentication", method: "GET", path: "/api/v1/jobs/1/proofs", status: 401, envelope: "error", errorCode: "unauthorized"},
