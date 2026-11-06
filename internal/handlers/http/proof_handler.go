@@ -84,11 +84,13 @@ func mapProofError(err error) error {
 	case errors.Is(err, domain.ErrMarketerRequired):
 		return response.NewAppError(fiber.StatusForbidden, "marketer_required", "a marketer profile is required", err)
 	case errors.Is(err, domain.ErrJobForbidden):
-		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this job", err)
+		return response.NewAppError(fiber.StatusForbidden, "forbidden", "only the job's creator or hired marketer can access its proof", err)
 	case errors.Is(err, domain.ErrJobNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "job_not_found", "job was not found", err)
 	case errors.Is(err, domain.ErrJobNotInProgress):
 		return response.NewAppError(fiber.StatusConflict, "job_not_in_progress", err.Error(), err)
+	case errors.Is(err, domain.ErrAcceptedOfferMismatch):
+		return response.NewAppError(fiber.StatusConflict, "accepted_offer_mismatch", err.Error(), err)
 	case errors.Is(err, domain.ErrInvalidAttachmentType):
 		return response.NewAppError(fiber.StatusUnprocessableEntity, "invalid_attachment_type", err.Error(), err)
 	case errors.Is(err, domain.ErrInvalidProofURL):

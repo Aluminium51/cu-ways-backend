@@ -2,13 +2,13 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type ProofRepository struct{ db *gorm.DB }
@@ -19,22 +19,16 @@ func NewProofRepository(db *gorm.DB) *ProofRepository { return &ProofRepository{
 
 func (r *ProofRepository) CreateForAcceptedMarketer(ctx context.Context, marketerID, jobID int32, attachment *domain.Attachment) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var job domain.Job
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("job_id = ?", jobID).First(&job).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return domain.ErrJobNotFound
-			}
-			return err
-		}
-		accepted, err := isAcceptedMarketer(tx, job, marketerID)
+		job, err := lockJob(tx, jobID)
 		if err != nil {
 			return err
 		}
-		if !accepted {
-			return domain.ErrJobForbidden
+		accepted, err := findAcceptedOffer(tx, job)
+		if err != nil {
+			return err
 		}
-		if job.JobStatus != domain.JobStatusInProgress {
-			return domain.ErrJobNotInProgress
+		if err := job.CanAddProof(marketerID, accepted); err != nil {
+			return err
 		}
 		attachment.JobID = jobID
 		return tx.Create(attachment).Error
@@ -42,41 +36,32 @@ func (r *ProofRepository) CreateForAcceptedMarketer(ctx context.Context, markete
 	return mapProofRepositoryError(err)
 }
 
+// ListForParticipant reads the access check and the rows from one snapshot.
 func (r *ProofRepository) ListForParticipant(ctx context.Context, userID, jobID int32) ([]domain.Attachment, error) {
-	db := r.db.WithContext(ctx)
-	var job domain.Job
-	if err := db.Where("job_id = ?", jobID).First(&job).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domain.ErrJobNotFound
+	attachments := []domain.Attachment{}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var job domain.Job
+		if err := tx.Where("job_id = ?", jobID).First(&job).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrJobNotFound
+			}
+			return err
 		}
+		accepted, err := findAcceptedOffer(tx, &job)
+		if err != nil {
+			return err
+		}
+		if err := job.CanViewProof(userID, accepted); err != nil {
+			return err
+		}
+		return tx.Where("job_id = ? AND attachment_type = ?", jobID, domain.AttachmentTypeProof).
+			Order("upload_at DESC, attachment_id DESC").
+			Find(&attachments).Error
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
 		return nil, err
 	}
-	if job.UserID != userID {
-		accepted, err := isAcceptedMarketer(db, job, userID)
-		if err != nil {
-			return nil, err
-		}
-		if !accepted {
-			return nil, domain.ErrJobForbidden
-		}
-	}
-	attachments := []domain.Attachment{}
-	err := db.Where("job_id = ? AND attachment_type = ?", jobID, domain.AttachmentTypeProof).
-		Order("upload_at DESC, attachment_id DESC").
-		Find(&attachments).Error
-	return attachments, err
-}
-
-// isAcceptedMarketer reports whether userID made the job's accepted offer.
-func isAcceptedMarketer(tx *gorm.DB, job domain.Job, userID int32) (bool, error) {
-	if job.AcceptedOfferID == nil {
-		return false, nil
-	}
-	var count int64
-	err := tx.Model(&domain.Offer{}).
-		Where("job_id = ? AND offer_id = ? AND user_id = ?", job.JobID, *job.AcceptedOfferID, userID).
-		Count(&count).Error
-	return count > 0, err
+	return attachments, nil
 }
 
 func mapProofRepositoryError(err error) error {

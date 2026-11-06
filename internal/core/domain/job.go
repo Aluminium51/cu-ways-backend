@@ -66,16 +66,52 @@ func (j *Job) AcceptOffer(offer *Offer) error {
 // that is no longer Accepted returns ErrAcceptedOfferMismatch, and a job that
 // is not Accepted returns ErrJobNotAccepted.
 func (j *Job) Start(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusAccepted {
+		return ErrJobNotAccepted
+	}
+	j.JobStatus = JobStatusInProgress
+	return nil
+}
+
+// CanAddProof reports whether marketerID may add a Proof attachment. It uses
+// the same hire checks as Start, in the same order, and then requires the job
+// to be In Progress (ErrJobNotInProgress).
+func (j *Job) CanAddProof(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusInProgress {
+		return ErrJobNotInProgress
+	}
+	return nil
+}
+
+// CanViewProof reports whether userID may read the job's Proof attachments:
+// its Creator, or the Marketer hired through a still-Accepted offer. Anyone
+// else gets ErrJobForbidden.
+func (j *Job) CanViewProof(userID int32, accepted *Offer) error {
+	if j.UserID == userID {
+		return nil
+	}
+	if j.checkHiredMarketer(userID, accepted) != nil {
+		return ErrJobForbidden
+	}
+	return nil
+}
+
+// checkHiredMarketer returns ErrJobForbidden unless marketerID owns the job's
+// accepted offer, and ErrAcceptedOfferMismatch when that offer is no longer
+// Accepted.
+func (j *Job) checkHiredMarketer(marketerID int32, accepted *Offer) error {
 	if j.AcceptedOfferID == nil || accepted == nil || accepted.OfferID != *j.AcceptedOfferID || accepted.UserID != marketerID {
 		return ErrJobForbidden
 	}
 	if accepted.OfferStatus != OfferStatusAccepted {
 		return ErrAcceptedOfferMismatch
 	}
-	if j.JobStatus != JobStatusAccepted {
-		return ErrJobNotAccepted
-	}
-	j.JobStatus = JobStatusInProgress
 	return nil
 }
 

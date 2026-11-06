@@ -42,18 +42,13 @@ func (f *proofHTTPRepository) ListForParticipant(_ context.Context, userID, _ in
 	return f.list, f.err
 }
 
-type proofHTTPMembership struct{ marketer bool }
-
-func (f proofHTTPMembership) IsCreator(context.Context, int32) (bool, error)  { return false, nil }
-func (f proofHTTPMembership) IsMarketer(context.Context, int32) (bool, error) { return f.marketer, nil }
-
 func proofHandlerApp(repo *proofHTTPRepository, marketer bool) *fiber.App {
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals(middleware.ClaimsLocalKey, &ports.TokenClaims{Subject: "9", Values: map[string]any{}})
 		return c.Next()
 	})
-	h := NewProofHandler(services.NewProofService(repo, proofHTTPMembership{marketer: marketer}))
+	h := NewProofHandler(services.NewProofService(repo, fakeMembership{marketer: marketer}))
 	app.Post("/jobs/:id/proofs", h.Create)
 	app.Get("/jobs/:id/proofs", h.List)
 	return app
@@ -132,11 +127,12 @@ func TestProofHandlerMapsRepositoryErrors(t *testing.T) {
 		{domain.ErrJobNotFound, 404, "job_not_found"},
 		{domain.ErrJobForbidden, 403, "forbidden"},
 		{domain.ErrJobNotInProgress, 409, "job_not_in_progress"},
+		{domain.ErrAcceptedOfferMismatch, 409, "accepted_offer_mismatch"},
 		{domain.ErrInvalidAttachmentType, 422, "invalid_attachment_type"},
 	} {
 		t.Run(tc.code, func(t *testing.T) {
 			for _, method := range []string{"POST", "GET"} {
-				if method == "GET" && tc.err == domain.ErrJobNotInProgress {
+				if method == "GET" && (tc.err == domain.ErrJobNotInProgress || tc.err == domain.ErrAcceptedOfferMismatch) {
 					continue
 				}
 				status, code := proofErrorCode(t, proofHandlerApp(&proofHTTPRepository{err: tc.err}, true), method, "/jobs/12/proofs", `{"url":"https://example.com"}`)

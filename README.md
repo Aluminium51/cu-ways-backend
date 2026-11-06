@@ -291,9 +291,9 @@ Payment creation locks the Job and accepted offer in one transaction, preventing
 { "url": "https://forms.gle/abc123", "attachment_type": "Proof" }
 ```
 
-`attachment_type` is optional and defaults to `Proof`; any other value returns `422 invalid_attachment_type`, and the database `chk_attachment_type` constraint independently limits stored types to `Brief`, `Proof` or `Other`. The URL is trimmed and must be an absolute HTTP or HTTPS link (`422 invalid_proof_url`). The server sets `upload_at`. Other Marketers and the Creator get `403 forbidden`; a Job in any other status returns `409 job_not_in_progress`. Saving Proof does not complete the Job.
+`attachment_type` is optional and defaults to `Proof`; any other value returns `422 invalid_attachment_type`, and the database `chk_attachment_type` constraint independently limits stored types to `Brief`, `Proof` or `Other`. The URL is trimmed and must be an absolute HTTP or HTTPS link (`422 invalid_proof_url`). The server sets `upload_at`. A user without a Marketer profile (for example a Creator-only account) gets `403 marketer_required`; a Marketer who is not the one hired through the accepted offer gets `403 forbidden`. If the accepted offer is no longer `Accepted`, the request returns `409 accepted_offer_mismatch`, and a Job in any status other than `In Progress` returns `409 job_not_in_progress`. Saving Proof does not complete the Job.
 
-`GET /api/v1/jobs/:id/proofs` returns the Job's Proof rows newest first to its Creator and its accepted Marketer.
+`GET /api/v1/jobs/:id/proofs` returns the Job's Proof rows newest first to its Creator and to the Marketer hired through a still-`Accepted` offer; anyone else gets `403 forbidden`. The permission rules live in `Job.CanAddProof` and `Job.CanViewProof`.
 
 ## Creator Reviews
 

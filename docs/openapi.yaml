@@ -1280,7 +1280,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: forbidden - the caller is neither the job's Creator nor its accepted Marketer.
+          description: forbidden - the caller is neither the job's Creator nor the Marketer hired through a still-Accepted offer.
           content:
             application/json:
               schema:
@@ -1324,7 +1324,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: marketer_required - the caller has no Marketer profile; forbidden - the caller is not the Marketer of the job's accepted offer.
+          description: marketer_required - the caller has no Marketer profile (for example a Creator-only account); forbidden - the caller is a Marketer but not the one hired through the job's accepted offer.
           content:
             application/json:
               schema:
@@ -1336,7 +1336,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: job_not_in_progress - Proof can only be added while the job is In Progress.
+          description: job_not_in_progress - the job is not In Progress; accepted_offer_mismatch - the job's accepted offer is no longer Accepted.
           content:
             application/json:
               schema:

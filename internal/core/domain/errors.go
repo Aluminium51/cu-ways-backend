@@ -40,7 +40,7 @@ var (
 	ErrInvalidBriefURL         = errors.New("invalid brief URL")
 	ErrInvalidProofURL         = errors.New("proof URL must be an http or https link")
 	ErrInvalidAttachmentType   = errors.New("attachment type must be Proof")
-	ErrJobNotInProgress        = errors.New("proof can only be added while the job is In Progress")
+	ErrJobNotInProgress        = errors.New("job is not In Progress")
 	ErrInvalidJobRequest       = errors.New("invalid job request")
 	ErrJobRequestAlreadyActive = errors.New("an active request already exists for this job and marketer")
 	ErrMarketerNotFound        = errors.New("marketer not found")

@@ -43,7 +43,7 @@ func (s *ProofService) Add(ctx context.Context, actor Actor, jobID int32, input 
 	if attachmentType == "" {
 		attachmentType = domain.AttachmentTypeProof
 	}
-	if !attachmentType.IsValid() || attachmentType != domain.AttachmentTypeProof {
+	if attachmentType != domain.AttachmentTypeProof {
 		return nil, domain.ErrInvalidAttachmentType
 	}
 	proofURL, ok := validAttachmentURL(input.URL)
