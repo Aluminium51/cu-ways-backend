@@ -1,0 +1,11 @@
+.git
+.env*
+.review-pr18
+.gocache
+.superpowers
+bin
+coverage
+tmp
+*.log
+*.exe
+*_test.go

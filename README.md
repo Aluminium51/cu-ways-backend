@@ -56,6 +56,8 @@ cd cu-ways-backend
 
 The API runs on `http://localhost:8081` by default.
 
+For the production Railway PostgreSQL/API and Vercel frontend setup, see [docs/deployment.md](docs/deployment.md). The API image includes a separate `/migrate` command; Railway runs it before activating a deployment.
+
 ## Project structure
 
 ```text
