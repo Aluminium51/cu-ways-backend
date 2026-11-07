@@ -129,3 +129,71 @@ func TestJobCancelRefusesInvalidCancellations(t *testing.T) {
 		})
 	}
 }
+
+func inProgressJobWithOffer() (*Job, *Offer) {
+	job, offer := acceptedJobWithOffer()
+	job.UserID = 4
+	job.JobStatus = JobStatusInProgress
+	return job, offer
+}
+
+func TestJobCanAddProofForHiredMarketerWhileInProgress(t *testing.T) {
+	job, offer := inProgressJobWithOffer()
+	if err := job.CanAddProof(9, offer); err != nil {
+		t.Fatal(err)
+	}
+	if job.JobStatus != JobStatusInProgress {
+		t.Fatalf("checking Proof must not change the job, got %s", job.JobStatus)
+	}
+}
+
+func TestJobCanAddProofRefusesOthers(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		marketerID int32
+		setup      func(*Job, *Offer) *Offer
+		want       error
+	}{
+		{"not_hired", 9, func(j *Job, _ *Offer) *Offer { j.AcceptedOfferID = nil; return nil }, ErrJobForbidden},
+		{"another_marketer", 10, func(_ *Job, o *Offer) *Offer { return o }, ErrJobForbidden},
+		{"job_creator", 4, func(_ *Job, o *Offer) *Offer { return o }, ErrJobForbidden},
+		// Ownership comes first, so another Marketer cannot learn the status.
+		{"another_marketer_on_accepted_job", 10, func(j *Job, o *Offer) *Offer { j.JobStatus = JobStatusAccepted; return o }, ErrJobForbidden},
+		{"offer_not_the_accepted_one", 9, func(_ *Job, o *Offer) *Offer { o.OfferID = 32; return o }, ErrJobForbidden},
+		{"accepted_offer_withdrawn", 9, func(_ *Job, o *Offer) *Offer { o.OfferStatus = OfferStatusWithdrawn; return o }, ErrAcceptedOfferMismatch},
+		{"accepted_offer_rejected", 9, func(_ *Job, o *Offer) *Offer { o.OfferStatus = OfferStatusRejected; return o }, ErrAcceptedOfferMismatch},
+		{"not_started", 9, func(j *Job, o *Offer) *Offer { j.JobStatus = JobStatusAccepted; return o }, ErrJobNotInProgress},
+		{"completed", 9, func(j *Job, o *Offer) *Offer { j.JobStatus = JobStatusCompleted; return o }, ErrJobNotInProgress},
+		{"cancelled", 9, func(j *Job, o *Offer) *Offer { j.JobStatus = JobStatusCancelled; return o }, ErrJobNotInProgress},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			job, offer := inProgressJobWithOffer()
+			if err := job.CanAddProof(tt.marketerID, tt.setup(job, offer)); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestJobCanViewProof(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		userID int32
+		setup  func(*Job, *Offer) *Offer
+		want   error
+	}{
+		{"creator", 4, func(_ *Job, o *Offer) *Offer { return o }, nil},
+		{"creator_before_hiring", 4, func(j *Job, _ *Offer) *Offer { j.AcceptedOfferID = nil; return nil }, nil},
+		{"hired_marketer", 9, func(_ *Job, o *Offer) *Offer { return o }, nil},
+		{"hired_marketer_after_completion", 9, func(j *Job, o *Offer) *Offer { j.JobStatus = JobStatusCompleted; return o }, nil},
+		{"another_marketer", 10, func(_ *Job, o *Offer) *Offer { return o }, ErrJobForbidden},
+		{"accepted_offer_withdrawn", 9, func(_ *Job, o *Offer) *Offer { o.OfferStatus = OfferStatusWithdrawn; return o }, ErrJobForbidden},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			job, offer := inProgressJobWithOffer()
+			if err := job.CanViewProof(tt.userID, tt.setup(job, offer)); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+		})
+	}
+}

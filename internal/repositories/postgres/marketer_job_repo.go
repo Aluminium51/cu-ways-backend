@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 
-	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"gorm.io/gorm"
 )
@@ -25,15 +24,9 @@ func (r *MarketerJobRepository) StartJob(ctx context.Context, marketerID, jobID 
 		if err != nil {
 			return err
 		}
-		// The (job_id, accepted_offer_id) foreign key guarantees the accepted
-		// offer exists and belongs to this job.
-		var accepted *domain.Offer
-		if job.AcceptedOfferID != nil {
-			var offer domain.Offer
-			if err := tx.Where("offer_id = ? AND job_id = ?", *job.AcceptedOfferID, job.JobID).First(&offer).Error; err != nil {
-				return err
-			}
-			accepted = &offer
+		accepted, err := findAcceptedOffer(tx, job)
+		if err != nil {
+			return err
 		}
 		if err := job.Start(marketerID, accepted); err != nil {
 			return err

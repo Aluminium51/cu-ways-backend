@@ -15,7 +15,7 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, marketer invitations, offer comparison, and offer acceptance.
+    description: Creator job setup, survey links, briefs, proof of delivery, marketer invitations, offer comparison, and offer acceptance.
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
@@ -1246,6 +1246,103 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: URL must be an absolute HTTP or HTTPS URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/proofs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listJobProofs
+      summary: List Proof of delivery links for a job
+      description: Returns only attachment_type Proof rows, newest first (upload_at, then attachment_id). Readable by the job's Creator and by the Marketer whose offer was accepted.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Proof attachments. An empty list is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden - the caller is neither the job's Creator nor the Marketer hired through a still-Accepted offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: job_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: validation_error - the job id is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: addJobProof
+      summary: Submit a delivery link as Proof (US-026)
+      description: The Marketer whose offer was accepted adds a trimmed HTTP or HTTPS URL as an attachment_type Proof row while the job is In Progress. The server sets upload_at. Saving Proof never completes the job. Earlier proofs remain.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProofRequest'
+      responses:
+        '201':
+          description: Proof saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: marketer_required - the caller has no Marketer profile (for example a Creator-only account); forbidden - the caller is a Marketer but not the one hired through the job's accepted offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: job_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: job_not_in_progress - the job is not In Progress; accepted_offer_mismatch - the job's accepted offer is no longer Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: invalid_attachment_type - attachment_type is not Proof (the database also restricts it to Brief, Proof or Other); invalid_proof_url - url is not an absolute HTTP or HTTPS URL; validation_error - malformed body, unknown field or invalid job id.
           content:
             application/json:
               schema:
@@ -2874,6 +2971,60 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Brief'
+    CreateProofRequest:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: '^\s*https?://'
+          description: Surrounding whitespace is trimmed before saving.
+        attachment_type:
+          type: string
+          enum: [Proof]
+          default: Proof
+    Proof:
+      type: object
+      required: [attachment_id, job_id, attachment_type, url, upload_at]
+      properties:
+        attachment_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        attachment_type:
+          type: string
+          enum: [Proof]
+        url:
+          type: string
+          format: uri
+        upload_at:
+          type: string
+          format: date-time
+          description: Server-generated upload time (UTC).
+    ProofResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/Proof'
+    ProofListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Proof'
     CreateJobRequestsRequest:
       type: object
       required: [marketer_ids]
