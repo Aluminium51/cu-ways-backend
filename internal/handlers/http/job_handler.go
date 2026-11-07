@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
+	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/response"
 	"github.com/Aluminium51/cu-way-backend/internal/platform/utils"
 	"github.com/Aluminium51/cu-way-backend/internal/services"
@@ -26,6 +27,7 @@ type jobService interface {
 	AddBrief(context.Context, services.Actor, int32, string) (*domain.Attachment, error)
 	ListBriefs(context.Context, services.Actor, int32) ([]domain.Attachment, error)
 	CreateRequests(context.Context, services.Actor, int32, services.CreateJobRequestsInput) ([]domain.JobRequest, error)
+	Cancel(context.Context, services.Actor, int32, services.CancelJobInput) (*ports.JobCancellation, error)
 }
 
 type JobHandler struct {
@@ -146,6 +148,8 @@ type CreatorJobSummaryResponse struct {
 	JobID             int32                      `json:"job_id"`
 	JobStatus         domain.JobStatus           `json:"job_status"`
 	CreatedAt         time.Time                  `json:"created_at"`
+	CancelledAt       *time.Time                 `json:"cancelled_at"`
+	CancelReason      *string                    `json:"cancel_reason"`
 	Surveys           []JobSurveySummaryResponse `json:"surveys"`
 }
 
@@ -349,6 +353,52 @@ func (h *JobHandler) CreateRequests(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusCreated, items)
 }
 
+// CancelJobDTO is the optional body of a cancellation. An empty body cancels
+// without a reason.
+type CancelJobDTO struct {
+	CancelReason *string `json:"cancel_reason"`
+}
+
+// CancelJobResponse reports the cancelled job and every row the cancellation
+// changed, so the frontend can refresh job, offer, and request badges.
+type CancelJobResponse struct {
+	JobID               int32            `json:"job_id"`
+	JobStatus           domain.JobStatus `json:"job_status"`
+	CancelledAt         *time.Time       `json:"cancelled_at"`
+	CancelReason        *string          `json:"cancel_reason"`
+	ClosedJobRequestIDs []int32          `json:"closed_job_request_ids"`
+	RejectedOfferIDs    []int32          `json:"rejected_offer_ids"`
+}
+
+func (h *JobHandler) Cancel(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parsePathID(c.Params("id"), "job")
+	if err != nil {
+		return validationError(err)
+	}
+	var dto CancelJobDTO
+	if len(c.Body()) > 0 {
+		if err := decodeStrictJSON(c, &dto); err != nil {
+			return validationError(err)
+		}
+	}
+	result, err := h.service.Cancel(c.UserContext(), actor, jobID, services.CancelJobInput{Reason: dto.CancelReason})
+	if err != nil {
+		return mapJobError(err)
+	}
+	return response.Success(c, fiber.StatusOK, CancelJobResponse{
+		JobID:               result.Job.JobID,
+		JobStatus:           result.Job.JobStatus,
+		CancelledAt:         result.Job.CancelledAt,
+		CancelReason:        result.Job.CancelReason,
+		ClosedJobRequestIDs: result.ClosedJobRequestIDs,
+		RejectedOfferIDs:    result.RejectedOfferIDs,
+	})
+}
+
 func parseJobAndSurveyIDs(c *fiber.Ctx) (int32, int32, error) {
 	jobID, err := parseUserID(c.Params("id"))
 	if err != nil {
@@ -407,6 +457,8 @@ func toCreatorJobSummaryResponse(job domain.CreatorJobSummary) CreatorJobSummary
 		JobID:              job.JobID,
 		JobStatus:          job.JobStatus,
 		CreatedAt:          job.CreatedAt,
+		CancelledAt:        job.CancelledAt,
+		CancelReason:       job.CancelReason,
 		Surveys:            make([]JobSurveySummaryResponse, 0, len(job.Surveys)),
 	}
 	for _, survey := range job.Surveys {
@@ -437,6 +489,14 @@ func mapJobError(err error) error {
 		return response.NewAppError(fiber.StatusNotFound, "resource_not_found", "job or survey was not found", err)
 	case errors.Is(err, domain.ErrJobNotPending):
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
+	case errors.Is(err, domain.ErrJobAlreadyCancelled):
+		return response.NewAppError(fiber.StatusConflict, "job_already_cancelled", "this job is already cancelled", err)
+	case errors.Is(err, domain.ErrJobNotCancellable):
+		return response.NewAppError(fiber.StatusConflict, "job_not_cancellable", "only a pending job can be cancelled", err)
+	case errors.Is(err, domain.ErrJobHasPaidPayment):
+		return response.NewAppError(fiber.StatusConflict, "job_has_paid_payment", "a job with a paid payment cannot be cancelled", err)
+	case errors.Is(err, domain.ErrInvalidCancelReason):
+		return response.NewAppError(fiber.StatusUnprocessableEntity, "invalid_cancel_reason", err.Error(), err)
 	case errors.Is(err, domain.ErrJobRequestAlreadyActive), errors.Is(err, domain.ErrJobSurveyAlreadyLinked), errors.Is(err, domain.ErrLastJobSurvey):
 		return response.NewAppError(fiber.StatusConflict, "job_conflict", err.Error(), err)
 	case errors.Is(err, domain.ErrMarketerNotFound):

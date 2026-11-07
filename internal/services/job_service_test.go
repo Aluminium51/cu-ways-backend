@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
+	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
 )
 
 type fakeJobRepository struct {
@@ -21,6 +23,9 @@ type fakeJobRepository struct {
 	listRequestsCalls int
 	creatorID         int32
 	jobID             int32
+	cancelCalls       int
+	cancelReason      *string
+	cancelledAt       time.Time
 }
 
 func (f *fakeJobRepository) ListSurveysByCreator(context.Context, int32) ([]domain.Survey, error) {
@@ -81,6 +86,14 @@ func (f *fakeJobRepository) CreateRequests(_ context.Context, _, jobID int32, ma
 		items = append(items, domain.JobRequest{JobID: jobID, MarketerID: marketerID, Status: domain.JobRequestStatusPending, CreatedAt: createdAt})
 	}
 	return items, nil
+}
+
+func (f *fakeJobRepository) Cancel(_ context.Context, creatorID, jobID int32, reason *string, cancelledAt time.Time) (*ports.JobCancellation, error) {
+	f.cancelCalls++
+	f.creatorID, f.jobID = creatorID, jobID
+	f.cancelReason, f.cancelledAt = reason, cancelledAt
+	job := domain.Job{JobID: jobID, UserID: creatorID, JobStatus: domain.JobStatusCancelled, CancelledAt: &cancelledAt, CancelReason: reason}
+	return &ports.JobCancellation{Job: job, ClosedJobRequestIDs: []int32{}, RejectedOfferIDs: []int32{}}, nil
 }
 
 func TestJobServiceCreatesPendingJobWithAuthenticatedCreatorAndSelectedSurveys(t *testing.T) {
@@ -199,5 +212,73 @@ func TestJobServiceCreatesPendingRequestsForValidatedUniqueMarketers(t *testing.
 	}
 	if _, err := service.CreateRequests(context.Background(), Actor{UserID: 8}, 12, CreateJobRequestsInput{MarketerIDs: []int32{21, 21}}); !errors.Is(err, domain.ErrInvalidJobRequest) {
 		t.Fatalf("expected duplicate marketer IDs to be rejected, got %v", err)
+	}
+}
+
+func TestJobServiceCancelTrimsReasonAndUsesServerTime(t *testing.T) {
+	repo := &fakeJobRepository{}
+	service := NewJobService(repo, &fakeMembershipRepository{creator: true})
+	reason := "  Survey no longer needed  "
+	before := time.Now().UTC()
+	result, err := service.Cancel(context.Background(), Actor{UserID: 8}, 12, CancelJobInput{Reason: &reason})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.cancelCalls != 1 || repo.creatorID != 8 || repo.jobID != 12 {
+		t.Fatalf("unexpected repository call: %+v", repo)
+	}
+	if repo.cancelReason == nil || *repo.cancelReason != "Survey no longer needed" {
+		t.Fatalf("expected a trimmed reason, got %v", repo.cancelReason)
+	}
+	if repo.cancelledAt.Before(before) || repo.cancelledAt.Location() != time.UTC {
+		t.Fatalf("expected the server's UTC time, got %v", repo.cancelledAt)
+	}
+	if result.Job.JobStatus != domain.JobStatusCancelled {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
+func TestJobServiceCancelStoresBlankReasonAsNull(t *testing.T) {
+	for _, reason := range []*string{nil, stringPointer(""), stringPointer("   ")} {
+		repo := &fakeJobRepository{}
+		service := NewJobService(repo, &fakeMembershipRepository{creator: true})
+		if _, err := service.Cancel(context.Background(), Actor{UserID: 8}, 12, CancelJobInput{Reason: reason}); err != nil {
+			t.Fatal(err)
+		}
+		if repo.cancelReason != nil {
+			t.Fatalf("expected no reason, got %q", *repo.cancelReason)
+		}
+	}
+}
+
+func TestJobServiceCancelRejectsInvalidInputBeforePersistence(t *testing.T) {
+	long := strings.Repeat("ก", domain.MaxJobCancelReasonLength+1)
+	maxLength := strings.Repeat("ก", domain.MaxJobCancelReasonLength)
+	for _, tt := range []struct {
+		name    string
+		creator bool
+		jobID   int32
+		reason  *string
+		want    error
+	}{
+		{"not_creator", false, 12, nil, domain.ErrCreatorRequired},
+		{"invalid_job_id", true, 0, nil, domain.ErrInvalidJob},
+		{"reason_too_long", true, 12, &long, domain.ErrInvalidCancelReason},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeJobRepository{}
+			service := NewJobService(repo, &fakeMembershipRepository{creator: tt.creator})
+			if _, err := service.Cancel(context.Background(), Actor{UserID: 8}, tt.jobID, CancelJobInput{Reason: tt.reason}); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+			if repo.cancelCalls != 0 {
+				t.Fatal("invalid cancellation reached persistence")
+			}
+		})
+	}
+	// The limit counts characters, not bytes, so 300 Thai characters are allowed.
+	repo := &fakeJobRepository{}
+	if _, err := NewJobService(repo, &fakeMembershipRepository{creator: true}).Cancel(context.Background(), Actor{UserID: 8}, 12, CancelJobInput{Reason: &maxLength}); err != nil {
+		t.Fatalf("expected a %d-character reason to be accepted, got %v", domain.MaxJobCancelReasonLength, err)
 	}
 }

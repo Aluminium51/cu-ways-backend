@@ -57,6 +57,11 @@ var (
 	ErrJobNotAccepted        = errors.New("only an accepted job can be started")
 	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
 
+	ErrJobAlreadyCancelled = errors.New("job is already cancelled")
+	ErrJobNotCancellable   = errors.New("only a pending job can be cancelled")
+	ErrJobHasPaidPayment   = errors.New("a job with a paid payment cannot be cancelled")
+	ErrInvalidCancelReason = errors.New("cancel reason must be at most 300 characters")
+
 	ErrInvalidPayment        = errors.New("invalid payment method or amount")
 	ErrJobNotPayable         = errors.New("job is not eligible for payment")
 	ErrAcceptedOfferRequired = errors.New("a valid accepted offer is required")

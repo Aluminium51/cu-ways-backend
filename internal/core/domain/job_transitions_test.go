@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func pendingJobWithOffer() (*Job, *Offer) {
@@ -85,6 +86,45 @@ func TestJobStartRefusesInvalidStarts(t *testing.T) {
 			}
 			if job.JobStatus != before {
 				t.Fatalf("a refused start changed the job to %s", job.JobStatus)
+			}
+		})
+	}
+}
+
+func TestJobCancelRecordsCancellationOfPendingJob(t *testing.T) {
+	job := &Job{JobID: 7, JobStatus: JobStatusPending}
+	at := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
+	reason := "Survey no longer needed"
+	if err := job.Cancel(false, &reason, at); err != nil {
+		t.Fatal(err)
+	}
+	if job.JobStatus != JobStatusCancelled || job.CancelledAt == nil || !job.CancelledAt.Equal(at) || job.CancelReason == nil || *job.CancelReason != reason {
+		t.Fatalf("unexpected cancellation: %+v", job)
+	}
+}
+
+func TestJobCancelRefusesInvalidCancellations(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		status JobStatus
+		paid   bool
+		want   error
+	}{
+		{"already_cancelled", JobStatusCancelled, false, ErrJobAlreadyCancelled},
+		{"accepted", JobStatusAccepted, false, ErrJobNotCancellable},
+		{"in_progress", JobStatusInProgress, false, ErrJobNotCancellable},
+		{"completed", JobStatusCompleted, false, ErrJobNotCancellable},
+		// Status comes first, so a cancelled job always reports 409 already cancelled.
+		{"already_cancelled_with_paid_payment", JobStatusCancelled, true, ErrJobAlreadyCancelled},
+		{"pending_with_paid_payment", JobStatusPending, true, ErrJobHasPaidPayment},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &Job{JobID: 7, JobStatus: tt.status}
+			if err := job.Cancel(tt.paid, nil, time.Now()); !errors.Is(err, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, err)
+			}
+			if job.JobStatus != tt.status || job.CancelledAt != nil {
+				t.Fatalf("a refused cancellation changed the job: %+v", job)
 			}
 		})
 	}

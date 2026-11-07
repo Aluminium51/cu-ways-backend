@@ -1617,6 +1617,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: cancelJob
+      summary: Cancel a pending job
+      description: >-
+        Cancels a Pending job owned by the caller so the incomplete contract is
+        logged. The request body is optional. In one transaction that rolls back
+        completely on any failure, the job becomes Cancelled with cancelled_at
+        set by the server and the optional trimmed cancel_reason, every Pending
+        or Accepted job request on the job is Closed, and every Pending offer is
+        Rejected. Payments are not changed. Only Pending jobs can be cancelled,
+        and a job with a Paid payment cannot be cancelled.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelJobRequest'
+      responses:
+        '200':
+          description: Job cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelJobResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code resource_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job is already Cancelled (code job_already_cancelled), is Accepted, In Progress or Completed (code job_not_cancellable), or has a Paid payment (code job_has_paid_payment). No state is changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The job ID is not a positive int32 or the body is malformed or has unknown fields (code validation_error), or cancel_reason is longer than 300 characters (code invalid_cancel_reason).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/reviews:
     parameters:
       - name: id
@@ -2855,6 +2921,16 @@ components:
         created_at:
           type: string
           format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the Creator cancelled the job. Null unless Cancelled, and for jobs cancelled before this was recorded.
+        cancel_reason:
+          type: string
+          nullable: true
+          maxLength: 300
+          description: Optional reason the Creator gave when cancelling.
         surveys:
           type: array
           items:
@@ -3410,6 +3486,48 @@ components:
                 type: integer
                 format: int32
             closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+    CancelJobRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        cancel_reason:
+          type: string
+          nullable: true
+          maxLength: 300
+          description: Optional reason, trimmed by the server. Blank is stored as null.
+    CancelJobResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [job_id, job_status, cancelled_at, cancel_reason, closed_job_request_ids, rejected_offer_ids]
+          properties:
+            job_id:
+              type: integer
+              format: int32
+            job_status:
+              type: string
+              enum: [Cancelled]
+            cancelled_at:
+              type: string
+              format: date-time
+            cancel_reason:
+              type: string
+              nullable: true
+            closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+            rejected_offer_ids:
               type: array
               items:
                 type: integer
