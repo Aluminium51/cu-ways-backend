@@ -26,6 +26,8 @@ type Job struct {
 	AcceptedOfferID   *int32           `gorm:"column:accepted_offer_id;uniqueIndex"`
 	JobStatus         JobStatus        `gorm:"column:job_status;type:varchar(20);not null"`
 	CreatedAt         time.Time        `gorm:"column:created_at;type:timestamp;not null"`
+	CancelledAt       *time.Time       `gorm:"column:cancelled_at;type:timestamp"`
+	CancelReason      *string          `gorm:"column:cancel_reason;type:varchar(300)"`
 
 	Creator       *Creator     `gorm:"foreignKey:UserID;references:UserID"`
 	AcceptedOffer *Offer       `gorm:"foreignKey:JobID,AcceptedOfferID;references:JobID,OfferID"`
@@ -79,6 +81,31 @@ func (j *Job) Start(marketerID int32, accepted *Offer) error {
 	return nil
 }
 
+// MaxJobCancelReasonLength limits the optional cancellation note.
+const MaxJobCancelReasonLength = 300
+
+// Cancel closes a Pending job the Creator no longer needs, recording when and
+// optionally why. Only Pending jobs can be cancelled: a job already Cancelled
+// returns ErrJobAlreadyCancelled, and any other status returns
+// ErrJobNotCancellable. A job with a Paid payment returns ErrJobHasPaidPayment.
+// Closing its job requests and rejecting its Pending offers is left to the
+// caller.
+func (j *Job) Cancel(hasPaidPayment bool, reason *string, at time.Time) error {
+	if j.JobStatus == JobStatusCancelled {
+		return ErrJobAlreadyCancelled
+	}
+	if j.JobStatus != JobStatusPending {
+		return ErrJobNotCancellable
+	}
+	if hasPaidPayment {
+		return ErrJobHasPaidPayment
+	}
+	j.JobStatus = JobStatusCancelled
+	j.CancelledAt = &at
+	j.CancelReason = reason
+	return nil
+}
+
 // CreatorJobSummary contains the small set of job fields returned to its owner.
 type CreatorJobSummary struct {
 	PendingOfferCount int64
@@ -90,6 +117,8 @@ type CreatorJobSummary struct {
 	JobID             int32              `gorm:"column:job_id"`
 	JobStatus         JobStatus          `gorm:"column:job_status"`
 	CreatedAt         time.Time          `gorm:"column:created_at"`
+	CancelledAt       *time.Time         `gorm:"column:cancelled_at"`
+	CancelReason      *string            `gorm:"column:cancel_reason"`
 	Surveys           []JobSurveySummary `gorm:"-"`
 }
 

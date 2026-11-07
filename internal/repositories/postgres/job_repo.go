@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -91,10 +92,12 @@ func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
 		PendingOfferCount: job.PendingOfferCount,
 		Title:             job.Title, Description: job.Description, Budget: job.Budget,
 		Deadline: job.Deadline, EffectiveDeadline: domain.EffectiveJobDeadline(job.Deadline, job.Surveys),
-		JobID:     job.JobID,
-		JobStatus: job.JobStatus,
-		CreatedAt: job.CreatedAt,
-		Surveys:   make([]domain.JobSurveySummary, 0, len(job.Surveys)),
+		JobID:        job.JobID,
+		JobStatus:    job.JobStatus,
+		CreatedAt:    job.CreatedAt,
+		CancelledAt:  job.CancelledAt,
+		CancelReason: job.CancelReason,
+		Surveys:      make([]domain.JobSurveySummary, 0, len(job.Surveys)),
 	}
 	for _, survey := range job.Surveys {
 		summary.Surveys = append(summary.Surveys, domain.JobSurveySummary{SurveyID: survey.SurveyID, Title: survey.Title})
@@ -298,6 +301,63 @@ func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int
 		return nil, mapJobRepositoryError(err)
 	}
 	return requests, nil
+}
+
+func (r *JobRepository) Cancel(ctx context.Context, creatorID, jobID int32, reason *string, cancelledAt time.Time) (*ports.JobCancellation, error) {
+	var result ports.JobCancellation
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The job lock serializes cancellation with offer submission and
+		// acceptance, which lock the same row before changing offers.
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
+			return err
+		}
+		var paid int64
+		if err := tx.Model(&domain.Payment{}).
+			Where("job_id = ? AND payment_status = ?", jobID, domain.PaymentStatusPaid).
+			Count(&paid).Error; err != nil {
+			return err
+		}
+		if err := job.Cancel(paid > 0, reason, cancelledAt); err != nil {
+			return err
+		}
+
+		var closed []int32
+		if err := tx.Raw(`
+UPDATE job_requests SET request_status = ?
+WHERE job_id = ? AND request_status IN ?
+RETURNING job_request_id`, domain.JobRequestStatusClosed, jobID,
+			[]domain.JobRequestStatus{domain.JobRequestStatusPending, domain.JobRequestStatusAccepted}).
+			Scan(&closed).Error; err != nil {
+			return err
+		}
+		var rejected []int32
+		if err := tx.Raw(`
+UPDATE offers SET offer_status = ?
+WHERE job_id = ? AND offer_status = ?
+RETURNING offer_id`, domain.OfferStatusRejected, jobID, domain.OfferStatusPending).
+			Scan(&rejected).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&domain.Job{}).Where("job_id = ?", jobID).
+			Updates(map[string]any{"job_status": job.JobStatus, "cancelled_at": job.CancelledAt, "cancel_reason": job.CancelReason}).Error; err != nil {
+			return err
+		}
+		slices.Sort(closed)
+		slices.Sort(rejected)
+		if closed == nil {
+			closed = []int32{}
+		}
+		if rejected == nil {
+			rejected = []int32{}
+		}
+		result = ports.JobCancellation{Job: *job, ClosedJobRequestIDs: closed, RejectedOfferIDs: rejected}
+		return nil
+	})
+	if err != nil {
+		return nil, mapJobRepositoryError(err)
+	}
+	return &result, nil
 }
 
 func surveysForCreator(tx *gorm.DB, creatorID int32, surveyIDs []int32) ([]domain.Survey, error) {

@@ -201,6 +201,33 @@ func (s *JobService) CreateRequests(ctx context.Context, actor Actor, jobID int3
 	return s.repo.CreateRequests(ctx, actor.UserID, jobID, input.MarketerIDs, time.Now().UTC())
 }
 
+type CancelJobInput struct {
+	Reason *string
+}
+
+// Cancel cancels a Pending job the Creator owns. The job becomes Cancelled
+// with the server's time and the optional trimmed reason, its active job
+// requests are Closed, and its Pending offers are Rejected, all atomically.
+func (s *JobService) Cancel(ctx context.Context, actor Actor, jobID int32, input CancelJobInput) (*ports.JobCancellation, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	var reason *string
+	if input.Reason != nil {
+		trimmed := strings.TrimSpace(*input.Reason)
+		if utf8.RuneCountInString(trimmed) > domain.MaxJobCancelReasonLength {
+			return nil, domain.ErrInvalidCancelReason
+		}
+		if trimmed != "" {
+			reason = &trimmed
+		}
+	}
+	return s.repo.Cancel(ctx, actor.UserID, jobID, reason, time.Now().UTC())
+}
+
 func (s *JobService) requireCreator(ctx context.Context, actor Actor) error {
 	if actor.UserID < 1 {
 		return domain.ErrCreatorRequired

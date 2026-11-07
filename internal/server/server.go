@@ -138,6 +138,7 @@ func New(deps Dependencies) *fiber.App {
 	api.Post("/jobs/:id/briefs", protectedUsers, jobHandler.AddBrief)
 	api.Get("/jobs/:id/briefs", protectedUsers, jobHandler.ListBriefs)
 	api.Post("/jobs/:id/requests", protectedUsers, jobHandler.CreateRequests)
+	api.Post("/jobs/:id/cancel", protectedUsers, jobHandler.Cancel)
 	api.Get("/jobs/:id/requests", protectedUsers, jobHandler.ListJobRequests)
 	marketerJobRequestRepo := postgres.NewMarketerJobRequestRepository(deps.DB)
 	marketerJobRequestService := services.NewMarketerJobRequestService(marketerJobRequestRepo, memberships)
