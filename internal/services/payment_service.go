@@ -22,16 +22,35 @@ func NewPaymentService(repo ports.PaymentRepository, memberships ports.Membershi
 	return &PaymentService{repo: repo, memberships: memberships}
 }
 
-func (s *PaymentService) Create(ctx context.Context, actor Actor, jobID int32, input CreatePaymentInput) (*domain.Payment, error) {
+func (s *PaymentService) requireCreator(ctx context.Context, actor Actor) error {
 	if actor.UserID < 1 {
-		return nil, domain.ErrCreatorRequired
+		return domain.ErrCreatorRequired
 	}
 	creator, err := s.memberships.IsCreator(ctx, actor.UserID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !creator {
-		return nil, domain.ErrCreatorRequired
+		return domain.ErrCreatorRequired
+	}
+	return nil
+}
+
+// Current returns the active (Pending or Paid) payment on a Job the Creator
+// owns, or nil when the Job has none yet.
+func (s *PaymentService) Current(ctx context.Context, actor Actor, jobID int32) (*domain.Payment, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	return s.repo.FindActiveForCreatorJob(ctx, actor.UserID, jobID)
+}
+
+func (s *PaymentService) Create(ctx context.Context, actor Actor, jobID int32, input CreatePaymentInput) (*domain.Payment, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
 	}
 	if jobID < 1 {
 		return nil, domain.ErrInvalidJob

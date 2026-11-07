@@ -13,6 +13,7 @@ import (
 
 type paymentService interface {
 	Create(context.Context, services.Actor, int32, services.CreatePaymentInput) (*domain.Payment, error)
+	Current(context.Context, services.Actor, int32) (*domain.Payment, error)
 }
 
 type PaymentHandler struct{ service paymentService }
@@ -53,7 +54,38 @@ func (h *PaymentHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return mapPaymentError(err)
 	}
-	return response.Success(c, fiber.StatusCreated, PaymentResponse{PaymentID: p.PaymentID, JobID: p.JobID, Method: p.Method, Amount: p.Amount.StringFixed(2), PaymentStatus: p.PaymentStatus, CreatedAt: p.CreatedAt, PaidAt: p.PaidAt})
+	return response.Success(c, fiber.StatusCreated, toPaymentResponse(*p))
+}
+
+// CurrentPaymentResponse wraps the Job's active payment; Payment is null when
+// the Job has no Pending or Paid payment yet.
+type CurrentPaymentResponse struct {
+	Payment *PaymentResponse `json:"payment"`
+}
+
+func (h *PaymentHandler) Current(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	p, err := h.service.Current(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapPaymentError(err)
+	}
+	var current CurrentPaymentResponse
+	if p != nil {
+		res := toPaymentResponse(*p)
+		current.Payment = &res
+	}
+	return response.Success(c, fiber.StatusOK, current)
+}
+
+func toPaymentResponse(p domain.Payment) PaymentResponse {
+	return PaymentResponse{PaymentID: p.PaymentID, JobID: p.JobID, Method: p.Method, Amount: p.Amount.StringFixed(2), PaymentStatus: p.PaymentStatus, CreatedAt: p.CreatedAt, PaidAt: p.PaidAt}
 }
 
 func mapPaymentError(err error) error {

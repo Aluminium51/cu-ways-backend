@@ -281,6 +281,8 @@ The Job must be `Accepted`, `In Progress`, or `Completed` with a valid accepted 
 
 When the Creator confirms the record, success returns `201` with `payment_id`, `job_id`, `method`, `amount` formatted to two decimal places, `payment_status: Paid`, and server-assigned UTC `created_at` and `paid_at`. Both timestamps use the same instant. Status and timestamps cannot be supplied by the client. An existing `Pending` or `Paid` payment returns `409 payment_already_exists`; `Failed` and `Refunded` records remain as history and permit another attempt. Other state conflicts return `409 job_not_payable` or `409 accepted_offer_required`.
 
+`GET /api/v1/jobs/:id/payments/current` has the same JWT, Creator membership, and ownership checks. It returns `{"payment": ...}` with the Job's active `Pending` or `Paid` payment, in the same fields as creation, or `{"payment": null}` when there is none. `Failed` and `Refunded` history is not returned. Use it to show an existing record after a reload, or to check whether a payment request with an unknown result was saved; `created_at` and `paid_at` can be `null` on legacy or `Pending` rows, and `method` can be the legacy `Other`.
+
 Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. `Paid` records the Creator's confirmation; no payment gateway processes money, and the Job status does not change. Statistics that count `Paid` payments include these confirmations. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
 
 ## Proof of Delivery

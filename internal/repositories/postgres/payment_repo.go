@@ -48,3 +48,22 @@ func (r *PaymentRepository) CreateForCreatorJob(ctx context.Context, creatorID, 
 	}
 	return payment, nil
 }
+
+// FindActiveForCreatorJob returns the owned Job's Pending or Paid payment, the
+// same set that blocks a new payment. Creation allows only one, so the newest
+// is returned if legacy data holds more. Failed and Refunded history is ignored.
+func (r *PaymentRepository) FindActiveForCreatorJob(ctx context.Context, creatorID, jobID int32) (*domain.Payment, error) {
+	db := r.db.WithContext(ctx)
+	if _, err := findOwnedJob(db, creatorID, jobID); err != nil {
+		return nil, err
+	}
+	var payments []domain.Payment
+	if err := db.Where("job_id = ? AND payment_status IN ?", jobID, []domain.PaymentStatus{domain.PaymentStatusPending, domain.PaymentStatusPaid}).
+		Order("payment_id DESC").Limit(1).Find(&payments).Error; err != nil {
+		return nil, err
+	}
+	if len(payments) == 0 {
+		return nil, nil
+	}
+	return &payments[0], nil
+}
