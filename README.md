@@ -283,6 +283,18 @@ When the Creator confirms the record, success returns `201` with `payment_id`, `
 
 Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. `Paid` records the Creator's confirmation; no payment gateway processes money, and the Job status does not change. Statistics that count `Paid` payments include these confirmations. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
 
+## Proof of Delivery
+
+`POST /api/v1/jobs/:id/proofs` lets the Marketer whose offer was accepted save a delivery link while the Job is `In Progress`:
+
+```json
+{ "url": "https://forms.gle/abc123", "attachment_type": "Proof" }
+```
+
+`attachment_type` is optional and defaults to `Proof`; any other value returns `422 invalid_attachment_type`, and the database `chk_attachment_type` constraint independently limits stored types to `Brief`, `Proof` or `Other`. The URL is trimmed and must be an absolute HTTP or HTTPS link (`422 invalid_proof_url`). The server sets `upload_at`. A user without a Marketer profile (for example a Creator-only account) gets `403 marketer_required`; a Marketer who is not the one hired through the accepted offer gets `403 forbidden`. If the accepted offer is no longer `Accepted`, the request returns `409 accepted_offer_mismatch`, and a Job in any status other than `In Progress` returns `409 job_not_in_progress`. Saving Proof does not complete the Job.
+
+`GET /api/v1/jobs/:id/proofs` returns the Job's Proof rows newest first to its Creator and to the Marketer hired through a still-`Accepted` offer; anyone else gets `403 forbidden`. The permission rules live in `Job.CanAddProof` and `Job.CanViewProof`.
+
 ## Creator Reviews
 
 For a `Completed` job, its Creator can submit `{"rating": 1}` through `{"rating": 5}` with an optional `comment`. The response contains the stored review and server-generated `created_at`. A second review returns `409 review_already_exists`; a job that is not `Completed` returns `409 job_not_completed`.

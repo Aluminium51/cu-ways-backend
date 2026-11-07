@@ -342,6 +342,20 @@ func lockJob(tx *gorm.DB, jobID int32) (*domain.Job, error) {
 	return &job, nil
 }
 
+// findAcceptedOffer loads the job's accepted offer, or returns nil when the
+// job has not hired anyone. The (job_id, accepted_offer_id) foreign key
+// guarantees the offer exists and belongs to this job.
+func findAcceptedOffer(tx *gorm.DB, job *domain.Job) (*domain.Offer, error) {
+	if job.AcceptedOfferID == nil {
+		return nil, nil
+	}
+	var offer domain.Offer
+	if err := tx.Where("offer_id = ? AND job_id = ?", *job.AcceptedOfferID, job.JobID).First(&offer).Error; err != nil {
+		return nil, err
+	}
+	return &offer, nil
+}
+
 func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
 	job, err := lockJob(tx, jobID)
 	if err != nil {

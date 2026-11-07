@@ -33,11 +33,6 @@ func (f *paymentHTTPRepository) CreateForCreatorJob(_ context.Context, creator, 
 	return p, nil
 }
 
-type paymentHTTPMembership struct{ creator bool }
-
-func (f paymentHTTPMembership) IsCreator(context.Context, int32) (bool, error)  { return f.creator, nil }
-func (f paymentHTTPMembership) IsMarketer(context.Context, int32) (bool, error) { return false, nil }
-
 func paymentHandlerApp(repo *paymentHTTPRepository, authenticated, creator bool) *fiber.App {
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	if authenticated {
@@ -46,7 +41,7 @@ func paymentHandlerApp(repo *paymentHTTPRepository, authenticated, creator bool)
 			return c.Next()
 		})
 	}
-	h := NewPaymentHandler(services.NewPaymentService(repo, paymentHTTPMembership{creator: creator}))
+	h := NewPaymentHandler(services.NewPaymentService(repo, fakeMembership{creator: creator}))
 	app.Post("/jobs/:id/payments", h.Create)
 	return app
 }
