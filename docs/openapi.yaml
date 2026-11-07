@@ -1753,6 +1753,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/reviews/current:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: getCurrentJobReview
+      summary: Read a Job's review
+      description: The caller must have Creator membership and own the Job. Returns the Job's review, or `review` as null when the Job has not been reviewed. A Job has at most one review because reviews.job_id is unique. It works for a Job in any status, so the Creator can see an existing review after a reload instead of the submission form.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The Job's review, or null when there is none.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentReviewResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing Creator membership (creator_required) or the caller does not own the Job (forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job was not found (job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid Job ID (validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/payments:
     parameters:
       - name: id
@@ -3371,6 +3418,45 @@ components:
               type: string
               format: date-time
               description: Server-generated UTC time of the Creator's confirmation.
+    CurrentReviewResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [review]
+          properties:
+            review:
+              type: object
+              nullable: true
+              allOf:
+                - $ref: '#/components/schemas/JobReview'
+    JobReview:
+      type: object
+      required: [review_id, job_id, rating, comment, created_at]
+      properties:
+        review_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        rating:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 5
+          description: 1-5 stars. 0 can appear only on legacy reviews created before the 1-5 rule.
+        comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          description: Server-assigned UTC submission time.
     ReviewResponse:
       type: object
       required: [status, data]

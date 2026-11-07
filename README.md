@@ -259,6 +259,7 @@ Creator job setup endpoints require a JWT and active Creator membership. A job m
 | `POST` | `/api/v1/jobs/:id/offers/:offerId/accept` | Accept one `Pending` offer and hire its Marketer |
 | `POST` | `/api/v1/jobs/:id/cancel` | Cancel a `Pending` job, with an optional reason |
 | `POST` | `/api/v1/jobs/:id/reviews` | Submit one 1–5 star review with optional comment after completion |
+| `GET` | `/api/v1/jobs/:id/reviews/current` | Read the job's review, or `{"review": null}` when it has none |
 
 All job read routes require a JWT and active Creator membership. The job list is scoped to the authenticated Creator. Per-job reads check ownership and return the existing forbidden/not-found errors. Job summaries include only the job ID, status, creation time, cancellation time and reason (both `null` unless cancelled), and linked survey IDs/titles. Jobs sort newest first by creation time and ID; surveys sort by ID. Invitation history includes every status, sorted newest first by creation time and request ID, and returns marketer names without email, phone, or profile fields. Empty job and request lists return `data: []`.
 

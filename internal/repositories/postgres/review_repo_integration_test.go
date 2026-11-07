@@ -63,3 +63,34 @@ func TestReviewRepositoryRejectsForeignMissingAndIncompleteJobs(t *testing.T) {
 		})
 	}
 }
+
+func TestReviewRepositoryFindsReviewForOwnedJob(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	ownerID := createIntegrationCreator(t, db, "review-current")
+	otherID := createIntegrationCreator(t, db, "review-current-other")
+	marketerID := createIntegrationMarketer(t, db, "review-current")
+	jobID := createStatisticsJob(t, db, ownerID, marketerID, domain.JobStatusCompleted)
+	repo := NewReviewRepository(db)
+	ctx := context.Background()
+
+	if review, err := repo.FindForCreatorJob(ctx, ownerID, jobID); err != nil || review != nil {
+		t.Fatalf("unreviewed job: %+v, %v", review, err)
+	}
+	comment := "Line one\nLine two"
+	createdAt := time.Date(2026, 10, 29, 4, 5, 6, 0, time.UTC)
+	created, err := repo.CreateForCreatorJob(ctx, ownerID, jobID, &domain.Review{Rating: 4, Comment: &comment, CreatedAt: createdAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := repo.FindForCreatorJob(ctx, ownerID, jobID)
+	if err != nil || review == nil || review.ReviewID != created.ReviewID || review.Rating != 4 || review.Comment == nil || *review.Comment != comment || !review.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected review %d, got %+v, %v", created.ReviewID, review, err)
+	}
+
+	if _, err := repo.FindForCreatorJob(ctx, otherID, jobID); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("foreign creator: %v", err)
+	}
+	if _, err := repo.FindForCreatorJob(ctx, ownerID, jobID+100000); !errors.Is(err, domain.ErrJobNotFound) {
+		t.Fatalf("missing job: %v", err)
+	}
+}
