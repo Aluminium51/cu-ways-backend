@@ -1809,6 +1809,27 @@ paths:
           type: integer
           format: int32
           minimum: 1
+    get:
+      operationId: getJobPayment
+      summary: Read the payment for the owning Creator or hired Marketer
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Saved job data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSettlementEnvelope'
+        '401':
+          description: Authentication required.
+        '403':
+          description: Access denied.
+        '404':
+          description: Job not found.
+        '409':
+          description: Job has no accepted offer.
     post:
       operationId: createJobPayment
       summary: Record a Creator-confirmed payment for a Job
@@ -1906,11 +1927,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/complete:
+    post:
+      operationId: completeJob
+      summary: Complete a paid job with proof as its owning Creator
+      description: Sets the completion time and records simulated payout release. Repeating completion returns the saved state.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Completed job and payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSettlementEnvelope'
+        '401':
+          description: Authentication required.
+        '403':
+          description: Access denied.
+        '404':
+          description: Job not found.
+        '409':
+          description: Job, accepted offer, Paid payment, or proof does not meet completion requirements.
   /api/v1/me/transactions:
     get:
       operationId: listMyTransactions
       summary: List my transaction history
-      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by the newest payment first, then by job_id descending. paid_at is the time the payment was recorded, because jobs do not store a separate completion time. payout_status is derived rather than stored. Every listed job is Completed with a Paid payment (the Creator's confirmation of payment), so it is always Released, which means the simulated payout was recorded when the job completed. It does not confirm that the Marketer received money, and no money moves through a payment gateway.
+      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by newest completion first, with unknown completion dates last, then by job_id descending. paid_at records the payment time. has_review is supplied only on the Creator side. payout_status is derived rather than stored. Every listed job is Completed with a Paid payment (the Creator's confirmation of payment), so it is always Released, which means the simulated payout was recorded when the job completed. It does not confirm that the Marketer received money, and no money moves through a payment gateway.
       tags: [Jobs]
       security:
         - bearerAuth: []
@@ -2639,7 +2691,7 @@ components:
           type: string
     Transaction:
       type: object
-      required: [job_id, job_title, creator, marketer, accepted_price, payment_method, paid_at, payout_status]
+      required: [job_id, job_title, creator, marketer, accepted_price, payment_method, paid_at, payout_status, completed_at]
       properties:
         job_id:
           type: integer
@@ -2664,6 +2716,14 @@ components:
           format: date-time
           nullable: true
           description: When the Paid payment was recorded. Legacy payments may have no value.
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Server-recorded completion time. Unknown for historical jobs.
+        has_review:
+          type: boolean
+          description: Present only for the owning Creator outside the Marketer history.
         payout_status:
           type: string
           enum: [Released]
@@ -3485,6 +3545,75 @@ components:
             created_at:
               type: string
               format: date-time
+    JobPayment:
+      type: object
+      required: [payment_id, job_id, method, amount, payment_status, created_at, paid_at]
+      properties:
+        payment_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        method:
+          type: string
+          enum: [PromptPay, Bank Transfer, Credit Card, Other]
+        amount:
+          type: string
+          description: Amount formatted with exactly two decimal places.
+          example: '1500.00'
+        payment_status:
+          type: string
+          enum: [Paid]
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Creation time assigned by the server in UTC.
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Server-generated UTC time of the Creator's confirmation.
+    JobSettlement:
+      type: object
+      required: [job_id, job_title, job_status, creator, marketer, accepted_price, payment, payout_status, completed_at]
+      properties:
+        job_id:
+          type: integer
+          format: int32
+        job_title:
+          type: string
+        job_status:
+          type: string
+          enum: [Pending, Accepted, In Progress, Completed, Cancelled]
+        creator:
+          $ref: '#/components/schemas/TransactionParty'
+        marketer:
+          $ref: '#/components/schemas/TransactionParty'
+        accepted_price:
+          type: string
+        payment:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/JobPayment'
+        payout_status:
+          type: string
+          nullable: true
+          enum: [Held, Released, null]
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+    JobSettlementEnvelope:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/JobSettlement'
     MarketerRating:
       type: object
       required: [average_rating, review_count, completed_jobs, is_rated]

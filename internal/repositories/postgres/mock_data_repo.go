@@ -179,7 +179,7 @@ INSERT INTO attachments (job_id, attachment_type, url, upload_at)
 VALUES (?, 'Proof', ?, ?)`, jobID, fmt.Sprintf("https://example.invalid/mock-proof/%d", jobID), seed.CreatedAt).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec(`UPDATE jobs SET accepted_offer_id = ?, job_status = 'Completed' WHERE job_id = ?`, offerID, jobID).Error; err != nil {
+		if err := tx.Exec(`UPDATE jobs SET accepted_offer_id = ?, job_status = 'Completed', completed_at = ? WHERE job_id = ?`, offerID, seed.CreatedAt, jobID).Error; err != nil {
 			return err
 		}
 	}

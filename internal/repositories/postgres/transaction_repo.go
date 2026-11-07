@@ -71,6 +71,7 @@ func (r *TransactionRepository) List(ctx context.Context, query ports.Transactio
 		return page, nil
 	}
 
+	includeReview := query.Role != domain.TransactionRoleMarketer
 	err := r.transactionBase(ctx, query).
 		Select(`j.job_id AS job_id,
 COALESCE(j.title, '') AS job_title,
@@ -80,8 +81,11 @@ o.user_id AS marketer_id,
 mu.name AS marketer_name,
 o.offered_price AS accepted_price,
 pay.method AS payment_method,
-pay.paid_at AS paid_at`).
-		Order("pay.paid_at DESC NULLS LAST, j.job_id DESC").
+pay.paid_at AS paid_at,
+j.completed_at,
+CASE WHEN ? AND j.user_id = ?
+THEN EXISTS (SELECT 1 FROM reviews AS r WHERE r.job_id = j.job_id) END AS has_review`, includeReview, query.UserID).
+		Order("j.completed_at DESC NULLS LAST, j.job_id DESC").
 		Limit(query.PageSize).
 		Offset((query.Page - 1) * query.PageSize).
 		Scan(&page.Items).Error
