@@ -43,3 +43,20 @@ func (r *ReviewRepository) CreateForCreatorJob(ctx context.Context, creatorID, j
 	}
 	return review, nil
 }
+
+// FindForCreatorJob returns the owned Job's review, or nil when it has none.
+// It reads only, so it works for a Job in any status.
+func (r *ReviewRepository) FindForCreatorJob(ctx context.Context, creatorID, jobID int32) (*domain.Review, error) {
+	db := r.db.WithContext(ctx)
+	if _, err := findOwnedJob(db, creatorID, jobID); err != nil {
+		return nil, err
+	}
+	var reviews []domain.Review
+	if err := db.Where("job_id = ?", jobID).Limit(1).Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+	if len(reviews) == 0 {
+		return nil, nil
+	}
+	return &reviews[0], nil
+}
