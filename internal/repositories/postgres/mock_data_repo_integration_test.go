@@ -36,6 +36,15 @@ func TestMockDataRepositoryIsIdempotent(t *testing.T) {
 	if err := db.Table("jobs AS job").Joins("JOIN users ON users.user_id = job.user_id").Where("users.email LIKE ?", "mock.creator-only.%@example.test").Count(&jobs).Error; err != nil {
 		t.Fatal(err)
 	}
+	var jobsWithCompletionTime int64
+	if err := db.Table("jobs AS job").Joins("JOIN users ON users.user_id = job.user_id").
+		Where("users.email LIKE ? AND job.job_status = 'Completed' AND job.completed_at IS NOT NULL", "mock.creator-only.%@example.test").
+		Count(&jobsWithCompletionTime).Error; err != nil {
+		t.Fatal(err)
+	}
+	if jobsWithCompletionTime != int64(len(seed.Jobs)) {
+		t.Fatalf("expected %d mock jobs with a completion time, got %d", len(seed.Jobs), jobsWithCompletionTime)
+	}
 	if err := db.Table("reviews AS review").Joins("JOIN jobs AS job ON job.job_id = review.job_id").Joins("JOIN users ON users.user_id = job.user_id").Where("users.email LIKE ?", "mock.creator-only.%@example.test").Count(&reviews).Error; err != nil {
 		t.Fatal(err)
 	}

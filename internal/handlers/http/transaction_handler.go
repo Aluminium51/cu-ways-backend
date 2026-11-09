@@ -36,6 +36,8 @@ type TransactionItem struct {
 	AcceptedPrice string               `json:"accepted_price"`
 	PaymentMethod domain.PaymentMethod `json:"payment_method"`
 	PaidAt        *time.Time           `json:"paid_at"`
+	CompletedAt   *time.Time           `json:"completed_at"`
+	HasReview     *bool                `json:"has_review,omitempty"`
 	PayoutStatus  string               `json:"payout_status"`
 }
 
@@ -77,6 +79,8 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 			AcceptedPrice: t.AcceptedPrice.StringFixed(2),
 			PaymentMethod: t.PaymentMethod,
 			PaidAt:        t.PaidAt,
+			CompletedAt:   t.CompletedAt,
+			HasReview:     t.HasReview,
 			PayoutStatus:  t.PayoutStatus,
 		})
 	}

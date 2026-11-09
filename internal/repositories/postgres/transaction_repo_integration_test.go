@@ -136,18 +136,23 @@ func TestTransactionRepositoryOrdersAndPaginatesWithTotals(t *testing.T) {
 	marketer := createIntegrationMarketerNamed(t, db, "Paging Marketer", "tx-paging")
 	base := time.Now().UTC().Truncate(time.Second)
 
-	oldest := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "oldest", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base.Add(-48*time.Hour))
+	legacy := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "legacy", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base.Add(48*time.Hour))
 	tieFirst := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "tie a", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base)
 	tieSecond := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "tie b", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base)
-	newest := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "newest", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base.Add(time.Hour))
+	newest := createTransactionJob(t, db, creator, marketer, domain.JobStatusCompleted, "newest", domain.PaymentStatusPaid, domain.PaymentMethodPromptPay, base.Add(-time.Hour))
+	for jobID, completedAt := range map[int32]time.Time{tieFirst: base, tieSecond: base, newest: base.Add(time.Hour)} {
+		if err := db.Exec("UPDATE jobs SET completed_at = ? WHERE job_id = ?", completedAt, jobID).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
 	// A failed attempt must not duplicate or reorder the job: only the Paid payment counts.
 	if err := db.Exec(`INSERT INTO payments (job_id, amount, method, payment_status, paid_at) VALUES (?, 100.00, ?, ?, ?)`,
-		oldest, domain.PaymentMethodCreditCard, domain.PaymentStatusFailed, base.Add(72*time.Hour)).Error; err != nil {
+		legacy, domain.PaymentMethodCreditCard, domain.PaymentStatusFailed, base.Add(72*time.Hour)).Error; err != nil {
 		t.Fatal(err)
 	}
 
-	// Newest payment first; equal timestamps fall back to the higher job id first.
-	wantOrder := []int32{newest, tieSecond, tieFirst, oldest}
+	// Newest completion first, unknown last, with job ID breaking ties.
+	wantOrder := []int32{newest, tieSecond, tieFirst, legacy}
 	first := listTransactions(t, db, ports.TransactionQuery{UserID: creator, Page: 1, PageSize: 3})
 	second := listTransactions(t, db, ports.TransactionQuery{UserID: creator, Page: 2, PageSize: 3})
 	if first.Total != 4 || second.Total != 4 || first.Page != 1 || second.Page != 2 || first.PageSize != 3 {
