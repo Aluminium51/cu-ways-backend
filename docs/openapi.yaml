@@ -2063,7 +2063,7 @@ paths:
     get:
       operationId: listMyJobRequests
       summary: List job requests sent to the authenticated marketer
-      description: Returns the requests addressed to the caller, newest first, with the job context needed to decide on each one. The job deadline is the earliest linked survey deadline and target_responses sums the linked surveys' desired responses; either is null when no survey sets it. The brief is the newest Brief attachment.
+      description: Returns the requests addressed to the caller, newest first, with the job context needed to decide on each one. The effective deadline is the earliest available date across the saved job deadline and the deadlines of its linked surveys, or null if none is set. The target_responses field sums the linked surveys' desired responses and is null when no survey sets a target. The brief is the newest Brief attachment.
       tags: [Job Requests]
       security:
         - bearerAuth: []
@@ -2249,7 +2249,7 @@ paths:
     post:
       operationId: submitMyJobRequestOffer
       summary: Submit a price offer for an accepted job request
-      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today or after the job deadline (the earliest linked survey deadline), using the Asia/Bangkok calendar.
+      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today in the Asia/Bangkok calendar. When an effective deadline exists, the delivery date cannot be later than the earliest available date across the saved job deadline and the deadlines of its linked surveys.
       tags: [Job Requests]
       security:
         - bearerAuth: []
@@ -3315,6 +3315,7 @@ components:
                   type: string
                   format: date-time
                   nullable: true
+                  description: Earliest available date across the saved job deadline and the deadlines of its linked surveys. Null if no deadline is set.
                 title:
                   type: string
                 description:
