@@ -56,6 +56,8 @@ cd cu-ways-backend
 
 The API runs on `http://localhost:8081` by default.
 
+For the production Railway PostgreSQL/API and Vercel frontend setup, see [docs/deployment.md](docs/deployment.md). The API image includes a separate `/migrate` command; Railway runs it before activating a deployment.
+
 ## Project structure
 
 ```text
@@ -111,9 +113,10 @@ curl.exe -i http://localhost:8081/readyz
 API documentation is available at:
 
 - Interactive Scalar reference: [http://localhost:8081/docs](http://localhost:8081/docs)
+- Interactive Swagger UI: [http://localhost:8081/docs/swagger](http://localhost:8081/docs/swagger)
 - Raw OpenAPI YAML: [http://localhost:8081/docs/openapi.yaml](http://localhost:8081/docs/openapi.yaml)
 
-The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
+Both interfaces load their assets from a CDN and read the same `docs/openapi.yaml` specification. To check the deployed API, open `/docs/swagger` on the backend domain and use **Try it out** on `GET /healthz`. Requests use the same origin as the documentation.
 
 ## Authentication API
 
