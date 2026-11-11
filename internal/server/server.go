@@ -41,7 +41,7 @@ func New(deps Dependencies) *fiber.App {
 	app.Use(requestid.New())
 	app.Use(middleware.RequestLogger(deps.Logger)) // Logger
 
-	// Serve the OpenAPI contract and the Scalar API Reference UI as public
+	// Serve the OpenAPI contract, Scalar, and Swagger UI as public
 	// documentation routes. DocsPath is injectable so tests do not depend on
 	// the package working directory; production defaults to ./docs/openapi.yaml.
 	docsPath := deps.DocsPath
@@ -63,6 +63,30 @@ func New(deps Dependencies) *fiber.App {
   </body>
 </html>`
 		c.Set("Content-Type", "text/html")
+		return c.SendString(html)
+	})
+	app.Get("/docs/swagger", func(c *fiber.Ctx) error {
+		const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Ways API | Swagger UI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.1/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.1/swagger-ui-bundle.js" crossorigin="anonymous"></script>
+    <script>
+      SwaggerUIBundle({
+        url: "/docs/openapi.yaml",
+        dom_id: "#swagger-ui",
+        validatorUrl: null
+      });
+    </script>
+  </body>
+</html>`
+		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.SendString(html)
 	})
 

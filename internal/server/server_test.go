@@ -79,6 +79,7 @@ func TestNewServesOpenAPISpec(t *testing.T) {
 	}
 
 	for _, expected := range []string{
+		"servers:\n  - url: /\n",
 		"  /api/v1/users:\n    get:\n      operationId: listUsers",
 		"  /api/v1/auth/register:\n    post:\n      operationId: register",
 		"  /api/v1/users/{id}:\n    parameters:",
@@ -143,6 +144,28 @@ func TestNewServesScalarReference(t *testing.T) {
 	} {
 		if !strings.Contains(html, expected) {
 			t.Errorf("expected Scalar HTML to contain %q", expected)
+		}
+	}
+}
+
+func TestNewServesSwaggerUI(t *testing.T) {
+	app := newTestApp(t)
+	res, err := app.Test(httptest.NewRequest("GET", "/docs/swagger", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+
+	if res.StatusCode != fiber.StatusOK || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("expected a successful HTML response, got %d %q", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{`SwaggerUIBundle({`, `url: "/docs/openapi.yaml"`} {
+		if !strings.Contains(string(body), expected) {
+			t.Errorf("expected Swagger UI to contain %q", expected)
 		}
 	}
 }

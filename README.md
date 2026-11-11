@@ -113,9 +113,10 @@ curl.exe -i http://localhost:8081/readyz
 API documentation is available at:
 
 - Interactive Scalar reference: [http://localhost:8081/docs](http://localhost:8081/docs)
+- Interactive Swagger UI: [http://localhost:8081/docs/swagger](http://localhost:8081/docs/swagger)
 - Raw OpenAPI YAML: [http://localhost:8081/docs/openapi.yaml](http://localhost:8081/docs/openapi.yaml)
 
-The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
+Both interfaces load their assets from a CDN and read the same `docs/openapi.yaml` specification. To check the deployed API, open `/docs/swagger` on the backend domain and use **Try it out** on `GET /healthz`. Requests use the same origin as the documentation.
 
 ## Authentication API
 

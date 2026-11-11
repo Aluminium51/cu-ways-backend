@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: CU Ways backend API for authentication, users, marketer profiles and search, services, survey metadata, and Creator job setup.
 servers:
-  - url: http://localhost:8081
+  - url: /
 tags:
   - name: Authentication
     description: Public account registration and login.
