@@ -118,6 +118,26 @@ API documentation is available at:
 
 Both interfaces load their assets from a CDN and read the same `docs/openapi.yaml` specification. To check the deployed API, open `/docs/swagger` on the backend domain and use **Try it out** on `GET /healthz`. Requests use the same origin as the documentation.
 
+### Try the job workflow in Swagger UI
+
+Use a local or staging backend with a test database. In Swagger UI, use the **Creator** and **Marketer** registration examples and replace each sample email and phone with unused test values. Use **Authorize** to set the caller's access token for each step.
+
+| Caller | Steps |
+| --- | --- |
+| Creator | Create a survey, then create a job using its `survey_id` in `survey_ids`. Add the brief and invite the Marketer using their `user.user_id` in `marketer_ids`. |
+| Marketer | Accept the invitation using the returned `job_request_id`, then submit the offer. The example uses `"1500.00"` and a date for the example job with no deadline. For a job with a deadline, pick a delivery date within its allowed range. |
+| Creator | Accept the offer using `job_id` and `offer_id`. |
+| Marketer | Start the job and submit the Proof URL. |
+| Creator | Record payment with the exact offered price, complete the job, and submit a review. Verify the saved review and the completed job in `GET /api/v1/me/transactions?role=creator`. |
+
+The invitation acceptance, offer acceptance, start and completion requests take no body. IDs in Swagger examples are placeholders. The payment records a confirmation without moving funds.
+
+To run the same examples automatically through the backend and PostgreSQL, set `TEST_DATABASE_URL` to a disposable loopback database with a name ending in `_test`. Use a database account that can create schemas. The test applies migrations to a temporary schema and removes it on exit.
+
+```powershell
+go test -count=1 -run '^TestSwaggerWorkflow$' -v ./internal/server
+```
+
 ## Authentication API
 
 Register and login are public endpoints:
