@@ -24,11 +24,12 @@ func NewMarketerReviewHandler(service marketerReviewService) *MarketerReviewHand
 }
 
 type MarketerReviewItem struct {
-	ReviewID  int32     `json:"review_id"`
-	JobID     int32     `json:"job_id"`
-	Rating    int32     `json:"rating"`
-	Comment   *string   `json:"comment"`
-	CreatedAt time.Time `json:"created_at"`
+	ReviewID     int32     `json:"review_id"`
+	JobID        int32     `json:"job_id"`
+	ReviewerName string    `json:"reviewer_name"`
+	Rating       int32     `json:"rating"`
+	Comment      *string   `json:"comment"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // MarketerReviewsResponse carries one page of verified reviews. AverageRating is
@@ -65,11 +66,12 @@ func (h *MarketerReviewHandler) List(c *fiber.Ctx) error {
 	items := make([]MarketerReviewItem, 0, len(result.Items))
 	for _, review := range result.Items {
 		items = append(items, MarketerReviewItem{
-			ReviewID:  review.ReviewID,
-			JobID:     review.JobID,
-			Rating:    review.Rating,
-			Comment:   review.Comment,
-			CreatedAt: review.CreatedAt,
+			ReviewID:     review.ReviewID,
+			JobID:        review.JobID,
+			ReviewerName: review.ReviewerName,
+			Rating:       review.Rating,
+			Comment:      review.Comment,
+			CreatedAt:    review.CreatedAt,
 		})
 	}
 	return response.Success(c, fiber.StatusOK, MarketerReviewsResponse{

@@ -162,9 +162,8 @@ func (s *JobService) AddBrief(ctx context.Context, actor Actor, jobID int32, raw
 	if jobID < 1 {
 		return nil, domain.ErrInvalidJob
 	}
-	briefURL := strings.TrimSpace(rawURL)
-	parsed, err := url.ParseRequestURI(briefURL)
-	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	briefURL, ok := validAttachmentURL(rawURL)
+	if !ok {
 		return nil, domain.ErrInvalidBriefURL
 	}
 	attachment := &domain.Attachment{
@@ -176,6 +175,17 @@ func (s *JobService) AddBrief(ctx context.Context, actor Actor, jobID int32, raw
 		return nil, err
 	}
 	return attachment, nil
+}
+
+// validAttachmentURL trims rawURL and reports whether it is an absolute
+// http(s) link with a host, the rule shared by Brief and Proof attachments.
+func validAttachmentURL(rawURL string) (string, bool) {
+	trimmed := strings.TrimSpace(rawURL)
+	parsed, err := url.ParseRequestURI(trimmed)
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", false
+	}
+	return trimmed, true
 }
 
 func (s *JobService) ListBriefs(ctx context.Context, actor Actor, jobID int32) ([]domain.Attachment, error) {
@@ -199,6 +209,33 @@ func (s *JobService) CreateRequests(ctx context.Context, actor Actor, jobID int3
 		return nil, domain.ErrInvalidJobRequest
 	}
 	return s.repo.CreateRequests(ctx, actor.UserID, jobID, input.MarketerIDs, time.Now().UTC())
+}
+
+type CancelJobInput struct {
+	Reason *string
+}
+
+// Cancel cancels a Pending job the Creator owns. The job becomes Cancelled
+// with the server's time and the optional trimmed reason, its active job
+// requests are Closed, and its Pending offers are Rejected, all atomically.
+func (s *JobService) Cancel(ctx context.Context, actor Actor, jobID int32, input CancelJobInput) (*ports.JobCancellation, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	var reason *string
+	if input.Reason != nil {
+		trimmed := strings.TrimSpace(*input.Reason)
+		if utf8.RuneCountInString(trimmed) > domain.MaxJobCancelReasonLength {
+			return nil, domain.ErrInvalidCancelReason
+		}
+		if trimmed != "" {
+			reason = &trimmed
+		}
+	}
+	return s.repo.Cancel(ctx, actor.UserID, jobID, reason, time.Now().UTC())
 }
 
 func (s *JobService) requireCreator(ctx context.Context, actor Actor) error {

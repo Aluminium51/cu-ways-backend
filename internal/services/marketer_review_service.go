@@ -13,9 +13,8 @@ const (
 	MaxMarketerReviewPageSize     = 50
 )
 
-// MarketerReviewService serves the verified reviews shown on a marketer's
-// public profile. It reuses the same Creator-or-admin visibility as the
-// marketer detail view and confirms the marketer exists before listing.
+// MarketerReviewService serves verified profile reviews to the profile owner,
+// Creators, and admins. It confirms the marketer exists before listing.
 type MarketerReviewService struct {
 	reviews     ports.ReviewRepository
 	profiles    ports.MarketerProfileRepository
@@ -27,13 +26,12 @@ func NewMarketerReviewService(reviews ports.ReviewRepository, profiles ports.Mar
 }
 
 // List returns one page of the marketer's verified reviews with the average
-// rating over every qualifying review. The marketer is identified by the path
-// id; the caller must be a Creator (or admin) just like the profile detail.
+// rating over every qualifying review for the requested marketer.
 func (s *MarketerReviewService) List(ctx context.Context, actor Actor, marketerID int32, page, pageSize int) (ports.MarketerReviewPage, error) {
 	if actor.UserID < 1 || marketerID < 1 {
 		return ports.MarketerReviewPage{}, domain.ErrMarketerProfileNotFound
 	}
-	if !actor.IsAdmin {
+	if !actor.IsAdmin && actor.UserID != marketerID {
 		isCreator, err := s.memberships.IsCreator(ctx, actor.UserID)
 		if err != nil {
 			return ports.MarketerReviewPage{}, err

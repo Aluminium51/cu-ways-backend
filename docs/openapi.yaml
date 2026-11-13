@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: CU Ways backend API for authentication, users, marketer profiles and search, services, survey metadata, and Creator job setup.
 servers:
-  - url: http://localhost:8081
+  - url: /
 tags:
   - name: Authentication
     description: Public account registration and login.
@@ -15,7 +15,7 @@ tags:
   - name: Surveys
     description: Survey metadata management.
   - name: Jobs
-    description: Creator job setup, survey links, briefs, marketer invitations, offer comparison, and offer acceptance.
+    description: Creator job setup, survey links, briefs, proof of delivery, marketer invitations, offer comparison, and offer acceptance.
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
@@ -72,12 +72,28 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
-            example:
-              name: Jane Doe
-              email: jane@example.com
-              password: correct horse battery staple
-              phone: null
-              line_id: jane.line
+            examples:
+              creator:
+                summary: Register a Creator
+                description: Replace the sample email and phone with unused test values.
+                value:
+                  name: Demo Creator
+                  email: demo.creator@example.test
+                  password: demo-creator-password
+                  phone: '0812345678'
+                  line_id: demo.creator
+              marketer:
+                summary: Register a Marketer
+                description: Replace the sample email and phone with unused test values.
+                value:
+                  name: Demo Marketer
+                  email: demo.marketer@example.test
+                  password: demo-marketer-password
+                  phone: '0898765432'
+                  marketer_profile:
+                    bio: Survey recruitment and outreach
+                    experience_years: 2
+                    availability_text: Weekdays
       responses:
         '201':
           description: Account created and access token issued.
@@ -116,8 +132,8 @@ paths:
             schema:
               $ref: '#/components/schemas/LoginRequest'
             example:
-              email: jane@example.com
-              password: correct horse battery staple
+              email: demo.creator@example.test
+              password: demo-creator-password
       responses:
         '200':
           description: Login succeeded and an access token was issued.
@@ -751,15 +767,12 @@ paths:
       operationId: listMarketerReviews
       summary: List a marketer's verified reviews
       description: >-
-        Returns the verified reviews shown on a marketer's public profile:
-        reviews tied to Completed Jobs in which that marketer held the accepted
-        Offer, with a rating from 1 to 5. Results are newest first and paginated.
-        average_rating is the mean over every qualifying review and review_count
-        is their total; both describe the whole set, not just the current page.
-        When the marketer has no qualifying review, items is empty, review_count
-        is 0, and average_rating is null so the profile shows a no-rating empty
-        state rather than a fabricated 0.00. The same Creator-or-administrator
-        access as the marketer detail applies.
+        Lists reviews for Completed Jobs in which the marketer held the accepted
+        Offer. Reviews have a rating from 1 to 5 and include the job owner's
+        name. Results are newest first and paginated. average_rating and
+        review_count cover all qualifying reviews. When no reviews qualify,
+        items is empty, review_count is 0, and average_rating is null.
+        The profile owner, Creators, and administrators can access this endpoint.
       tags: [Marketers]
       security:
         - bearerAuth: []
@@ -804,7 +817,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: A creator profile or administrator role is required.
+          description: The caller lacks Creator membership and administrator access and does not own this marketer profile.
           content:
             application/json:
               schema:
@@ -835,6 +848,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateSurveyRequest'
+            example:
+              title: Campus mobility survey
+              survey_link: https://example.test/campus-mobility
+              description: Collect student feedback about campus transportation.
+              target_group: University students
+              desired_responses: 50
       responses:
         '201':
           description: Survey created.
@@ -1016,6 +1035,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateJobRequest'
+            example:
+              title: Recruit respondents for the campus mobility survey
+              description: Reach 50 university students.
+              budget: '2000.00'
+              survey_ids: [1]
       responses:
         '201':
           description: Job and survey links created.
@@ -1294,6 +1318,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateBriefRequest'
+            example:
+              url: https://example.test/campus-mobility/brief
       responses:
         '201':
           description: Brief saved.
@@ -1325,6 +1351,105 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/proofs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: listJobProofs
+      summary: List Proof of delivery links for a job
+      description: Returns only attachment_type Proof rows, newest first (upload_at, then attachment_id). Readable by the job's Creator and by the Marketer whose offer was accepted.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Proof attachments. An empty list is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofListResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden - the caller is neither the job's Creator nor the Marketer hired through a still-Accepted offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: job_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: validation_error - the job id is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: addJobProof
+      summary: Submit a delivery link as Proof (US-026)
+      description: The Marketer whose offer was accepted adds a trimmed HTTP or HTTPS URL as an attachment_type Proof row while the job is In Progress. The server sets upload_at. Saving Proof never completes the job. Earlier proofs remain.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProofRequest'
+            example:
+              url: https://example.test/campus-mobility/delivery
+      responses:
+        '201':
+          description: Proof saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: marketer_required - the caller has no Marketer profile (for example a Creator-only account); forbidden - the caller is a Marketer but not the one hired through the job's accepted offer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: job_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: job_not_in_progress - the job is not In Progress; accepted_offer_mismatch - the job's accepted offer is no longer Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: invalid_attachment_type - attachment_type is not Proof (the database also restricts it to Brief, Proof or Other); invalid_proof_url - url is not an absolute HTTP or HTTPS URL; validation_error - malformed body, unknown field or invalid job id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/requests:
     parameters:
       - name: id
@@ -1347,6 +1472,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateJobRequestsRequest'
+            example:
+              marketer_ids: [2]
       responses:
         '201':
           description: Requests created.
@@ -1595,6 +1722,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    post:
+      operationId: cancelJob
+      summary: Cancel a pending job
+      description: >-
+        Cancels a Pending job owned by the caller so the incomplete contract is
+        logged. The request body is optional. In one transaction that rolls back
+        completely on any failure, the job becomes Cancelled with cancelled_at
+        set by the server and the optional trimmed cancel_reason, every Pending
+        or Accepted job request on the job is Closed, and every Pending offer is
+        Rejected. Payments are not changed. Only Pending jobs can be cancelled,
+        and a job with a Paid payment cannot be cancelled.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelJobRequest'
+      responses:
+        '200':
+          description: Job cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelJobResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership (code creator_required) or does not own the job (code forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found (code resource_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The job is already Cancelled (code job_already_cancelled), is Accepted, In Progress or Completed (code job_not_cancellable), or has a Paid payment (code job_has_paid_payment). No state is changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The job ID is not a positive int32 or the body is malformed or has unknown fields (code validation_error), or cancel_reason is longer than 300 characters (code invalid_cancel_reason).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/reviews:
     parameters:
       - name: id
@@ -1628,6 +1821,9 @@ paths:
                 comment:
                   type: string
                   nullable: true
+            example:
+              rating: 5
+              comment: Delivered the agreed work and kept us informed.
       responses:
         '201':
           description: Review created.
@@ -1665,6 +1861,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/reviews/current:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: getCurrentJobReview
+      summary: Read a Job's review
+      description: The caller must have Creator membership and own the Job. Returns the Job's review, or `review` as null when the Job has not been reviewed. A Job has at most one review because reviews.job_id is unique. It works for a Job in any status, so the Creator can see an existing review after a reload instead of the submission form.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The Job's review, or null when there is none.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentReviewResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing Creator membership (creator_required) or the caller does not own the Job (forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job was not found (job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid Job ID (validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/jobs/{id}/payments:
     parameters:
       - name: id
@@ -1674,6 +1917,27 @@ paths:
           type: integer
           format: int32
           minimum: 1
+    get:
+      operationId: getJobPayment
+      summary: Read the payment for the owning Creator or hired Marketer
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Saved job data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSettlementEnvelope'
+        '401':
+          description: Authentication required.
+        '403':
+          description: Access denied.
+        '404':
+          description: Job not found.
+        '409':
+          description: Job has no accepted offer.
     post:
       operationId: createJobPayment
       summary: Record a Creator-confirmed payment for a Job
@@ -1687,6 +1951,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePaymentRequest'
+            example:
+              method: PromptPay
+              amount: '1500.00'
       responses:
         '201':
           description: Creator-confirmed Paid payment recorded.
@@ -1724,11 +1991,89 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/payments/current:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+    get:
+      operationId: getCurrentJobPayment
+      summary: Read a Job's active payment
+      description: The caller must have Creator membership and own the Job. Returns the Job's active payment, meaning the Pending or Paid payment that blocks a new one, or `payment` as null when there is none. Failed and Refunded history is not returned. It works for a Job in any status, so the Creator can see whether a payment was already recorded, for example after a payment request whose result was unknown.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The active payment, or null when the Job has none.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentPaymentResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing Creator membership (creator_required) or the caller does not own the Job (forbidden).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job was not found (job_not_found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid Job ID (validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/complete:
+    post:
+      operationId: completeJob
+      summary: Complete a paid job with proof as its owning Creator
+      description: Sets the completion time and records simulated payout release. Repeating completion returns the saved state.
+      tags: [Jobs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Completed job and payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSettlementEnvelope'
+        '401':
+          description: Authentication required.
+        '403':
+          description: Access denied.
+        '404':
+          description: Job not found.
+        '409':
+          description: Job, accepted offer, Paid payment, or proof does not meet completion requirements.
   /api/v1/me/transactions:
     get:
       operationId: listMyTransactions
       summary: List my transaction history
-      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by the newest payment first, then by job_id descending. paid_at is the time the payment was recorded, because jobs do not store a separate completion time. payout_status is derived rather than stored. Every listed job is Completed with a Paid payment (the Creator's confirmation of payment), so it is always Released, which means the simulated payout was recorded when the job completed. It does not confirm that the Marketer received money, and no money moves through a payment gateway.
+      description: Returns the financial breakdown of Completed jobs that have a Paid payment and in which the authenticated user is the owning Creator or the hired Marketer (the accepted offer's marketer). Another user's jobs are never returned, and no user id is accepted from the request. Results are ordered by newest completion first, with unknown completion dates last, then by job_id descending. paid_at records the payment time. has_review is supplied only on the Creator side. payout_status is derived rather than stored. Every listed job is Completed with a Paid payment (the Creator's confirmation of payment), so it is always Released, which means the simulated payout was recorded when the job completed. It does not confirm that the Marketer received money, and no money moves through a payment gateway.
       tags: [Jobs]
       security:
         - bearerAuth: []
@@ -1790,7 +2135,7 @@ paths:
     get:
       operationId: listMyJobRequests
       summary: List job requests sent to the authenticated marketer
-      description: Returns the requests addressed to the caller, newest first, with the job context needed to decide on each one. The job deadline is the earliest linked survey deadline and target_responses sums the linked surveys' desired responses; either is null when no survey sets it. The brief is the newest Brief attachment.
+      description: Returns the requests addressed to the caller, newest first, with the job context needed to decide on each one. The effective deadline is the earliest available date across the saved job deadline and the deadlines of its linked surveys, or null if none is set. The target_responses field sums the linked surveys' desired responses and is null when no survey sets a target. The brief is the newest Brief attachment.
       tags: [Job Requests]
       security:
         - bearerAuth: []
@@ -1976,7 +2321,7 @@ paths:
     post:
       operationId: submitMyJobRequestOffer
       summary: Submit a price offer for an accepted job request
-      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today or after the job deadline (the earliest linked survey deadline), using the Asia/Bangkok calendar.
+      description: Creates a Pending offer for a request the caller has Accepted. A request may have only one active (Pending or Accepted) offer; a Withdrawn or Rejected offer allows a new one. The price is a non-negative decimal string with at most two decimal places, up to 99999999.99; zero is valid. The delivery date is a YYYY-MM-DD date that cannot be before today in the Asia/Bangkok calendar. When an effective deadline exists, the delivery date cannot be later than the earliest available date across the saved job deadline and the deadlines of its linked surveys.
       tags: [Job Requests]
       security:
         - bearerAuth: []
@@ -1986,6 +2331,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SubmitOfferRequest'
+            example:
+              offered_price: '1500.00'
+              delivery_date: '2099-12-31'
+              message: I can recruit the requested students and provide a delivery summary.
       responses:
         '201':
           description: Offer submitted.
@@ -2457,7 +2806,7 @@ components:
           type: string
     Transaction:
       type: object
-      required: [job_id, job_title, creator, marketer, accepted_price, payment_method, paid_at, payout_status]
+      required: [job_id, job_title, creator, marketer, accepted_price, payment_method, paid_at, payout_status, completed_at]
       properties:
         job_id:
           type: integer
@@ -2482,6 +2831,14 @@ components:
           format: date-time
           nullable: true
           description: When the Paid payment was recorded. Legacy payments may have no value.
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Server-recorded completion time. Unknown for historical jobs.
+        has_review:
+          type: boolean
+          description: Present only for the owning Creator outside the Marketer history.
         payout_status:
           type: string
           enum: [Released]
@@ -2786,6 +3143,16 @@ components:
         created_at:
           type: string
           format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the Creator cancelled the job. Null unless Cancelled, and for jobs cancelled before this was recorded.
+        cancel_reason:
+          type: string
+          nullable: true
+          maxLength: 300
+          description: Optional reason the Creator gave when cancelling.
         surveys:
           type: array
           items:
@@ -2873,6 +3240,60 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Brief'
+    CreateProofRequest:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: '^\s*https?://'
+          description: Surrounding whitespace is trimmed before saving.
+        attachment_type:
+          type: string
+          enum: [Proof]
+          default: Proof
+    Proof:
+      type: object
+      required: [attachment_id, job_id, attachment_type, url, upload_at]
+      properties:
+        attachment_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        attachment_type:
+          type: string
+          enum: [Proof]
+        url:
+          type: string
+          format: uri
+        upload_at:
+          type: string
+          format: date-time
+          description: Server-generated upload time (UTC).
+    ProofResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/Proof'
+    ProofListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Proof'
     CreateJobRequestsRequest:
       type: object
       required: [marketer_ids]
@@ -2966,6 +3387,7 @@ components:
                   type: string
                   format: date-time
                   nullable: true
+                  description: Earliest available date across the saved job deadline and the deadlines of its linked surveys. Null if no deadline is set.
                 title:
                   type: string
                 description:
@@ -3016,11 +3438,11 @@ components:
         offered_price:
           type: string
           pattern: '^\d{1,8}(\.\d{1,2})?$'
-          example: '9000.00'
+          example: '1500.00'
         delivery_date:
           type: string
           format: date
-          example: '2026-10-25'
+          example: '2099-12-31'
         message:
           type: string
           nullable: true
@@ -3090,6 +3512,53 @@ components:
           type: string
           description: Non-negative decimal amount with at most two decimal places, up to 99999999.99. Must exactly equal the accepted offer price; zero is allowed for a zero-priced offer.
           example: '1500.00'
+    CurrentPaymentResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [payment]
+          properties:
+            payment:
+              type: object
+              nullable: true
+              allOf:
+                - $ref: '#/components/schemas/ActivePayment'
+    ActivePayment:
+      type: object
+      required: [payment_id, job_id, method, amount, payment_status, created_at, paid_at]
+      properties:
+        payment_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        method:
+          type: string
+          enum: [PromptPay, Bank Transfer, Credit Card, Other]
+          description: Other can appear only on legacy rows created before the method constraint.
+        amount:
+          type: string
+          description: Amount formatted with exactly two decimal places.
+          example: '1500.00'
+        payment_status:
+          type: string
+          enum: [Pending, Paid]
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Server-assigned UTC creation time. Legacy payments may have no value.
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: UTC time the payment was confirmed. Null while Pending or on legacy rows.
     PaymentResponse:
       type: object
       required: [status, data]
@@ -3125,6 +3594,45 @@ components:
               type: string
               format: date-time
               description: Server-generated UTC time of the Creator's confirmation.
+    CurrentReviewResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [review]
+          properties:
+            review:
+              type: object
+              nullable: true
+              allOf:
+                - $ref: '#/components/schemas/JobReview'
+    JobReview:
+      type: object
+      required: [review_id, job_id, rating, comment, created_at]
+      properties:
+        review_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        rating:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 5
+          description: 1-5 stars. 0 can appear only on legacy reviews created before the 1-5 rule.
+        comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          description: Server-assigned UTC submission time.
     ReviewResponse:
       type: object
       required: [status, data]
@@ -3153,6 +3661,75 @@ components:
             created_at:
               type: string
               format: date-time
+    JobPayment:
+      type: object
+      required: [payment_id, job_id, method, amount, payment_status, created_at, paid_at]
+      properties:
+        payment_id:
+          type: integer
+          format: int32
+        job_id:
+          type: integer
+          format: int32
+        method:
+          type: string
+          enum: [PromptPay, Bank Transfer, Credit Card, Other]
+        amount:
+          type: string
+          description: Amount formatted with exactly two decimal places.
+          example: '1500.00'
+        payment_status:
+          type: string
+          enum: [Paid]
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Creation time assigned by the server in UTC.
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Server-generated UTC time of the Creator's confirmation.
+    JobSettlement:
+      type: object
+      required: [job_id, job_title, job_status, creator, marketer, accepted_price, payment, payout_status, completed_at]
+      properties:
+        job_id:
+          type: integer
+          format: int32
+        job_title:
+          type: string
+        job_status:
+          type: string
+          enum: [Pending, Accepted, In Progress, Completed, Cancelled]
+        creator:
+          $ref: '#/components/schemas/TransactionParty'
+        marketer:
+          $ref: '#/components/schemas/TransactionParty'
+        accepted_price:
+          type: string
+        payment:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/JobPayment'
+        payout_status:
+          type: string
+          nullable: true
+          enum: [Held, Released, null]
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+    JobSettlementEnvelope:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          $ref: '#/components/schemas/JobSettlement'
     MarketerRating:
       type: object
       required: [average_rating, review_count, completed_jobs, is_rated]
@@ -3240,6 +3817,48 @@ components:
                 type: integer
                 format: int32
             closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+    CancelJobRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        cancel_reason:
+          type: string
+          nullable: true
+          maxLength: 300
+          description: Optional reason, trimmed by the server. Blank is stored as null.
+    CancelJobResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [job_id, job_status, cancelled_at, cancel_reason, closed_job_request_ids, rejected_offer_ids]
+          properties:
+            job_id:
+              type: integer
+              format: int32
+            job_status:
+              type: string
+              enum: [Cancelled]
+            cancelled_at:
+              type: string
+              format: date-time
+            cancel_reason:
+              type: string
+              nullable: true
+            closed_job_request_ids:
+              type: array
+              items:
+                type: integer
+                format: int32
+            rejected_offer_ids:
               type: array
               items:
                 type: integer
@@ -3409,7 +4028,7 @@ components:
               description: One page of verified reviews, newest first. Empty when none qualify.
               items:
                 type: object
-                required: [review_id, job_id, rating, comment, created_at]
+                required: [review_id, job_id, reviewer_name, rating, comment, created_at]
                 properties:
                   review_id:
                     type: integer
@@ -3417,6 +4036,10 @@ components:
                   job_id:
                     type: integer
                     format: int32
+                  reviewer_name:
+                    type: string
+                    description: The current name of the Creator who owns the job.
+                    example: Narin Chai
                   rating:
                     type: integer
                     format: int32
@@ -3434,7 +4057,7 @@ components:
               minimum: 1
               maximum: 5
               nullable: true
-              description: Mean rating over every qualifying review. Null (not 0.00) when the marketer has no qualifying review.
+              description: Mean rating over every qualifying review. Null when the marketer has no qualifying reviews.
             review_count:
               type: integer
               format: int64

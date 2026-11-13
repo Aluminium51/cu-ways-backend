@@ -41,7 +41,7 @@ func New(deps Dependencies) *fiber.App {
 	app.Use(requestid.New())
 	app.Use(middleware.RequestLogger(deps.Logger)) // Logger
 
-	// Serve the OpenAPI contract and the Scalar API Reference UI as public
+	// Serve the OpenAPI contract, Scalar, and Swagger UI as public
 	// documentation routes. DocsPath is injectable so tests do not depend on
 	// the package working directory; production defaults to ./docs/openapi.yaml.
 	docsPath := deps.DocsPath
@@ -63,6 +63,30 @@ func New(deps Dependencies) *fiber.App {
   </body>
 </html>`
 		c.Set("Content-Type", "text/html")
+		return c.SendString(html)
+	})
+	app.Get("/docs/swagger", func(c *fiber.Ctx) error {
+		const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Ways API | Swagger UI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.1/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.1/swagger-ui-bundle.js" crossorigin="anonymous"></script>
+    <script>
+      SwaggerUIBundle({
+        url: "/docs/openapi.yaml",
+        dom_id: "#swagger-ui",
+        validatorUrl: null
+      });
+    </script>
+  </body>
+</html>`
+		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.SendString(html)
 	})
 
@@ -102,7 +126,8 @@ func New(deps Dependencies) *fiber.App {
 	marketerRepo := postgres.NewMarketerProfileRepository(deps.DB)
 	marketerService := services.NewMarketerService(marketerRepo, catalogRepo, memberships)
 	marketerHandler := httpapi.NewMarketerHandler(marketerService)
-	marketerReviewService := services.NewMarketerReviewService(postgres.NewReviewRepository(deps.DB), marketerRepo, memberships)
+	reviewRepo := postgres.NewReviewRepository(deps.DB)
+	marketerReviewService := services.NewMarketerReviewService(reviewRepo, marketerRepo, memberships)
 	marketerReviewHandler := httpapi.NewMarketerReviewHandler(marketerReviewService)
 	serviceRepo := postgres.NewServiceRepository(deps.DB)
 	serviceService := services.NewServiceService(serviceRepo, memberships)
@@ -141,6 +166,7 @@ func New(deps Dependencies) *fiber.App {
 	api.Post("/jobs/:id/briefs", protectedUsers, jobHandler.AddBrief)
 	api.Get("/jobs/:id/briefs", protectedUsers, jobHandler.ListBriefs)
 	api.Post("/jobs/:id/requests", protectedUsers, jobHandler.CreateRequests)
+	api.Post("/jobs/:id/cancel", protectedUsers, jobHandler.Cancel)
 	api.Get("/jobs/:id/requests", protectedUsers, jobHandler.ListJobRequests)
 	marketerJobRequestRepo := postgres.NewMarketerJobRequestRepository(deps.DB)
 	marketerJobRequestService := services.NewMarketerJobRequestService(marketerJobRequestRepo, memberships)
@@ -164,10 +190,20 @@ func New(deps Dependencies) *fiber.App {
 	paymentService := services.NewPaymentService(paymentRepo, memberships)
 	paymentHandler := httpapi.NewPaymentHandler(paymentService)
 	api.Post("/jobs/:id/payments", protectedUsers, paymentHandler.Create)
-	reviewRepo := postgres.NewReviewRepository(deps.DB)
+	api.Get("/jobs/:id/payments/current", protectedUsers, paymentHandler.Current)
+	proofRepo := postgres.NewProofRepository(deps.DB)
+	proofService := services.NewProofService(proofRepo, memberships)
+	proofHandler := httpapi.NewProofHandler(proofService)
+	api.Post("/jobs/:id/proofs", protectedUsers, proofHandler.Create)
+	api.Get("/jobs/:id/proofs", protectedUsers, proofHandler.List)
 	reviewService := services.NewReviewService(reviewRepo, memberships)
 	reviewHandler := httpapi.NewReviewHandler(reviewService)
 	api.Post("/jobs/:id/reviews", protectedUsers, reviewHandler.Submit)
+	api.Get("/jobs/:id/reviews/current", protectedUsers, reviewHandler.Current)
+	settlementRepo := postgres.NewJobSettlementRepository(deps.DB)
+	settlementHandler := httpapi.NewJobSettlementHandler(services.NewJobSettlementService(settlementRepo, memberships))
+	api.Get("/jobs/:id/payments", protectedUsers, settlementHandler.GetPayment)
+	api.Post("/jobs/:id/complete", protectedUsers, settlementHandler.Complete)
 	transactionRepo := postgres.NewTransactionRepository(deps.DB)
 	transactionService := services.NewTransactionService(transactionRepo)
 	transactionHandler := httpapi.NewTransactionHandler(transactionService)

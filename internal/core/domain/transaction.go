@@ -37,5 +37,7 @@ type Transaction struct {
 	AcceptedPrice decimal.Decimal `gorm:"column:accepted_price"`
 	PaymentMethod PaymentMethod   `gorm:"column:payment_method"`
 	PaidAt        *time.Time      `gorm:"column:paid_at"`
+	CompletedAt   *time.Time      `gorm:"column:completed_at"`
+	HasReview     *bool           `gorm:"column:has_review"`
 	PayoutStatus  string          `gorm:"-"`
 }

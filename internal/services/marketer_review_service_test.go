@@ -12,7 +12,7 @@ import (
 func TestMarketerReviewServiceListsForCreatorAndAppliesDefaults(t *testing.T) {
 	average := 4.5
 	repo := &fakeReviewRepository{listPage: ports.MarketerReviewPage{
-		Items:         []domain.Review{{ReviewID: 9, JobID: 12, Rating: 5}},
+		Items:         []ports.MarketerReview{{Review: domain.Review{ReviewID: 9, JobID: 12, Rating: 5}}},
 		AverageRating: &average,
 		Total:         1,
 		Page:          DefaultMarketerReviewPage,
@@ -50,8 +50,22 @@ func TestMarketerReviewServiceClampsPageSizeAndAllowsAdmin(t *testing.T) {
 	}
 }
 
+func TestMarketerReviewServiceAllowsOwnerWithoutCreatorMembership(t *testing.T) {
+	repo := &fakeReviewRepository{listPage: ports.MarketerReviewPage{Total: 1}}
+	profiles := &fakeMarketerProfileRepository{profile: &domain.Marketer{UserID: 18}}
+	service := NewMarketerReviewService(repo, profiles, &fakeMembershipRepository{marketer: true})
+
+	page, err := service.List(context.Background(), Actor{UserID: 18}, 18, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.listCalls != 1 || repo.listQuery.MarketerID != 18 || page.Total != 1 {
+		t.Fatalf("expected the owner's reviews, got query %+v and page %+v", repo.listQuery, page)
+	}
+}
+
 func TestMarketerReviewServiceReturnsEmptyStateWithoutFabricatedRating(t *testing.T) {
-	repo := &fakeReviewRepository{listPage: ports.MarketerReviewPage{Items: []domain.Review{}, AverageRating: nil, Total: 0, Page: 1, PageSize: 10}}
+	repo := &fakeReviewRepository{listPage: ports.MarketerReviewPage{Items: []ports.MarketerReview{}, AverageRating: nil, Total: 0, Page: 1, PageSize: 10}}
 	profiles := &fakeMarketerProfileRepository{profile: &domain.Marketer{UserID: 18}}
 	service := NewMarketerReviewService(repo, profiles, &fakeMembershipRepository{creator: true})
 
@@ -77,6 +91,7 @@ func TestMarketerReviewServiceRejectsBeforeListing(t *testing.T) {
 		{name: "invalid_marketer_id", actor: Actor{UserID: 7}, marketerID: 0, creator: true, want: domain.ErrMarketerProfileNotFound},
 		{name: "not_creator", actor: Actor{UserID: 7}, marketerID: 18, want: domain.ErrCreatorRequired},
 		{name: "marketer_not_found", actor: Actor{UserID: 7}, marketerID: 18, creator: true, missing: true, want: domain.ErrMarketerProfileNotFound},
+		{name: "own_marketer_profile_not_found", actor: Actor{UserID: 18}, marketerID: 18, missing: true, want: domain.ErrMarketerProfileNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeReviewRepository{}

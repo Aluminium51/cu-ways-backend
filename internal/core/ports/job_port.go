@@ -7,6 +7,14 @@ import (
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 )
 
+// JobCancellation is the outcome of a Creator cancelling a job: the cancelled
+// job and every job request and offer the cancellation closed.
+type JobCancellation struct {
+	Job                 domain.Job
+	ClosedJobRequestIDs []int32
+	RejectedOfferIDs    []int32
+}
+
 // JobRepository exposes the persistence operations needed by Creator job
 // workflows. Multi-row invariants are atomic inside each implementation.
 type JobRepository interface {
@@ -21,4 +29,9 @@ type JobRepository interface {
 	CreateBrief(ctx context.Context, creatorID, jobID int32, attachment *domain.Attachment) error
 	ListBriefs(ctx context.Context, creatorID, jobID int32) ([]domain.Attachment, error)
 	CreateRequests(ctx context.Context, creatorID, jobID int32, marketerIDs []int32, createdAt time.Time) ([]domain.JobRequest, error)
+	// Cancel runs in one transaction that rolls back completely on any
+	// failure. It checks job ownership, applies domain.Job.Cancel (Pending
+	// only, no Paid payment), closes every Pending or Accepted job request,
+	// and rejects every Pending offer. Payments are left unchanged.
+	Cancel(ctx context.Context, creatorID, jobID int32, reason *string, cancelledAt time.Time) (*JobCancellation, error)
 }

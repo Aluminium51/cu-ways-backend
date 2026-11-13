@@ -22,6 +22,11 @@ func insertReview(t *testing.T, db *gorm.DB, jobID, rating int32, comment *strin
 func TestReviewRepositoryListsOnlyVerifiedMarketerReviews(t *testing.T) {
 	db := openRepositoryIntegrationTransaction(t)
 	creatorID := createIntegrationCreator(t, db, "verified-creator")
+	otherCreatorID := createIntegrationCreator(t, db, "verified-other-creator")
+	otherCreatorName := "Mali Arun"
+	if err := db.Exec(`UPDATE users SET name = ? WHERE user_id = ?`, otherCreatorName, otherCreatorID).Error; err != nil {
+		t.Fatalf("set reviewer name: %v", err)
+	}
 	marketerID := createIntegrationMarketer(t, db, "verified-marketer")
 	otherMarketerID := createIntegrationMarketer(t, db, "verified-other")
 
@@ -33,7 +38,7 @@ func TestReviewRepositoryListsOnlyVerifiedMarketerReviews(t *testing.T) {
 	// held the accepted Offer. The newer one must come first.
 	olderJob := createStatisticsJob(t, db, creatorID, marketerID, domain.JobStatusCompleted)
 	insertReview(t, db, olderJob, 5, &comment, base)
-	newerJob := createStatisticsJob(t, db, creatorID, marketerID, domain.JobStatusCompleted)
+	newerJob := createStatisticsJob(t, db, otherCreatorID, marketerID, domain.JobStatusCompleted)
 	insertReview(t, db, newerJob, 3, nil, newer)
 
 	// Not verified: an In Progress job (not Completed) and a review for another
@@ -61,6 +66,9 @@ func TestReviewRepositoryListsOnlyVerifiedMarketerReviews(t *testing.T) {
 	}
 	if page.Items[0].JobID != newerJob || page.Items[1].JobID != olderJob {
 		t.Fatalf("expected newest-first order, got %d then %d", page.Items[0].JobID, page.Items[1].JobID)
+	}
+	if page.Items[0].ReviewerName != otherCreatorName || page.Items[1].ReviewerName != "Statistics Creator" {
+		t.Fatalf("expected names from the respective job owners, got %q and %q", page.Items[0].ReviewerName, page.Items[1].ReviewerName)
 	}
 	if page.Items[1].Rating != 5 || page.Items[1].Comment == nil || *page.Items[1].Comment != comment {
 		t.Fatalf("expected rating and comment preserved, got %+v", page.Items[1])

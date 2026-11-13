@@ -225,3 +225,44 @@ func TestPaymentMigrationPreservesLegacyRows(t *testing.T) {
 		t.Fatalf("down migration did not restore Other: %v", err)
 	}
 }
+
+func TestPaymentRepositoryFindsActivePaymentForOwnedJob(t *testing.T) {
+	db := openRepositoryIntegrationTransaction(t)
+	creator := createIntegrationCreator(t, db, "payment-current")
+	other := createIntegrationCreator(t, db, "payment-current-foreign")
+	marketer := createIntegrationMarketer(t, db, "payment-current")
+	repo := NewPaymentRepository(db)
+	ctx := context.Background()
+
+	jobID := createStatisticsJob(t, db, creator, marketer, domain.JobStatusAccepted)
+	if p, err := repo.FindActiveForCreatorJob(ctx, creator, jobID); err != nil || p != nil {
+		t.Fatalf("job without payments: %+v, %v", p, err)
+	}
+	createStatisticsPayment(t, db, jobID, "100", domain.PaymentStatusFailed)
+	createStatisticsPayment(t, db, jobID, "100", domain.PaymentStatusRefunded)
+	if p, err := repo.FindActiveForCreatorJob(ctx, creator, jobID); err != nil || p != nil {
+		t.Fatalf("Failed and Refunded history must not count as active: %+v, %v", p, err)
+	}
+	created, err := repo.CreateForCreatorJob(ctx, creator, jobID, newPayment())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := repo.FindActiveForCreatorJob(ctx, creator, jobID)
+	if err != nil || p == nil || p.PaymentID != created.PaymentID || p.PaymentStatus != domain.PaymentStatusPaid || p.Amount.StringFixed(2) != "100.00" || p.PaidAt == nil || !p.PaidAt.Equal(*created.PaidAt) {
+		t.Fatalf("expected the Paid payment %d, got %+v, %v", created.PaymentID, p, err)
+	}
+
+	pendingJob := createStatisticsJob(t, db, creator, marketer, domain.JobStatusInProgress)
+	createStatisticsPayment(t, db, pendingJob, "250", domain.PaymentStatusPending)
+	p, err = repo.FindActiveForCreatorJob(ctx, creator, pendingJob)
+	if err != nil || p == nil || p.PaymentStatus != domain.PaymentStatusPending || p.Amount.StringFixed(2) != "250.00" {
+		t.Fatalf("expected the Pending payment, got %+v, %v", p, err)
+	}
+
+	if _, err := repo.FindActiveForCreatorJob(ctx, other, jobID); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("foreign creator: %v", err)
+	}
+	if _, err := repo.FindActiveForCreatorJob(ctx, creator, 0); !errors.Is(err, domain.ErrJobNotFound) {
+		t.Fatalf("missing job: %v", err)
+	}
+}

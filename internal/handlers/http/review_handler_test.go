@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -18,11 +19,21 @@ import (
 )
 
 type fakeReviewService struct {
-	actor services.Actor
-	jobID int32
-	input services.SubmitReviewInput
-	calls int
-	err   error
+	actor   services.Actor
+	jobID   int32
+	input   services.SubmitReviewInput
+	calls   int
+	err     error
+	current *domain.Review
+}
+
+func (f *fakeReviewService) Current(_ context.Context, actor services.Actor, jobID int32) (*domain.Review, error) {
+	f.calls++
+	f.actor, f.jobID = actor, jobID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.current, nil
 }
 
 func (f *fakeReviewService) Submit(_ context.Context, actor services.Actor, jobID int32, input services.SubmitReviewInput) (*domain.Review, error) {
@@ -41,6 +52,7 @@ func reviewHandlerApp(service *fakeReviewService) *fiber.App {
 		return c.Next()
 	})
 	app.Post("/jobs/:id/reviews", NewReviewHandler(service).Submit)
+	app.Get("/jobs/:id/reviews/current", NewReviewHandler(service).Current)
 	return app
 }
 
@@ -128,6 +140,76 @@ func TestReviewHandlerMapsJobAndReviewErrors(t *testing.T) {
 			}
 			if res.StatusCode != tc.status || envelope.Error.Code != tc.code {
 				t.Fatalf("expected %d/%s, got %d/%s", tc.status, tc.code, res.StatusCode, envelope.Error.Code)
+			}
+		})
+	}
+}
+
+func getCurrentReview(t *testing.T, app *fiber.App, id string) (int, string, string) {
+	t.Helper()
+	res, err := app.Test(httptest.NewRequest("GET", "/jobs/"+id+"/reviews/current", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeResponseBody(t, res.Body)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	return res.StatusCode, envelope.Error.Code, string(body)
+}
+
+func TestReviewHandlerReturnsCurrentReview(t *testing.T) {
+	createdAt := time.Date(2026, 10, 29, 4, 5, 6, 0, time.UTC)
+	for _, tc := range []struct {
+		name    string
+		current *domain.Review
+		want    string
+	}{
+		{"with_comment", &domain.Review{ReviewID: 7, JobID: 12, Rating: 4, Comment: ptrReviewComment("Clear <b>work</b>"), CreatedAt: createdAt},
+			`{"status":"success","data":{"review":{"review_id":7,"job_id":12,"rating":4,"comment":"Clear \u003cb\u003ework\u003c/b\u003e","created_at":"2026-10-29T04:05:06Z"}}}`},
+		{"without_comment", &domain.Review{ReviewID: 8, JobID: 12, Rating: 5, CreatedAt: createdAt},
+			`{"status":"success","data":{"review":{"review_id":8,"job_id":12,"rating":5,"comment":null,"created_at":"2026-10-29T04:05:06Z"}}}`},
+		{"none", nil, `{"status":"success","data":{"review":null}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service := &fakeReviewService{current: tc.current}
+			status, _, body := getCurrentReview(t, reviewHandlerApp(service), "12")
+			if status != 200 || body != tc.want || service.actor.UserID != 8 || service.jobID != 12 {
+				t.Fatalf("got %d %s (actor %d job %d)", status, body, service.actor.UserID, service.jobID)
+			}
+		})
+	}
+}
+
+func TestReviewHandlerCurrentMapsErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		id     string
+		err    error
+		status int
+		code   string
+		calls  int
+	}{
+		{"invalid_id", "0", nil, 422, "validation_error", 0},
+		{"non_numeric_id", "abc", nil, 422, "validation_error", 0},
+		{"not_creator", "12", domain.ErrCreatorRequired, 403, "creator_required", 1},
+		{"foreign", "12", domain.ErrJobForbidden, 403, "forbidden", 1},
+		{"missing", "12", domain.ErrJobNotFound, 404, "job_not_found", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service := &fakeReviewService{err: tc.err}
+			status, code, _ := getCurrentReview(t, reviewHandlerApp(service), tc.id)
+			if status != tc.status || code != tc.code || service.calls != tc.calls {
+				t.Fatalf("got %d/%s calls=%d, want %d/%s calls=%d", status, code, service.calls, tc.status, tc.code, tc.calls)
 			}
 		})
 	}

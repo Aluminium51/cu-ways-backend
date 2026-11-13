@@ -22,16 +22,35 @@ func NewReviewService(repo ports.ReviewRepository, memberships ports.MembershipR
 	return &ReviewService{repo: repo, memberships: memberships}
 }
 
-func (s *ReviewService) Submit(ctx context.Context, actor Actor, jobID int32, input SubmitReviewInput) (*domain.Review, error) {
+func (s *ReviewService) requireCreator(ctx context.Context, actor Actor) error {
 	if actor.UserID < 1 {
-		return nil, domain.ErrCreatorRequired
+		return domain.ErrCreatorRequired
 	}
 	isCreator, err := s.memberships.IsCreator(ctx, actor.UserID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !isCreator {
-		return nil, domain.ErrCreatorRequired
+		return domain.ErrCreatorRequired
+	}
+	return nil
+}
+
+// Current returns the review on a Job the Creator owns, or nil when the Job
+// has not been reviewed yet.
+func (s *ReviewService) Current(ctx context.Context, actor Actor, jobID int32) (*domain.Review, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
+	}
+	if jobID < 1 {
+		return nil, domain.ErrInvalidJob
+	}
+	return s.repo.FindForCreatorJob(ctx, actor.UserID, jobID)
+}
+
+func (s *ReviewService) Submit(ctx context.Context, actor Actor, jobID int32, input SubmitReviewInput) (*domain.Review, error) {
+	if err := s.requireCreator(ctx, actor); err != nil {
+		return nil, err
 	}
 	if jobID < 1 {
 		return nil, domain.ErrInvalidJob

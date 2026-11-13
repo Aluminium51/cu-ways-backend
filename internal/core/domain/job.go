@@ -26,6 +26,8 @@ type Job struct {
 	AcceptedOfferID   *int32           `gorm:"column:accepted_offer_id;uniqueIndex"`
 	JobStatus         JobStatus        `gorm:"column:job_status;type:varchar(20);not null"`
 	CreatedAt         time.Time        `gorm:"column:created_at;type:timestamp;not null"`
+	CancelledAt       *time.Time       `gorm:"column:cancelled_at;type:timestamp"`
+	CancelReason      *string          `gorm:"column:cancel_reason;type:varchar(300)"`
 
 	Creator       *Creator     `gorm:"foreignKey:UserID;references:UserID"`
 	AcceptedOffer *Offer       `gorm:"foreignKey:JobID,AcceptedOfferID;references:JobID,OfferID"`
@@ -66,16 +68,77 @@ func (j *Job) AcceptOffer(offer *Offer) error {
 // that is no longer Accepted returns ErrAcceptedOfferMismatch, and a job that
 // is not Accepted returns ErrJobNotAccepted.
 func (j *Job) Start(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusAccepted {
+		return ErrJobNotAccepted
+	}
+	j.JobStatus = JobStatusInProgress
+	return nil
+}
+
+// CanAddProof reports whether marketerID may add a Proof attachment. It uses
+// the same hire checks as Start, in the same order, and then requires the job
+// to be In Progress (ErrJobNotInProgress).
+func (j *Job) CanAddProof(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusInProgress {
+		return ErrJobNotInProgress
+	}
+	return nil
+}
+
+// CanViewProof reports whether userID may read the job's Proof attachments:
+// its Creator, or the Marketer hired through a still-Accepted offer. Anyone
+// else gets ErrJobForbidden.
+func (j *Job) CanViewProof(userID int32, accepted *Offer) error {
+	if j.UserID == userID {
+		return nil
+	}
+	if j.checkHiredMarketer(userID, accepted) != nil {
+		return ErrJobForbidden
+	}
+	return nil
+}
+
+// checkHiredMarketer returns ErrJobForbidden unless marketerID owns the job's
+// accepted offer, and ErrAcceptedOfferMismatch when that offer is no longer
+// Accepted.
+func (j *Job) checkHiredMarketer(marketerID int32, accepted *Offer) error {
 	if j.AcceptedOfferID == nil || accepted == nil || accepted.OfferID != *j.AcceptedOfferID || accepted.UserID != marketerID {
 		return ErrJobForbidden
 	}
 	if accepted.OfferStatus != OfferStatusAccepted {
 		return ErrAcceptedOfferMismatch
 	}
-	if j.JobStatus != JobStatusAccepted {
-		return ErrJobNotAccepted
+	return nil
+}
+
+// MaxJobCancelReasonLength limits the optional cancellation note.
+const MaxJobCancelReasonLength = 300
+
+// Cancel closes a Pending job the Creator no longer needs, recording when and
+// optionally why. Only Pending jobs can be cancelled: a job already Cancelled
+// returns ErrJobAlreadyCancelled, and any other status returns
+// ErrJobNotCancellable. A job with a Paid payment returns ErrJobHasPaidPayment.
+// Closing its job requests and rejecting its Pending offers is left to the
+// caller.
+func (j *Job) Cancel(hasPaidPayment bool, reason *string, at time.Time) error {
+	if j.JobStatus == JobStatusCancelled {
+		return ErrJobAlreadyCancelled
 	}
-	j.JobStatus = JobStatusInProgress
+	if j.JobStatus != JobStatusPending {
+		return ErrJobNotCancellable
+	}
+	if hasPaidPayment {
+		return ErrJobHasPaidPayment
+	}
+	j.JobStatus = JobStatusCancelled
+	j.CancelledAt = &at
+	j.CancelReason = reason
 	return nil
 }
 
@@ -90,6 +153,8 @@ type CreatorJobSummary struct {
 	JobID             int32              `gorm:"column:job_id"`
 	JobStatus         JobStatus          `gorm:"column:job_status"`
 	CreatedAt         time.Time          `gorm:"column:created_at"`
+	CancelledAt       *time.Time         `gorm:"column:cancelled_at"`
+	CancelReason      *string            `gorm:"column:cancel_reason"`
 	Surveys           []JobSurveySummary `gorm:"-"`
 }
 

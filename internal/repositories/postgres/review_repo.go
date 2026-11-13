@@ -44,11 +44,25 @@ func (r *ReviewRepository) CreateForCreatorJob(ctx context.Context, creatorID, j
 	return review, nil
 }
 
-// verifiedMarketerReviews narrows reviews to the ones that count on a public
-// profile: a review whose Job is Completed and whose accepted Offer belongs to
-// the marketer, with a rating in the valid 1-5 range. The marketer filter comes
-// from the path, and only verified rows are ever joined, so an unrelated or
-// unfinished Job can never surface here.
+// FindForCreatorJob returns the owned Job's review, or nil when it has none.
+// It reads only, so it works for a Job in any status.
+func (r *ReviewRepository) FindForCreatorJob(ctx context.Context, creatorID, jobID int32) (*domain.Review, error) {
+	db := r.db.WithContext(ctx)
+	if _, err := findOwnedJob(db, creatorID, jobID); err != nil {
+		return nil, err
+	}
+	var reviews []domain.Review
+	if err := db.Where("job_id = ?", jobID).Limit(1).Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+	if len(reviews) == 0 {
+		return nil, nil
+	}
+	return &reviews[0], nil
+}
+
+// verifiedMarketerReviews selects valid reviews from Completed Jobs where the
+// marketer held the accepted Offer.
 func (r *ReviewRepository) verifiedMarketerReviews(ctx context.Context, marketerID int32) *gorm.DB {
 	return r.db.WithContext(ctx).Table("reviews AS review").
 		Joins("JOIN jobs AS job ON job.job_id = review.job_id").
@@ -59,14 +73,13 @@ func (r *ReviewRepository) verifiedMarketerReviews(ctx context.Context, marketer
 }
 
 func (r *ReviewRepository) ListForMarketer(ctx context.Context, query ports.MarketerReviewQuery) (ports.MarketerReviewPage, error) {
-	page := ports.MarketerReviewPage{Page: query.Page, PageSize: query.PageSize, Items: []domain.Review{}}
+	page := ports.MarketerReviewPage{Page: query.Page, PageSize: query.PageSize, Items: []ports.MarketerReview{}}
 
 	var aggregate struct {
 		Total         int64
 		AverageRating *float64
 	}
-	// AVG returns NULL with no qualifying rows, which maps to a nil pointer and
-	// lets the profile show "No ratings yet" rather than a fabricated 0.00.
+	// AVG returns NULL when there are no qualifying reviews.
 	if err := r.verifiedMarketerReviews(ctx, query.MarketerID).
 		Select("COUNT(*) AS total, AVG(review.rating)::float8 AS average_rating").
 		Scan(&aggregate).Error; err != nil {
@@ -79,7 +92,8 @@ func (r *ReviewRepository) ListForMarketer(ctx context.Context, query ports.Mark
 	}
 
 	if err := r.verifiedMarketerReviews(ctx, query.MarketerID).
-		Select("review.review_id, review.job_id, review.rating, review.comment, review.created_at").
+		Joins("JOIN users AS creator ON creator.user_id = job.user_id").
+		Select("review.review_id, review.job_id, review.rating, review.comment, review.created_at, creator.name AS reviewer_name").
 		Order("review.created_at DESC, review.review_id DESC").
 		Limit(query.PageSize).
 		Offset((query.Page - 1) * query.PageSize).

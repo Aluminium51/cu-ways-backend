@@ -38,6 +38,9 @@ var (
 	ErrJobSurveyAlreadyLinked  = errors.New("survey is already linked to this job")
 	ErrLastJobSurvey           = errors.New("cannot remove the last survey from a job")
 	ErrInvalidBriefURL         = errors.New("invalid brief URL")
+	ErrInvalidProofURL         = errors.New("proof URL must be an http or https link")
+	ErrInvalidAttachmentType   = errors.New("attachment type must be Proof")
+	ErrJobNotInProgress        = errors.New("job is not In Progress")
 	ErrInvalidJobRequest       = errors.New("invalid job request")
 	ErrJobRequestAlreadyActive = errors.New("an active request already exists for this job and marketer")
 	ErrMarketerNotFound        = errors.New("marketer not found")
@@ -53,6 +56,11 @@ var (
 
 	ErrJobNotAccepted        = errors.New("only an accepted job can be started")
 	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
+
+	ErrJobAlreadyCancelled = errors.New("job is already cancelled")
+	ErrJobNotCancellable   = errors.New("only a pending job can be cancelled")
+	ErrJobHasPaidPayment   = errors.New("a job with a paid payment cannot be cancelled")
+	ErrInvalidCancelReason = errors.New("cancel reason must be at most 300 characters")
 
 	ErrInvalidPayment        = errors.New("invalid payment method or amount")
 	ErrJobNotPayable         = errors.New("job is not eligible for payment")

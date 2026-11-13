@@ -13,7 +13,18 @@ type fakePaymentRepository struct {
 	creatorID, jobID int32
 	calls            int
 	payment          *domain.Payment
+	active           *domain.Payment
 	err              error
+}
+
+func (f *fakePaymentRepository) FindActiveForCreatorJob(_ context.Context, creatorID, jobID int32) (*domain.Payment, error) {
+	f.calls++
+	f.creatorID = creatorID
+	f.jobID = jobID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.active, nil
 }
 
 func (f *fakePaymentRepository) CreateForCreatorJob(_ context.Context, creatorID, jobID int32, p *domain.Payment) (*domain.Payment, error) {
@@ -86,5 +97,43 @@ func TestPaymentServicePreservesZeroAndRepositoryErrors(t *testing.T) {
 		if !errors.Is(err, want) {
 			t.Fatalf("expected %v, got %v", want, err)
 		}
+	}
+}
+
+func TestPaymentServiceCurrentScopesToCreatorJob(t *testing.T) {
+	active := &domain.Payment{PaymentID: 3, JobID: 12, PaymentStatus: domain.PaymentStatusPending}
+	repo := &fakePaymentRepository{active: active}
+	p, err := NewPaymentService(repo, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12)
+	if err != nil || p != active || repo.creatorID != 8 || repo.jobID != 12 {
+		t.Fatalf("got %+v, %v; repo %+v", p, err, repo)
+	}
+	none, err := NewPaymentService(&fakePaymentRepository{}, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12)
+	if err != nil || none != nil {
+		t.Fatalf("expected no payment, got %+v, %v", none, err)
+	}
+	failing := &fakePaymentRepository{err: domain.ErrJobForbidden}
+	if _, err := NewPaymentService(failing, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("expected repository error, got %v", err)
+	}
+}
+
+func TestPaymentServiceCurrentRejectsBeforeReading(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		creator    bool
+		actor, job int32
+		want       error
+	}{
+		{"not_creator", false, 8, 12, domain.ErrCreatorRequired},
+		{"invalid_actor", true, 0, 12, domain.ErrCreatorRequired},
+		{"invalid_job", true, 8, 0, domain.ErrInvalidJob},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakePaymentRepository{}
+			_, err := NewPaymentService(repo, &fakeMembershipRepository{creator: tc.creator}).Current(context.Background(), Actor{UserID: tc.actor}, tc.job)
+			if !errors.Is(err, tc.want) || repo.calls != 0 {
+				t.Fatalf("got %v, calls %d", err, repo.calls)
+			}
+		})
 	}
 }

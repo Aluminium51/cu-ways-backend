@@ -54,9 +54,9 @@ func TestMarketerReviewHandlerReturnsVerifiedReviewsEnvelope(t *testing.T) {
 	average := 4.5
 	service := &fakeMarketerReviewService{page: ports.MarketerReviewPage{
 		Page: 2, PageSize: 5, Total: 7, AverageRating: &average,
-		Items: []domain.Review{
-			{ReviewID: 9, JobID: 12, Rating: 5, Comment: &comment, CreatedAt: createdAt},
-			{ReviewID: 8, JobID: 11, Rating: 4, CreatedAt: createdAt},
+		Items: []ports.MarketerReview{
+			{Review: domain.Review{ReviewID: 9, JobID: 12, Rating: 5, Comment: &comment, CreatedAt: createdAt}, ReviewerName: "Narin Chai"},
+			{Review: domain.Review{ReviewID: 8, JobID: 11, Rating: 4, CreatedAt: createdAt}, ReviewerName: "Mali Arun"},
 		},
 	}}
 	app := marketerReviewHandlerApp(service, true)
@@ -87,6 +87,9 @@ func TestMarketerReviewHandlerReturnsVerifiedReviewsEnvelope(t *testing.T) {
 	first := data.Items[0]
 	if first.ReviewID != 9 || first.JobID != 12 || first.Rating != 5 || first.Comment == nil || *first.Comment != comment || !first.CreatedAt.Equal(createdAt) {
 		t.Fatalf("unexpected first review: %+v", first)
+	}
+	if first.ReviewerName != "Narin Chai" || data.Items[1].ReviewerName != "Mali Arun" {
+		t.Fatalf("expected reviewer_name for each review, got %q and %q", first.ReviewerName, data.Items[1].ReviewerName)
 	}
 	if data.Items[1].Comment != nil {
 		t.Fatalf("expected null comment to stay null, got %v", *data.Items[1].Comment)

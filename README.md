@@ -1,414 +1,122 @@
 # CU Ways Backend
 
-Go/Fiber backend for CU Ways. The project uses a layered/hexagonal structure so HTTP handlers, business logic, database access, and infrastructure can evolve independently.
+## Overview
 
-The backend provides configuration, PostgreSQL connectivity, migrations, health checks, JWT authentication, structured logging, Docker development services, user CRUD, marketer profiles and search, services, survey metadata, Creator job setup workflows, Marketer job request responses, offer submission, offer comparison, offer acceptance, offer withdrawal, starting a hired job, Creator payment confirmation, and completed-job reviews. Refresh-token workflows remain future work.
+CU Ways is a platform for survey creators to hire marketers. This Go/Fiber API manages survey metadata, jobs, offers, delivery proof, payment confirmations, and reviews in PostgreSQL.
 
-For the full design rules, see [docs/architecture.md](docs/architecture.md).
-
-## Requirements
-
-- Go 1.26+
-- Docker Desktop with Docker Compose
-- GNU Make
-
-Clone the repository:
-
-```powershell
-git clone https://github.com/cu-ways/cu-ways-backend.git
-cd cu-ways-backend
-```
+For the system's roles, job state transitions, and data rules, see [Project context](#project-context).
 
 ## Quick start
 
-1. Create `.env` if it does not exist:
+Requirements
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+- Go 1.26 or later
+- Docker with Docker Compose v2
+- GNU Make
 
-   For macOS/Linux:
+Clone the backend repository.
 
-    ```bash
+```sh
+git clone https://github.com/Aluminium51/cu-ways-backend
+cd cu-ways-backend
+```
+
+Create a local `.env` from the example if you do not have one. The defaults are for local development. See the available settings in [`.env.example`](.env.example).
+
+**PowerShell**
+
+```powershell
+if (-not (Test-Path -LiteralPath .env)) {
+    Copy-Item -LiteralPath .env.example -Destination .env
+}
+```
+
+**Bash**
+
+```bash
+if [ ! -e .env ]; then
     cp .env.example .env
-    ```
-
-   Keep an existing `.env`; it contains local credentials and is ignored by Git.
-
-2. Start PostgreSQL and pgAdmin:
-
-   ```powershell
-   docker compose up -d --build
-   docker compose ps
-   ```
-
-3. Apply migrations:
-
-   ```powershell
-   make migrate-up
-   ```
-
-4. Start the API:
-
-   ```powershell
-   make run
-   ```
-
-The API runs on `http://localhost:8081` by default.
-
-## Project structure
-
-```text
-cu-ways-backend/
-├── cmd/
-│   ├── api/                  # Application entry point
-│   ├── seed-admin/           # Explicit development/test admin seeder
-│   └── seed-mock-users/      # Explicit development/test fixture seeder
-├── docs/                     # OpenAPI and architecture documentation
-├── internal/                 # Private application code
-│   ├── config/               # Environment and configuration loader
-│   ├── core/
-│   │   ├── domain/           # Entities and persistence/domain models
-│   │   └── ports/            # Interfaces for application boundaries
-│   ├── handlers/http/        # Fiber HTTP transport layer (package httpapi)
-│   ├── middleware/           # Recovery, request ID, logging, and JWT middleware
-│   ├── platform/             # Database, logging, response, and utility adapters
-│   ├── repositories/postgres/ # PostgreSQL repository implementations
-│   ├── server/               # Fiber app composition and route registration
-│   └── services/             # Business logic and use-case orchestration
-├── migrations/               # PostgreSQL .up.sql and .down.sql files
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile                  # Developer command shortcuts
-└── go.mod
+fi
 ```
 
-## Implementing a new feature
+Start PostgreSQL, apply migrations, and run the API.
 
-Follow these six steps when adding a feature such as users, surveys, or jobs:
-
-1. **Define the domain** — Add or update entities and business value types in `internal/core/domain`. Keep them independent from Fiber and database connection details.
-2. **Define the port** — Add a focused interface in `internal/core/ports` describing what the service needs from persistence or another external system.
-3. **Implement the service** — Add the use-case and business rules in `internal/services`. Services depend on ports, not concrete PostgreSQL repositories.
-4. **Implement persistence** — Add the PostgreSQL/GORM implementation under `internal/repositories/postgres`. Keep SQL queries, preload choices, and database error mapping here.
-5. **Expose HTTP behavior** — Add request/response DTOs and Fiber handlers under `internal/handlers/http`, then register routes through `internal/server`.
-6. **Verify the feature** — Add or update migrations, tests, OpenAPI documentation, and run the checks below before committing.
-
-Do not call a repository directly from a handler, put business rules in a handler, or make domain packages import Fiber or GORM connection setup. See [docs/architecture.md](docs/architecture.md) for the complete rules.
-
-## API checks
-
-```powershell
-curl.exe -i http://localhost:8081/healthz
-curl.exe -i http://localhost:8081/readyz
+```sh
+docker compose up -d --wait postgres
+make migrate-up
+make run
 ```
 
-- `/healthz` confirms that the API process is running.
-- `/readyz` confirms that PostgreSQL is reachable.
-- Responses use a standard `status` and `data`/`error` envelope.
-- Requests receive an `X-Request-ID` response header.
+The default API address is `http://localhost:8081`. Open [`/healthz`](http://localhost:8081/healthz) to check that the API is running and [`/readyz`](http://localhost:8081/readyz) to check that it can reach PostgreSQL. Both should return HTTP 200.
 
-API documentation is available at:
+For optional database browsing, start pgAdmin with `docker compose up -d pgadmin` and open `http://localhost:5050`. Use `postgres` as the database host from pgAdmin and the credentials from your local `.env`. To stop the local Compose services, run `make db-down`.
 
-- Interactive Scalar reference: [http://localhost:8081/docs](http://localhost:8081/docs)
-- Raw OpenAPI YAML: [http://localhost:8081/docs/openapi.yaml](http://localhost:8081/docs/openapi.yaml)
+## API documentation
 
-The Scalar interface loads from a CDN when the page opens, so the browser needs internet access. The raw specification is served directly from `docs/openapi.yaml`.
+- [Swagger UI](http://localhost:8081/docs/swagger) and [Scalar](http://localhost:8081/docs) provide interactive API documentation. Both use the [OpenAPI specification](docs/openapi.yaml).
+- Follow the [job workflow guide](docs/job-workflow.md) to try the API as a Creator and a Marketer.
 
-## Authentication API
+API responses use a `status` and `data` or `error` envelope. Use the `X-Request-ID` response header to correlate a request with backend logs.
 
-Register and login are public endpoints:
+## Project context
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/v1/auth/register` | Create an account and receive an access token |
-| `POST` | `/api/v1/auth/login` | Verify email/password and receive an access token |
+### Backend structure and data ownership
 
-Register creates accounts with the `user` role and provisions the user's Creator membership atomically. Passwords are stored as Argon2id hashes and never returned in API responses. Access tokens use `HS256` and expire after one hour.
-
-Register:
-
-```powershell
-curl.exe -X POST http://localhost:8081/api/v1/auth/register `
-  -H "Content-Type: application/json" `
-  -d '{"name":"Jane Doe","email":"jane@example.com","password":"correct horse battery staple","phone":"0812345678"}'
-```
-
-Login:
-
-```powershell
-curl.exe -X POST http://localhost:8081/api/v1/auth/login `
-  -H "Content-Type: application/json" `
-  -d '{"email":"jane@example.com","password":"correct horse battery staple"}'
-```
-
-Use the returned `data.access_token` on protected endpoints:
-
-```powershell
-$token = "<access_token>"
-curl.exe http://localhost:8081/api/v1/users/1 `
-  -H "Authorization: Bearer $token"
-```
-
-To create a local administrator account, configure the seed credentials in `.env` or set them for one PowerShell session:
-
-```powershell
-$env:SEED_ADMIN_NAME = "CU Ways Admin"
-$env:SEED_ADMIN_EMAIL = "admin@example.com"
-$env:SEED_ADMIN_PASSWORD = "local-admin-password-123"
-
-make seed-admin
-```
-
-The seed command is allowed only in development/test environments. It creates the account when missing, or promotes an existing active account without changing its password. It never restores a soft-deleted account or overwrites credentials.
-
-To create 20 deterministic mock users for search and filter testing, configure one shared local/test password and run the explicit mock-data seed command:
-
-```powershell
-$env:MOCK_USER_PASSWORD = "mock-user-password-123"
-
-make seed-mock-users
-```
-
-The command creates 6 creator-only users, 6 marketer-only users, and 8 users with both memberships. Marketer fixtures include profiles, expertise, campus coverage, active services with varied prices, one archived service, and completed jobs with reviews for rating filters. Mock emails use the `@example.test` domain, for example `mock.both.01@example.test`. The password is read from `MOCK_USER_PASSWORD` and is never printed. This command is limited to development/test environments and is idempotent for the generated fixtures.
-
-For marketer search, log in as `mock.creator-only.01@example.test` or `mock.both.01@example.test`; both accounts have Creator membership and can call `GET /api/v1/marketers`. To test marketer-owned endpoints, log in as `mock.marketer-only.01@example.test` or `mock.both.01@example.test`.
-
-Account creation is handled only by `/api/v1/auth/register`, which stores a password and provisions Creator membership. The `/api/v1/users` resource is for reading and updating users after registration.
-
-## User API
-
-User CRUD endpoints are available under `/api/v1/users`:
-
-| Method | Path | Access |
-| --- | --- | --- |
-| `GET` | `/api/v1/users/:id` | JWT owner or admin |
-| `GET` | `/api/v1/users` | JWT admin only |
-| `PUT` | `/api/v1/users/:id` | JWT owner or admin |
-| `DELETE` | `/api/v1/users/:id` | JWT owner or admin |
-
-List requests support `page` and `page_size` query parameters. Pages start at `1`, the default page size is `20`, and the maximum page size is `100`. Deleted users are soft-deleted and excluded from normal reads and lists.
-
-Registration requires a 10-digit phone number. User updates may omit the phone; any supplied phone must contain 10 digits. Surrounding whitespace is trimmed before storage. Phones are unique, and a duplicate returns `409 phone_already_exists`.
-
-User updates only change fields included in the request. Send `{"line_id":null}` to clear a LINE ID; a phone can be changed but not cleared.
-
-Protected requests require a JWT whose `sub` claim is the numeric user ID. The `role` claim must be `admin` for administrator access.
-
-## Marketer and Survey APIs
-
-Marketer profile fields are saved through `PATCH /api/v1/me/marketer-profile`. Only `availability_status` is required; `bio`, `experience_years`, and `availability_text` are optional and default to an empty string/0 when omitted (the columns are `NOT NULL`, so omitted values are stored as empty rather than SQL `NULL`). Expertise and campus values use the curated catalog; their arrays may be empty.
-
-The initial expertise slugs are `survey-distribution`, `participant-recruitment`, `data-collection`, `quantitative-analysis`, `qualitative-analysis`, and `report-preparation`. The initial campus slugs are `cu-main-campus`, `cu-health-sciences-campus`, `off-campus`, and `online-remote`. Availability is `available`, `limited`, or `unavailable`.
-
-```powershell
-curl.exe -X PATCH http://localhost:8081/api/v1/me/marketer-profile `
-  -H "Authorization: Bearer $token" `
-  -H "Content-Type: application/json" `
-  -d '{"bio":"Survey research specialist","experience_years":4,"availability_status":"available","availability_text":"Available on weekdays","expertise":["data-collection","report-preparation"],"campuses":["cu-main-campus"]}'
-```
-
-Marketers manage their services under `/api/v1/me/services`. Updates and soft deletes are restricted to the authenticated marketer's own active services, and removed services are excluded from lists and search. Creators and administrators can search marketers with `GET /api/v1/marketers` and open a detailed profile with `GET /api/v1/marketers/:id`. The detail response includes active service listings, the number of completed jobs matched through accepted offers, and the average of qualifying 1–5 ratings. The verified past reviews behind that rating are read from `GET /api/v1/marketers/:id/reviews`: reviews tied to Completed jobs in which the marketer held the accepted offer, newest first, with `rating`, optional `comment`, `created_at`, and the linked `job_id`. It returns `average_rating` and `review_count` over the whole set plus `page` / `page_size` / `total` (default 10, maximum 50). When the marketer has no qualifying review, `items` is empty and `average_rating` is `null` so the profile shows a no-rating empty state rather than a misleading `0.00`. Add `keyword` (up to 100 characters) for a case-insensitive partial match against the marketer's name, bio, or any of their services' type/scope text; a marketer with several matching services still appears once. Combine `min_price`, `max_price`, repeated `expertise` and `campus`, `min_rating`, `min_experience_years`, and `availability_status` filters. All selected filters must match. Ratings include only valid 1–5 reviews from completed jobs. Use `sort=price_asc` (default), `price_desc`, `rating_asc`, or `rating_desc`; missing prices and ratings are placed last and ties are resolved by marketer name, then `user_id` ascending.
-
-Signed-in users can read their transaction history from `GET /api/v1/me/transactions`. It lists only Completed jobs that have a Paid payment and in which the caller is the owning Creator or the hired Marketer, with the job title, creator and marketer names, accepted price, payment method, `paid_at`, and `payout_status`. The caller is taken from the token, so no user id is accepted. Use `role=creator` or `role=marketer` to view one side, `keyword` (up to 100 characters) to search the title, names, payment method, or an exact job number, and `page` / `page_size` (default 10, maximum 50). Results are ordered by newest payment, then `job_id` descending, and the response includes `total`. `paid_at` is the time the payment was recorded because jobs do not store a completion time, and `payout_status` is derived, not stored: it is always `Released` for a listed job, meaning the simulated payout was recorded at completion, not that the Marketer received money.
-
-```powershell
-curl.exe "http://localhost:8081/api/v1/me/transactions?role=creator&keyword=survey&page=1&page_size=10" `
-  -H "Authorization: Bearer $token"
-```
-
-Authenticated marketers can retrieve their performance summary from `GET /api/v1/me/statistics`. Completed jobs are matched through the marketer's accepted offers, average rating excludes jobs without reviews, and total earnings sum paid payments for completed jobs.
-
-```powershell
-curl.exe "http://localhost:8081/api/v1/marketers?min_price=500&max_price=3000&expertise=data-collection&campus=cu-main-campus&sort=price_asc" `
-  -H "Authorization: Bearer $token"
-```
-
-```powershell
-curl.exe "http://localhost:8081/api/v1/marketers?keyword=data" `
-  -H "Authorization: Bearer $token"
-```
-
-```powershell
-curl.exe "http://localhost:8081/api/v1/marketers?sort=price_desc" `
-  -H "Authorization: Bearer $token"
-
-curl.exe "http://localhost:8081/api/v1/marketers?sort=rating_asc" `
-  -H "Authorization: Bearer $token"
-```
-
-Create surveys with `POST /api/v1/surveys`. Registration already provisions the Creator membership; survey creation also uses an idempotent membership insert so existing and legacy accounts can create surveys safely. Survey owners can read, edit, and delete their surveys with `/api/v1/surveys/:id`. A survey referenced by any `is_used_in` row cannot be deleted, even when the related job is no longer active.
-
-## Creator Job Setup
-
-Creator job setup endpoints require a JWT and active Creator membership. A job must start with at least one survey owned by the Creator. Creating the job and its `is_used_in` links is one transaction, and the new job starts `Pending` with no accepted offer.
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/me/surveys` | List surveys available to the Creator |
-| `GET` | `/api/v1/me/jobs` | List the authenticated Creator's job summaries |
-| `POST` | `/api/v1/jobs` | Create a job with one or more owned survey IDs |
-| `GET` | `/api/v1/jobs/:id` | Read an owned job summary |
-| `POST` | `/api/v1/jobs/:id/surveys/:surveyId` | Link another owned survey |
-| `DELETE` | `/api/v1/jobs/:id/surveys/:surveyId` | Remove a link while keeping at least one survey |
-| `POST` | `/api/v1/jobs/:id/briefs` | Add a new HTTP(S) Brief URL |
-| `GET` | `/api/v1/jobs/:id/briefs` | List Brief history, newest first; the first item is current |
-| `POST` | `/api/v1/jobs/:id/requests` | Invite one or more Marketers |
-| `GET` | `/api/v1/jobs/:id/requests` | Read all invitation history for an owned job |
-| `GET` | `/api/v1/jobs/:id/offers` | Compare offers with each Marketer's profile and rating; filter with `?status=Pending` |
-| `POST` | `/api/v1/jobs/:id/offers/:offerId/accept` | Accept one `Pending` offer and hire its Marketer |
-| `POST` | `/api/v1/jobs/:id/reviews` | Submit one 1–5 star review with optional comment after completion |
-
-All job read routes require a JWT and active Creator membership. The job list is scoped to the authenticated Creator. Per-job reads check ownership and return the existing forbidden/not-found errors. Job summaries include only the job ID, status, creation time, and linked survey IDs/titles. Jobs sort newest first by creation time and ID; surveys sort by ID. Invitation history includes every status, sorted newest first by creation time and request ID, and returns marketer names without email, phone, or profile fields. Empty job and request lists return `data: []`.
-
-Brief changes create new attachment rows, preserving earlier versions. Invitations are created as `Pending`; a `Pending` or `Accepted` request is active, so it cannot be invited again until declined or closed. Each invitation batch is atomic. Once a job has hired a Marketer, it refuses new invitations with `409 job_not_pending`.
-
-The offer comparison lists every offer on the Creator's job, oldest first. Each item includes the offer (price, delivery date, message, status), the Marketer's public profile, and a `rating` with `average_rating`, `review_count`, `completed_jobs`, and `is_rated`. The rating follows the marketer detail rule: completed jobs won through an accepted offer, averaging only valid 1–5 reviews. A Marketer without rated jobs returns `average_rating: null` and `is_rated: false`.
-
-Accepting an offer is one transaction that rolls back completely on any failure. The job becomes `Accepted` with `accepted_offer_id` set, the offer becomes `Accepted`, every other `Pending` offer on the job becomes `Rejected`, and the other Marketers' `Pending` or `Accepted` job requests become `Closed`; the hired Marketer's request stays `Accepted`. The response lists `rejected_offer_ids` and `closed_job_request_ids`. Only a `Pending` offer on a `Pending` job can be accepted: a job that already has an accepted offer returns `409 job_not_pending`, a non-pending offer returns `409 offer_not_pending`, and an offer from another job returns `404 offer_not_found`. Offer submission and acceptance both lock the job before any job request, so they never deadlock: a submission in progress finishes first and its offer is rejected, and a later one is refused.
-
-The database permits a Job to transition to `Completed` only after that Job has a `Proof` attachment and an `accepted_offer_id`. This rule applies to status updates, including direct SQL updates; existing completed Jobs are not changed. Attachments are linked to Jobs but do not record who uploaded them, so this check cannot verify the Proof uploader.
-
-## Creator Payments
-
-`POST /api/v1/jobs/:id/payments` requires a JWT, Creator membership, and ownership of the Job. Submit a supported `method` (`PromptPay`, `Bank Transfer`, or `Credit Card`) and decimal-string `amount`, for example:
-
-```json
-{"method":"PromptPay","amount":"1500.00"}
-```
-
-The Job must be `Accepted`, `In Progress`, or `Completed` with a valid accepted offer. The amount must exactly equal that offer's price; invalid amounts or methods return `422 validation_error`, and a different amount returns `422 payment_amount_mismatch` without storing a row. Amounts follow the existing monetary limits: non-negative, at most two decimal places, and no more than `99999999.99`; zero is allowed when the offer is free.
-
-When the Creator confirms the record, success returns `201` with `payment_id`, `job_id`, `method`, `amount` formatted to two decimal places, `payment_status: Paid`, and server-assigned UTC `created_at` and `paid_at`. Both timestamps use the same instant. Status and timestamps cannot be supplied by the client. An existing `Pending` or `Paid` payment returns `409 payment_already_exists`; `Failed` and `Refunded` records remain as history and permit another attempt. Other state conflicts return `409 job_not_payable` or `409 accepted_offer_required`.
-
-Payment creation locks the Job and accepted offer in one transaction, preventing concurrent submissions from creating two active payments. `Paid` records the Creator's confirmation; no payment gateway processes money, and the Job status does not change. Statistics that count `Paid` payments include these confirmations. Historical payments retain an unknown (`null`) creation time; legacy `Other` methods are preserved, but new records must use the three supported methods.
-
-## Creator Reviews
-
-For a `Completed` job, its Creator can submit `{"rating": 1}` through `{"rating": 5}` with an optional `comment`. The response contains the stored review and server-generated `created_at`. A second review returns `409 review_already_exists`; a job that is not `Completed` returns `409 job_not_completed`.
-
-## Marketer Job Requests
-
-Marketer job request endpoints require a JWT and active Marketer membership. A marketer only sees and answers requests addressed to them; another marketer's request returns `404 job_request_not_found`.
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/me/job-requests` | List requests sent to the marketer, newest first; filter with `?status=Pending` |
-| `POST` | `/api/v1/me/job-requests/:id/accept` | Accept a `Pending` request |
-| `POST` | `/api/v1/me/job-requests/:id/decline` | Decline a `Pending` request with an optional `reason` and `note` |
-| `GET` | `/api/v1/me/job-requests/:id/offers` | List the marketer's offers for the request, newest first |
-| `POST` | `/api/v1/me/job-requests/:id/offers` | Submit a price offer for an `Accepted` request |
-| `POST` | `/api/v1/me/offers/:id/withdraw` | Withdraw the marketer's own `Pending` offer; `id` is the offer ID |
-
-Each listed request includes the job status, the Creator's name, linked surveys, the newest Brief, the job deadline (the earliest survey deadline), and `target_responses` (the sum of the surveys' desired responses). Accepting or declining records `responded_at`. Only a `Pending` request can be answered; answering an `Accepted`, `Declined`, or `Closed` request returns `409 job_request_not_pending`. Accepting signals interest so the marketer can make an offer; it does not hire the marketer or change the job status. A decline `reason` must be one of `Schedule conflict`, `Budget too low`, `Target audience mismatch`, or `Fully booked`, and the `note` is limited to 300 characters.
-
-An offer can only be submitted for an `Accepted` request (`409 job_request_not_accepted` otherwise) on a job that has not hired yet (`409 job_not_pending` otherwise), and is stored as `Pending`. Send `offered_price` as a decimal string from `0` to `99999999.99` with at most two decimal places, `delivery_date` as `YYYY-MM-DD`, and an optional `message` of up to 300 characters. The delivery date cannot be before today or after the job deadline, using the Asia/Bangkok calendar. Invalid fields return `422 invalid_offer` with a message naming the problem. Each request may have one active (`Pending` or `Accepted`) offer; a second returns `409 offer_already_exists`, while a `Withdrawn` or `Rejected` offer allows a new one. A partial unique index on `offers.job_request_id` enforces this even under concurrent submissions.
-
-Withdraw an offer with `POST /api/v1/me/offers/:id/withdraw` and no request body. The response is the existing offer shape with `offer_status: "Withdrawn"`; the original price, delivery date, message, and creation time remain unchanged. Only the owning Marketer can withdraw a `Pending` offer. Missing or foreign offers return `404 offer_not_found`; `Accepted`, `Rejected`, and already `Withdrawn` offers return `409 offer_not_pending`. Withdrawal leaves the job and invitation unchanged. Submit a replacement through the existing offer submission endpoint while the invitation is `Accepted`, the job is `Pending`, and no active offer exists. Withdrawal and acceptance serialize on the offer row, so neither can overwrite the other's completed transition. The existing schema and active-offer index already support this workflow; no new migration is required.
-
-## Starting a Job
-
-The Marketer hired through a job's accepted offer starts the job with `POST /api/v1/jobs/:id/start` and no request body. The endpoint requires a JWT and active Marketer membership. It moves an `Accepted` job to `In Progress` and returns `job_id`, `job_status`, `accepted_offer_id`, and the accepted `offer`, which is unchanged.
-
-Ownership is checked before the job status, so other marketers cannot learn a job's state. A job whose accepted offer belongs to another marketer, or that has no accepted offer yet, returns `403 job_forbidden`. A job that is not `Accepted` (already `In Progress`, `Completed`, or `Cancelled`) returns `409 job_not_accepted`. An accepted offer that is no longer `Accepted` returns `409 accepted_offer_mismatch`. The job row is locked while starting, so only one concurrent start succeeds.
-
-The hiring and start transitions are domain rules (`domain.Job.AcceptOffer` and `domain.Job.Start`); the repositories lock the rows, apply the rule, and persist the result. Migration `000014_job_accept_triggers` adds `trg_guard_job_accepted_offer`, an integrity guard that never changes a row. Before `jobs.accepted_offer_id` is set, it raises `check_violation` unless the job is still `Pending`, the same statement moves the job out of `Pending`, the offer belongs to the job and is already `Accepted`, and no other offer on the job is `Pending` or `Accepted`. Clearing the column is allowed so hired jobs can be deleted. Because the application sets every status itself, rolling back this migration does not change API behavior.
-
-## Database tools
-
-PostgreSQL:
-
-```text
-Host:     localhost
-Port:     5432
-Database: cuway_database
-User:     myuser
-Password: mypassword
-```
-
-pgAdmin is available at [http://localhost:5050](http://localhost:5050).
-
-```text
-Email:    admin@gmail.com
-Password: weakpassword
-```
-
-When registering PostgreSQL in pgAdmin, use `postgres` as the host because pgAdmin runs inside Docker Compose. Use port `5432`, database `cuway_database`, user `myuser`, and password `mypassword`.
-
-Change the example passwords before using this setup outside local development.
-
-## Useful commands
-
-| Command | Purpose |
+| Area | Responsibility |
 | --- | --- |
-| `make run` | Start the API |
-| `make build` | Build the API binary |
-| `make test` | Run all tests |
-| `make test-json` | Run uncached tests with machine-readable diagnostic events |
-| `make test-integration` | Run repository tests against an explicit disposable `TEST_DATABASE_URL` |
-| `make smoke` | Verify HTTP composition and request diagnostics without a database |
-| `make smoke-live` | Probe `/healthz` on an already running local API |
-| `make verify` | Run vet, uncached tests, and the API build |
-| `make vet` | Run `go vet` |
-| `make fmt` | Format Go code |
-| `make db-up` | Start PostgreSQL |
-| `make db-down` | Stop Compose services |
-| `make migrate-up` | Apply migrations |
-| `make migrate-down` | Roll back one migration |
-| `make migrate-version` | Show the current migration version |
-| `make seed-admin` | Create or promote the development admin account |
-| `make seed-mock-users` | Create the deterministic development/test user and marketer fixtures |
+| `cmd/api`, `internal/server` | API startup, dependency wiring, middleware, and route registration |
+| `internal/handlers/http` | HTTP request validation and response mapping |
+| `internal/core/domain`, `internal/core/ports` | Business rules, domain types, and interfaces used by services |
+| `internal/services` | Use cases, authorization, and validation across domain objects |
+| `internal/repositories/postgres` | PostgreSQL queries, row locks, and transaction boundaries |
+| `migrations`, `cmd/migrate` | Versioned database schema and migration runner |
 
-## Configuration
+Handlers call services, and repositories implement the persistence ports used by services. Make schema changes through versioned SQL migrations. The backend stores survey metadata and job associations. Survey questions and responses are outside its scope. See the [architecture guide](docs/architecture.md).
 
-`.env.example` contains the supported settings. Important values include:
+### Accounts and marketer discovery
 
-```env
-PORT=8081
-DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/cuway_database?sslmode=disable
-SECRET_KEY=replace_with_a_32_character_secret_key
-```
+- Registration creates a `user` account and its Creator membership in one transaction. A registration with a marketer profile also enables the Marketer workflow. The JWT `role` distinguishes ordinary users and administrators. Creator and Marketer permissions come from memberships and ownership checks. Passwords are stored as Argon2id hashes, and access tokens expire after one hour.
+- Registration requires a unique 10-digit phone number. Users are soft-deleted and excluded from normal reads. Updates apply only the supplied fields. A client can clear `line_id` with `null` and can replace an existing phone number.
+- Marketers manage their own profiles and services. The expertise and campus values come from curated catalogs. Search matches the Marketer's name, bio, and service text, combines selected filters, and excludes archived services. A Marketer appears once even when several services match. Missing prices and ratings sort last. Profile details show completed jobs, qualifying review count, and average rating.
 
-Environment variables override values from `.env`. The local PostgreSQL URL should include `sslmode=disable` because the development container does not enable TLS.
+### Job lifecycle and ownership
 
-## Development checks
+The normal job status sequence is `Pending` → `Accepted` → `In Progress` → `Completed`. A Creator can also cancel a `Pending` job.
 
-Before submitting changes, run:
+| Step | Rules |
+| --- | --- |
+| Create or edit | A Creator starts with at least one owned survey. Job creation and survey linking commit together. Job details and survey selection can be edited while the job is `Pending`. A survey linked to any job cannot be deleted. |
+| Send invitations | Brief changes add a new attachment and preserve history. Invitation batches are atomic. A `Pending` or `Accepted` invitation blocks a second active invitation to the same Marketer for that job. Hiring closes invitations to other Marketers. |
+| Respond and submit an offer | Only the recipient can respond to a `Pending` invitation. Accepting the invitation signals interest and enables offer submission while the job is `Pending`. Each invitation can have one active (`Pending` or `Accepted`) offer. An owning Marketer can withdraw a `Pending` offer, then submit a replacement if the job and invitation still qualify. |
+| Hire and start | The owning Creator accepts one `Pending` offer. In the same transaction the job becomes `Accepted`, other `Pending` offers become `Rejected`, and other active invitations become `Closed`. The hired Marketer starts the job and moves it to `In Progress`. |
+| Cancel | The owning Creator may cancel a `Pending` job without a `Paid` payment. Cancellation closes active invitations, rejects pending offers, and records a server timestamp and any supplied reason. |
 
-```powershell
-go test -count=1 ./...
-go vet ./...
-go build -trimpath ./cmd/api
-go list ./...
-```
+The effective delivery deadline is the earliest date set on the job or its linked surveys. If none is set, it is `null`. Offers use the Asia/Bangkok calendar and must be dated from today through that deadline. Invitations show the newest Brief and the sum of the linked surveys' desired responses when available. Creator job summaries count pending offers and exclude withdrawn and rejected offers from that count.
 
-The regular test suite includes production import-boundary checks and a database-free HTTP composition smoke test. PostgreSQL integration fixtures run only when `TEST_DATABASE_URL` is explicitly set to a migrated loopback database whose name ends with `_test`; `DATABASE_URL` is reserved for the application and migrations. Integration tests use rollback transactions but consume database sequences, so use a disposable test database.
+Offer submission, hiring, and cancellation lock the job before applying state changes. A partial unique index protects the one-active-offer rule under concurrent submissions. The accepted-offer guard in migration `000014` checks that the offer belongs to the job and that competing offers were resolved before the job is updated.
 
-For JSON evidence, live probes, and integration setup, see [docs/verification.md](docs/verification.md).
+### Payment confirmation, proof, and completion
 
-## Pull requests and commit messages
+- The owning Creator records the exact accepted price as a decimal string. The supported methods are `PromptPay`, `Bank Transfer`, and `Credit Card`. The service records `Paid` with server-generated timestamps and leaves the job status as it was. The backend records confirmation and simulates payout without moving money through a payment gateway.
+- An existing `Pending` or `Paid` payment blocks a second active record. A job lock protects this check under concurrent submissions. Failed and refunded payments remain in history. The Creator can read `/api/v1/jobs/{id}/payments/current` after a reload or a request with an unknown result. Legacy rows may have missing timestamps or the `Other` method.
+- The hired Marketer can submit an HTTP or HTTPS Proof URL while the job is `In Progress`. The owning Creator and hired Marketer can read proof history. The database trigger requires a Proof attachment and a non-null `accepted_offer_id` on updates to `Completed`. Attachment rows record the job association, and the API checks uploader permissions against the accepted offer.
+- The owning Creator completes an `In Progress` job after proof is saved and a matching `Paid` payment exists. Completion saves the timestamp once, and repeating the request returns the saved result. The settlement read is available to the owning Creator and hired Marketer. For jobs with a `Paid` record, the simulated payout is `Held` while `Accepted` or `In Progress` and `Released` once `Completed`. Cancelled jobs have no payout status.
 
-Pull requests into `dev` or `main` run the backend CI checks. Use a lightweight Conventional
-Commit subject for the pull request title and for every commit included in the pull request:
+### Reviews, reporting, and legacy records
 
-```text
-<type>: <description>
-<type>(<scope>): <description>
-```
+- The owning Creator can submit one review after completion, with a rating from 1 to 5 and an optional comment. The current-review endpoint lets the Creator recover the saved review after a reload. Ratings and review counts only include valid reviews from completed jobs. An unrated Marketer has a `null` average.
+- The profile owner, Creators, and administrators can use `GET /api/v1/marketers/{id}/reviews` to read verified reviews from completed jobs where the Marketer held the accepted offer. Each review includes the linked job ID and the job owner's name as `reviewer_name`. Reviews are paginated and sorted newest first, with a default of 10 and a maximum of 50 per page. `review_count` and `average_rating` cover the full set. With no qualifying reviews, `items` is empty and `average_rating` is `null`.
+- Transaction history lists only completed jobs with a `Paid` record where the signed-in user is the owning Creator or hired Marketer. It lists the accepted price and payment method, sorts by newest completion with unknown times last, and shows `has_review` on the Creator side. Marketer statistics use accepted offers to count completed jobs, omit unrated jobs from the average, and sum recorded paid amounts for completed jobs.
+- Migration `000010` adds stored job details. Older jobs may still have empty or null details. Migration `000015` is a compatibility marker for databases that ran the earlier completion migration, `000016` adds cancellation metadata, and `000017` stores the completion instant in `completed_at`. Historical rows without a known completion time retain `null`.
 
-Accepted types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
-`chore`, and `revert`. A breaking-change marker is also accepted, for example
-`feat(auth)!: replace the token format`. Issue IDs, capitalization rules, and commit bodies are
-not required. Branch names are not validated by CI.
+## Development
 
-The current migrations include a foundation baseline, the domain schema, the user soft-delete column, authentication columns, and normalized marketer profile/search tables. Migrations are the database source of truth; do not use GORM `AutoMigrate` for this project.
+Run `make verify` before opening a pull request. It runs vet, uncached tests, and the API build. See the [verification guide](docs/verification.md) for PostgreSQL tests, smoke checks, and local seed commands.
 
-## Saved job details
+See the [architecture guide](docs/architecture.md) for layer responsibilities, migration conventions, and the steps for adding a feature.
 
-Migration `000010_job_details` adds persisted job titles, descriptions, exact decimal THB compensation, and a date-only job deadline. Older jobs retain empty or null optional details. Creation remains compatible with callers that send only survey IDs.
+Use Conventional Commit subjects for PR titles and commits, for example `docs(api): clarify the job workflow`.
 
-`PATCH /api/v1/jobs/{id}` saves an owned Pending job's title, description, budget, and deadline. An optional nonempty `survey_ids` selection is replaced in the same transaction, with ownership checked before any changes. Accepted jobs reject metadata edits with 409. Creator summaries and Marketer invitations expose the saved metadata. Their effective delivery deadline is the earlier of the job date and the earliest linked survey deadline; offer submission validates the same rule, including under the repository's job lock.
+## Deployment
 
-The authenticated marketer detail endpoint also returns its qualifying review count, alongside the completed-job count and average rating, so frontend detail pages do not need to search for the profile.
-
-Creator job summaries include `pending_offer_count`, the number of offers awaiting a decision. Withdrawn and rejected history is excluded. This is computed on read and requires no migration.
+See the [production deployment guide](docs/deployment.md) for the Railway API and PostgreSQL setup and its connection to the Vercel frontend.

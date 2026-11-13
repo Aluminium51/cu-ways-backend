@@ -14,6 +14,7 @@ import (
 
 type reviewService interface {
 	Submit(context.Context, services.Actor, int32, services.SubmitReviewInput) (*domain.Review, error)
+	Current(context.Context, services.Actor, int32) (*domain.Review, error)
 }
 
 type ReviewHandler struct {
@@ -57,10 +58,41 @@ func (h *ReviewHandler) Submit(c *fiber.Ctx) error {
 	if err != nil {
 		return mapReviewError(err)
 	}
-	return response.Success(c, fiber.StatusCreated, ReviewResponse{
+	return response.Success(c, fiber.StatusCreated, toReviewResponse(*review))
+}
+
+// CurrentReviewResponse wraps the Job's review; Review is null when the Job
+// has not been reviewed yet.
+type CurrentReviewResponse struct {
+	Review *ReviewResponse `json:"review"`
+}
+
+func (h *ReviewHandler) Current(c *fiber.Ctx) error {
+	actor, err := actorFromRequest(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := parseUserID(c.Params("id"))
+	if err != nil {
+		return validationError(err)
+	}
+	review, err := h.service.Current(c.UserContext(), actor, jobID)
+	if err != nil {
+		return mapReviewError(err)
+	}
+	var current CurrentReviewResponse
+	if review != nil {
+		res := toReviewResponse(*review)
+		current.Review = &res
+	}
+	return response.Success(c, fiber.StatusOK, current)
+}
+
+func toReviewResponse(review domain.Review) ReviewResponse {
+	return ReviewResponse{
 		ReviewID: review.ReviewID, JobID: review.JobID, Rating: review.Rating,
 		Comment: review.Comment, CreatedAt: review.CreatedAt,
-	})
+	}
 }
 
 func mapReviewError(err error) error {

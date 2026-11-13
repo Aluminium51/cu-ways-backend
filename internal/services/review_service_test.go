@@ -14,6 +14,7 @@ type fakeReviewRepository struct {
 	creatorID int32
 	jobID     int32
 	review    *domain.Review
+	current   *domain.Review
 	calls     int
 	err       error
 
@@ -21,6 +22,15 @@ type fakeReviewRepository struct {
 	listCalls int
 	listPage  ports.MarketerReviewPage
 	listErr   error
+}
+
+func (f *fakeReviewRepository) FindForCreatorJob(_ context.Context, creatorID, jobID int32) (*domain.Review, error) {
+	f.calls++
+	f.creatorID, f.jobID = creatorID, jobID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.current, nil
 }
 
 func (f *fakeReviewRepository) CreateForCreatorJob(_ context.Context, creatorID, jobID int32, review *domain.Review) (*domain.Review, error) {
@@ -92,5 +102,43 @@ func TestReviewServicePassesThroughJobAndDuplicateErrors(t *testing.T) {
 		if !errors.Is(err, want) {
 			t.Fatalf("expected %v, got %v", want, err)
 		}
+	}
+}
+
+func TestReviewServiceCurrentScopesToCreatorJob(t *testing.T) {
+	current := &domain.Review{ReviewID: 41, JobID: 12, Rating: 4}
+	repo := &fakeReviewRepository{current: current}
+	review, err := NewReviewService(repo, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12)
+	if err != nil || review != current || repo.creatorID != 8 || repo.jobID != 12 {
+		t.Fatalf("got %+v, %v; repo %+v", review, err, repo)
+	}
+	none, err := NewReviewService(&fakeReviewRepository{}, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12)
+	if err != nil || none != nil {
+		t.Fatalf("expected no review, got %+v, %v", none, err)
+	}
+	failing := &fakeReviewRepository{err: domain.ErrJobForbidden}
+	if _, err := NewReviewService(failing, &fakeMembershipRepository{creator: true}).Current(context.Background(), Actor{UserID: 8}, 12); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("expected repository error, got %v", err)
+	}
+}
+
+func TestReviewServiceCurrentRejectsBeforeReading(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		creator    bool
+		actor, job int32
+		want       error
+	}{
+		{"not_creator", false, 8, 12, domain.ErrCreatorRequired},
+		{"invalid_actor", true, 0, 12, domain.ErrCreatorRequired},
+		{"invalid_job", true, 8, 0, domain.ErrInvalidJob},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeReviewRepository{}
+			_, err := NewReviewService(repo, &fakeMembershipRepository{creator: tc.creator}).Current(context.Background(), Actor{UserID: tc.actor}, tc.job)
+			if !errors.Is(err, tc.want) || repo.calls != 0 {
+				t.Fatalf("got %v, calls %d", err, repo.calls)
+			}
+		})
 	}
 }
