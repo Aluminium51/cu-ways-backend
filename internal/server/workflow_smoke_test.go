@@ -48,6 +48,7 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "services_require_authentication", path: "/api/v1/me/services", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "statistics_require_authentication", path: "/api/v1/me/statistics", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "search_requires_authentication", path: "/api/v1/marketers", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "marketer_reviews_require_authentication", path: "/api/v1/marketers/1/reviews", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "survey_requires_authentication", path: "/api/v1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "creator_surveys_require_authentication", path: "/api/v1/me/surveys", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "creator_jobs_require_authentication", path: "/api/v1/me/jobs", status: 401, envelope: "error", errorCode: "unauthorized"},

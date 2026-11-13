@@ -137,6 +137,16 @@ func TestSwaggerWorkflow(t *testing.T) {
 	if saved.Review == nil || saved.Review.ReviewID != review.ReviewID || saved.Review.Rating != 5 {
 		t.Fatal("expected saved review to be returned on readback")
 	}
+	// Registration grants Creator membership. Remove it to exercise owner access.
+	if err := db.GORM().Exec("DELETE FROM creators WHERE user_id = ?", marketer.User.UserID).Error; err != nil {
+		t.Fatalf("remove the marketer's Creator membership: %v", err)
+	}
+	profileReviewsURL := fmt.Sprintf("/api/v1/marketers/%d/reviews", marketer.User.UserID)
+	profileReviews := swaggerData[httpapi.MarketerReviewsResponse](t, app, http.MethodGet, profileReviewsURL, marketer.AccessToken, nil, 200)
+	if len(profileReviews.Items) != 1 || profileReviews.Items[0].ReviewID != review.ReviewID ||
+		profileReviews.Items[0].ReviewerName != creator.User.Name {
+		t.Fatalf("expected the marketer to see the saved review with the Creator's name, got %+v", profileReviews.Items)
+	}
 	history := swaggerData[httpapi.TransactionListResponse](t, app, http.MethodGet, "/api/v1/me/transactions?role=creator", creator.AccessToken, nil, 200)
 	if len(history.Items) != 1 || history.Items[0].JobID != job.JobID || history.Items[0].AcceptedPrice != offer.OfferedPrice ||
 		history.Items[0].HasReview == nil || !*history.Items[0].HasReview {

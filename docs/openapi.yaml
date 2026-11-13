@@ -762,6 +762,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/marketers/{id}/reviews:
+    get:
+      operationId: listMarketerReviews
+      summary: List a marketer's verified reviews
+      description: >-
+        Lists reviews for Completed Jobs in which the marketer held the accepted
+        Offer. Reviews have a rating from 1 to 5 and include the job owner's
+        name. Results are newest first and paginated. average_rating and
+        review_count cover all qualifying reviews. When no reviews qualify,
+        items is empty, review_count is 0, and average_rating is null.
+        The profile owner, Creators, and administrators can access this endpoint.
+      tags: [Marketers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+        - name: page
+          in: query
+          description: One-based page number.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of reviews per page.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: One page of verified reviews with the aggregate rating. items is an empty array and average_rating is null when none qualify.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketerReviewsResponse'
+        '401':
+          description: Authentication is required or the token is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller lacks Creator membership and administrator access and does not own this marketer profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The marketer profile does not exist or belongs to a deleted user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: page or page_size is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/surveys:
     post:
       operationId: createSurvey
@@ -3940,6 +4012,70 @@ components:
               maximum: 5
               nullable: true
               description: Null when the marketer has no qualifying review on an accepted-offer completed job.
+    MarketerReviewsResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [items, average_rating, review_count, page, page_size, total]
+          properties:
+            items:
+              type: array
+              description: One page of verified reviews, newest first. Empty when none qualify.
+              items:
+                type: object
+                required: [review_id, job_id, reviewer_name, rating, comment, created_at]
+                properties:
+                  review_id:
+                    type: integer
+                    format: int32
+                  job_id:
+                    type: integer
+                    format: int32
+                  reviewer_name:
+                    type: string
+                    description: The current name of the Creator who owns the job.
+                    example: Narin Chai
+                  rating:
+                    type: integer
+                    format: int32
+                    minimum: 1
+                    maximum: 5
+                  comment:
+                    type: string
+                    nullable: true
+                  created_at:
+                    type: string
+                    format: date-time
+            average_rating:
+              type: number
+              format: double
+              minimum: 1
+              maximum: 5
+              nullable: true
+              description: Mean rating over every qualifying review. Null when the marketer has no qualifying reviews.
+            review_count:
+              type: integer
+              format: int64
+              minimum: 0
+              description: Total number of verified reviews across all pages.
+            page:
+              type: integer
+              format: int32
+              minimum: 1
+            page_size:
+              type: integer
+              format: int32
+              minimum: 1
+            total:
+              type: integer
+              format: int64
+              minimum: 0
+              description: Total number of verified reviews matching the query; equal to review_count.
     SuccessResponse:
       type: object
       required: [status, data]
