@@ -14,17 +14,25 @@ var (
 
 const PayoutStatusHeld = "Held"
 
+type JobContact struct {
+	Email  string  `json:"email"`
+	Phone  *string `json:"phone"`
+	LineID *string `json:"line_id"`
+}
+
 type JobSettlement struct {
-	JobID         int32
-	JobTitle      string
-	JobStatus     JobStatus
-	CompletedAt   *time.Time
-	CreatorID     int32
-	CreatorName   string
-	MarketerID    int32
-	MarketerName  string
-	AcceptedPrice decimal.Decimal
-	Payment       *Payment `gorm:"-"`
+	JobID           int32
+	JobTitle        string
+	JobStatus       JobStatus
+	CompletedAt     *time.Time
+	CreatorID       int32
+	CreatorName     string
+	CreatorContact  JobContact `gorm:"embedded;embeddedPrefix:creator_contact_"`
+	MarketerID      int32
+	MarketerName    string
+	MarketerContact JobContact `gorm:"embedded;embeddedPrefix:marketer_contact_"`
+	AcceptedPrice   decimal.Decimal
+	Payment         *Payment `gorm:"-"`
 }
 
 // CanView checks participant access before reporting whether the job has an accepted offer.

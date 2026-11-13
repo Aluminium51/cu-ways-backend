@@ -111,8 +111,8 @@ func TestJobCancelRefusesInvalidCancellations(t *testing.T) {
 		want   error
 	}{
 		{"already_cancelled", JobStatusCancelled, false, ErrJobAlreadyCancelled},
-		{"accepted", JobStatusAccepted, false, ErrJobNotCancellable},
-		{"in_progress", JobStatusInProgress, false, ErrJobNotCancellable},
+		{"accepted_paid", JobStatusAccepted, true, ErrJobHasPaidPayment},
+		{"in_progress_paid", JobStatusInProgress, true, ErrJobHasPaidPayment},
 		{"completed", JobStatusCompleted, false, ErrJobNotCancellable},
 		// Status comes first, so a cancelled job always reports 409 already cancelled.
 		{"already_cancelled_with_paid_payment", JobStatusCancelled, true, ErrJobAlreadyCancelled},

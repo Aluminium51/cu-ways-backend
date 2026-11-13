@@ -94,6 +94,20 @@ func (r *JobOfferRepository) AcceptOffer(ctx context.Context, creatorID, jobID, 
 			}
 			return err
 		}
+		var activeMarketer bool
+		if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = ? AND deleted_at IS NULL)", offer.UserID).Scan(&activeMarketer).Error; err != nil {
+			return err
+		}
+		if !activeMarketer {
+			return domain.ErrMarketerNotFound
+		}
+		// Serialize hiring with updates to the linked survey metadata.
+		var surveys []domain.Survey
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).
+			Where("survey_id IN (SELECT survey_id FROM is_used_in WHERE job_id = ?)", jobID).
+			Order("survey_id").Find(&surveys).Error; err != nil {
+			return err
+		}
 		if err := job.AcceptOffer(&offer); err != nil {
 			return err
 		}
@@ -210,6 +224,7 @@ JOIN offers AS accepted_offer
 LEFT JOIN reviews AS review
   ON review.job_id = job.job_id
 WHERE job.job_status = ?
+  AND accepted_offer.user_id <> job.user_id
   AND accepted_offer.user_id IN ?
 GROUP BY accepted_offer.user_id`, domain.JobStatusCompleted, marketerIDs).Scan(&rows).Error; err != nil {
 		return nil, err

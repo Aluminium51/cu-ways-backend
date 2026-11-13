@@ -262,14 +262,11 @@ func registeredResult() *services.AuthResult {
 	}
 }
 
-func TestAuthHandlerRegisterRequiresPhone(t *testing.T) {
+func TestAuthHandlerRegisterAllowsMissingPhone(t *testing.T) {
 	service := &fakeAuthService{registerResult: registeredResult()}
 	status := postRegister(t, service, `{"name":"Jane","email":"jane@example.com","password":"correct horse battery staple"}`)
-	if status != fiber.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 without a phone, got %d", status)
-	}
-	if service.registerCtx != nil {
-		t.Fatal("an invalid request must not reach the service")
+	if status != fiber.StatusCreated || service.registerCtx == nil {
+		t.Fatalf("expected email-only registration to reach the service, got %d", status)
 	}
 }
 

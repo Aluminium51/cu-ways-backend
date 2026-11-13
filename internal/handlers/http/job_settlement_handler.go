@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -23,15 +24,16 @@ func NewJobSettlementHandler(service jobSettlementService) *JobSettlementHandler
 }
 
 type JobSettlementResponse struct {
-	JobID         int32            `json:"job_id"`
-	JobTitle      string           `json:"job_title"`
-	JobStatus     domain.JobStatus `json:"job_status"`
-	Creator       TransactionParty `json:"creator"`
-	Marketer      TransactionParty `json:"marketer"`
-	AcceptedPrice string           `json:"accepted_price"`
-	Payment       *PaymentResponse `json:"payment"`
-	PayoutStatus  *string          `json:"payout_status"`
-	CompletedAt   *time.Time       `json:"completed_at"`
+	JobID         int32              `json:"job_id"`
+	JobTitle      string             `json:"job_title"`
+	JobStatus     domain.JobStatus   `json:"job_status"`
+	Creator       TransactionParty   `json:"creator"`
+	Marketer      TransactionParty   `json:"marketer"`
+	Contact       *domain.JobContact `json:"contact,omitempty"`
+	AcceptedPrice string             `json:"accepted_price"`
+	Payment       *PaymentResponse   `json:"payment"`
+	PayoutStatus  *string            `json:"payout_status"`
+	CompletedAt   *time.Time         `json:"completed_at"`
 }
 
 func (h *JobSettlementHandler) GetPayment(c *fiber.Ctx) error {
@@ -39,6 +41,10 @@ func (h *JobSettlementHandler) GetPayment(c *fiber.Ctx) error {
 }
 
 func (h *JobSettlementHandler) Complete(c *fiber.Ctx) error {
+	body := bytes.TrimSpace(c.Body())
+	if len(body) != 0 && !bytes.Equal(body, []byte("{}")) {
+		return validationError(errors.New("completion does not accept request fields"))
+	}
 	return respondWithSettlement(c, h.service.Complete)
 }
 
@@ -60,6 +66,13 @@ func respondWithSettlement(c *fiber.Ctx, load func(context.Context, services.Act
 		Creator:       TransactionParty{UserID: record.CreatorID, Name: record.CreatorName},
 		Marketer:      TransactionParty{UserID: record.MarketerID, Name: record.MarketerName},
 		AcceptedPrice: record.AcceptedPrice.StringFixed(2), CompletedAt: record.CompletedAt,
+	}
+	contact := record.MarketerContact
+	if actor.UserID == record.MarketerID {
+		contact = record.CreatorContact
+	}
+	if record.JobStatus != domain.JobStatusCancelled && contact.Email != "" {
+		result.Contact = &contact
 	}
 	if record.Payment != nil {
 		payment := toPaymentResponse(*record.Payment)

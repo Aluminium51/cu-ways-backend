@@ -101,10 +101,6 @@ func (s *UserService) Update(ctx context.Context, actor Actor, userID int32, inp
 		patch.Email = &email
 	}
 	if input.PhoneSet {
-		// Every account keeps a phone: it can be changed but not removed.
-		if input.Phone == nil {
-			return nil, domain.ErrInvalidUser
-		}
 		phone, err := normalizePhone(input.Phone)
 		if err != nil {
 			return nil, err
@@ -195,6 +191,9 @@ func normalizePhone(value *string) (*string, error) {
 		return nil, nil
 	}
 	normalized := strings.TrimSpace(*value)
+	if normalized == "" {
+		return nil, nil
+	}
 	if utf8.RuneCountInString(normalized) != PhoneDigits {
 		return nil, domain.ErrInvalidUser
 	}

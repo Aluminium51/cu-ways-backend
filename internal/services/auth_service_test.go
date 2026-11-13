@@ -221,25 +221,22 @@ func TestAuthServiceRegisterPropagatesCanceledContext(t *testing.T) {
 	}
 }
 
-func TestAuthServiceRegisterRequiresPhone(t *testing.T) {
-	repo := newFakeUserRepository()
-	service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+func TestAuthServiceRegisterAllowsMissingPhone(t *testing.T) {
 
 	for name, phone := range map[string]*string{"missing": nil, "empty": stringPointer(""), "blank": stringPointer("   ")} {
 		t.Run(name, func(t *testing.T) {
-			_, err := service.Register(context.Background(), RegisterInput{
+			repo := newFakeUserRepository()
+			service := NewAuthService(repo, &fakePasswordHasher{}, &fakeTokenIssuer{})
+			result, err := service.Register(context.Background(), RegisterInput{
 				Name:     "Jane",
 				Email:    "jane@example.com",
 				Password: "correct horse battery staple",
 				Phone:    phone,
 			})
-			if !errors.Is(err, domain.ErrInvalidUser) {
-				t.Fatalf("expected invalid user for %s phone, got %v", name, err)
+			if err != nil || result.User.Phone != nil || len(repo.users) != 1 {
+				t.Fatalf("expected an email-only account for %s phone, got %+v, %v", name, result, err)
 			}
 		})
-	}
-	if len(repo.users) != 0 {
-		t.Fatal("registration without a phone must not persist a user")
 	}
 }
 

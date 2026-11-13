@@ -30,7 +30,7 @@ JOIN offers AS accepted_offer
   ON accepted_offer.job_id = job.job_id
  AND accepted_offer.offer_id = job.accepted_offer_id
 LEFT JOIN reviews AS review
-  ON review.job_id = job.job_id
+  ON review.job_id = job.job_id AND review.rating BETWEEN 1 AND 5
 LEFT JOIN (
     SELECT payment.job_id, SUM(payment.amount) AS total
     FROM payments AS payment
@@ -39,6 +39,7 @@ LEFT JOIN (
 ) AS paid
   ON paid.job_id = job.job_id
 WHERE job.job_status = ?
+  AND accepted_offer.user_id <> job.user_id
   AND accepted_offer.user_id = ?`,
 		domain.PaymentStatusPaid,
 		domain.JobStatusCompleted,

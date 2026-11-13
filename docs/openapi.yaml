@@ -19,6 +19,54 @@ tags:
   - name: Job Requests
     description: Marketer review of and responses to job invitations, and offer submission.
 paths:
+  /api/v1/admin/jobs:
+    get:
+      operationId: listAdminJobs
+      summary: List jobs and payment records for an administrator
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+        - { in: query, name: page_size, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - in: query
+          name: status
+          schema: { type: string, enum: [Pending, Accepted, In Progress, Completed, Cancelled] }
+      responses:
+        '200':
+          description: Jobs ordered by descending ID
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: { type: string, enum: [success] }
+                  data: { $ref: '#/components/schemas/AdminJobPage' }
+        '401': { description: Authentication required }
+        '403': { description: Administrator access required }
+        '422': { description: Invalid report filters or pagination }
+  /api/v1/admin/flagged-marketers:
+    get:
+      operationId: listFlaggedMarketers
+      summary: List marketers with two or more flagged jobs
+      description: Counts hired jobs that were cancelled or completed with a rating below three stars.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+        - { in: query, name: page_size, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: Report ordered by flagged count and then accepted offer value, descending
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: { type: string, enum: [success] }
+                  data: { $ref: '#/components/schemas/FlaggedMarketerPage' }
+        '401': { description: Authentication required }
+        '403': { description: Administrator access required }
+        '422': { description: Invalid pagination }
   /healthz:
     get:
       operationId: getHealth
@@ -1735,7 +1783,7 @@ paths:
       operationId: cancelJob
       summary: Cancel a pending job
       description: >-
-        Cancels a Pending job owned by the caller so the incomplete contract is
+        Cancels an unpaid Pending, Accepted, or In Progress job owned by the caller so the incomplete contract is
         logged. The request body is optional. In one transaction that rolls back
         completely on any failure, the job becomes Cancelled with cancelled_at
         set by the server and the optional trimmed cancel_reason, every Pending
@@ -1777,7 +1825,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: The job is already Cancelled (code job_already_cancelled), is Accepted, In Progress or Completed (code job_not_cancellable), or has a Paid payment (code job_has_paid_payment). No state is changed.
+          description: The job is already Cancelled (code job_already_cancelled), is Completed (code job_not_cancellable), or has a Paid payment (code job_has_paid_payment). No state is changed.
           content:
             application/json:
               schema:
@@ -2441,9 +2489,54 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AdminJobPage:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer, format: int64 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [job_id, creator_name, survey_titles, job_status, amount, payment_status, paid_at]
+            properties:
+              job_id: { type: integer, format: int32 }
+              creator_name: { type: string }
+              survey_titles: { type: array, items: { type: string } }
+              job_status: { type: string, enum: [Pending, Accepted, In Progress, Completed, Cancelled] }
+              amount: { type: string, nullable: true }
+              payment_status: { type: string, nullable: true }
+              paid_at: { type: string, format: date-time, nullable: true }
+    FlaggedMarketerPage:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer, format: int64 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [marketer_id, name, flagged_jobs, total_value, attachment_count]
+            properties:
+              marketer_id: { type: integer, format: int32 }
+              name: { type: string }
+              flagged_jobs: { type: integer, format: int64 }
+              total_value: { type: string }
+              attachment_count: { type: integer, format: int64 }
+    JobContact:
+      type: object
+      required: [email, phone, line_id]
+      properties:
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        line_id: { type: string, nullable: true }
     RegisterRequest:
       type: object
-      required: [name, email, password, phone]
+      required: [name, email, password]
       properties:
         name:
           type: string
@@ -2460,7 +2553,8 @@ components:
           maxLength: 128
         phone:
           type: string
-          description: A 10-digit Thai mobile number, digits only. Must be unique across accounts.
+          nullable: true
+          description: Optional 10-digit Thai mobile number. Must be unique when provided.
           pattern: '^[0-9]{10}$'
           minLength: 10
           maxLength: 10
@@ -2565,7 +2659,8 @@ components:
           maxLength: 255
         phone:
           type: string
-          description: A 10-digit Thai mobile number, digits only. Can be changed but not removed.
+          nullable: true
+          description: A 10-digit Thai mobile number. Send null to remove it.
           pattern: '^[0-9]{10}$'
           minLength: 10
           maxLength: 10
@@ -3707,6 +3802,8 @@ components:
           $ref: '#/components/schemas/TransactionParty'
         marketer:
           $ref: '#/components/schemas/TransactionParty'
+        contact:
+          $ref: '#/components/schemas/JobContact'
         accepted_price:
           type: string
         payment:

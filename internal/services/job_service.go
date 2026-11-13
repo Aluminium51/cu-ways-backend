@@ -182,7 +182,7 @@ func (s *JobService) AddBrief(ctx context.Context, actor Actor, jobID int32, raw
 func validAttachmentURL(rawURL string) (string, bool) {
 	trimmed := strings.TrimSpace(rawURL)
 	parsed, err := url.ParseRequestURI(trimmed)
-	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
 		return "", false
 	}
 	return trimmed, true
@@ -215,7 +215,7 @@ type CancelJobInput struct {
 	Reason *string
 }
 
-// Cancel cancels a Pending job the Creator owns. The job becomes Cancelled
+// Cancel cancels an unpaid job the Creator owns. The job becomes Cancelled
 // with the server's time and the optional trimmed reason, its active job
 // requests are Closed, and its Pending offers are Rejected, all atomically.
 func (s *JobService) Cancel(ctx context.Context, actor Actor, jobID int32, input CancelJobInput) (*ports.JobCancellation, error) {

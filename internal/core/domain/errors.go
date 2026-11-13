@@ -28,6 +28,7 @@ var (
 	ErrSurveyForbidden = errors.New("survey access forbidden")
 	ErrInvalidSurvey   = errors.New("invalid survey")
 	ErrNoSurveyChanges = errors.New("no survey changes supplied")
+	ErrSurveyLocked    = errors.New("survey is part of a hired job")
 	ErrSurveyInUse     = errors.New("survey is referenced by a job")
 
 	ErrJobNotFound             = errors.New("job not found")
@@ -51,6 +52,7 @@ var (
 	ErrInvalidOffer       = errors.New("invalid offer")
 	ErrOfferAlreadyExists = errors.New("an active offer already exists for this job request")
 	ErrOfferNotFound      = errors.New("offer not found")
+	ErrSelfHiring         = errors.New("creators cannot invite or hire their own marketer account")
 	ErrOfferNotPending    = errors.New("offer is no longer pending")
 	ErrJobNotPending      = errors.New("job is no longer open for offers")
 
@@ -58,7 +60,7 @@ var (
 	ErrAcceptedOfferMismatch = errors.New("the job's accepted offer is no longer accepted")
 
 	ErrJobAlreadyCancelled = errors.New("job is already cancelled")
-	ErrJobNotCancellable   = errors.New("only a pending job can be cancelled")
+	ErrJobNotCancellable   = errors.New("only Pending, Accepted, or In Progress jobs can be cancelled")
 	ErrJobHasPaidPayment   = errors.New("a job with a paid payment cannot be cancelled")
 	ErrInvalidCancelReason = errors.New("cancel reason must be at most 300 characters")
 

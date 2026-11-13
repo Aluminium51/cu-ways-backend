@@ -1,6 +1,6 @@
 # Production deployment: Railway API and PostgreSQL
 
-Deploy from the backend repository's production branch after its changes have passed CI and been merged. The frontend deployment steps are in the frontend repository's `docs/deployment.md`. This guide prepares Production only; PR previews need separate configuration and data.
+Deploy from each repository's production branch after its changes have passed CI and been merged. Use a separate environment and database for staging and previews.
 
 ## 1. Prepare Railway
 
@@ -21,11 +21,34 @@ Deploy from the backend repository's production branch after its changes have pa
 
 The API image is distroless. Its default command is `/api`; `/migrate` is a separate static binary. The image also contains `docs/` and `migrations/`. Neither binary needs a shell. Do not set a custom start command unless the default is intentionally replaced.
 
-## 2. Verify
+## 2. Connect Vercel and verify
+
+In the frontend Vercel project, set the server-only `BACKEND_API_URL` to the Railway API's HTTPS origin. Set `FRONTEND_ORIGIN` to the canonical HTTPS origin of the deployed frontend, including the scheme and omitting the trailing slash. Keep `MARKETER_DEMO_ENABLED=false`.
 
 - Check the pre-deploy log for `database migrations are current` and ensure the deployment reaches healthy status.
 - Request `/healthz` (process running), `/readyz` (database reachable), and `/docs/openapi.yaml` on the public API domain.
 - Verify a protected API route rejects unauthenticated requests with `401`.
-- Deploy the frontend with its Production `BACKEND_API_URL` pointing to this public HTTPS domain. The browser uses Next.js BFF routes, so no browser-to-API CORS change is needed for the current application flow.
+- Register and sign in through the deployed frontend. Next.js sends API requests on the browser's behalf. The API applies its login and registration quota to the connection IP it sees, so verify authentication through the actual Vercel and Railway ingress before enabling public sign-up.
 
-Do not run `seed-admin` or `seed-mock-users` in Production. Keep database backups and a restore procedure before applying later schema changes. Changes to SQL migrations should remain compatible with the still-running API while Railway activates the new deployment.
+## 3. Provision the first administrator
+
+1. Have the designated operator register through the deployed website. Confirm their email directly with them, then look up the matching user ID in the private PostgreSQL database.
+2. In a PostgreSQL session with write access, run the following transaction using the verified ID and email in place of the examples.
+
+   ```sql
+   BEGIN;
+   UPDATE users
+   SET role = 'admin'
+   WHERE user_id = 123
+     AND email = 'operator@example.invalid'
+     AND role = 'user'
+     AND deleted_at IS NULL
+     AND password_hash IS NOT NULL
+   RETURNING user_id, email, role;
+   ```
+
+   Run `COMMIT;` after verifying that exactly one row identifies the intended operator. Otherwise run `ROLLBACK;`.
+
+3. Have the operator sign out and sign back in. Verify that they can open the Users, Jobs and payments, and Flagged marketers pages from the admin workspace.
+
+Keep `seed-admin` and `seed-mock-users` for local environments. Keep database backups and a restore procedure before applying later schema changes. Changes to SQL migrations should remain compatible with the still-running API while Railway activates the new deployment.

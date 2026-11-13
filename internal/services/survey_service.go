@@ -115,7 +115,7 @@ func (s *SurveyService) Update(ctx context.Context, actor Actor, surveyID int32,
 	}
 	if input.SurveyLinkSet {
 		patch.SurveyLink = strings.TrimSpace(input.SurveyLink)
-		if patch.SurveyLink == "" {
+		if _, ok := validAttachmentURL(patch.SurveyLink); !ok {
 			return nil, domain.ErrInvalidSurvey
 		}
 	}
@@ -153,7 +153,10 @@ func (s *SurveyService) Delete(ctx context.Context, actor Actor, surveyID int32)
 func normalizeSurvey(survey domain.Survey) (*domain.Survey, error) {
 	survey.Title = strings.TrimSpace(survey.Title)
 	survey.SurveyLink = strings.TrimSpace(survey.SurveyLink)
-	if survey.Title == "" || utf8.RuneCountInString(survey.Title) > MaxSurveyTitleLength || survey.SurveyLink == "" {
+	if survey.Title == "" || utf8.RuneCountInString(survey.Title) > MaxSurveyTitleLength {
+		return nil, domain.ErrInvalidSurvey
+	}
+	if _, ok := validAttachmentURL(survey.SurveyLink); !ok {
 		return nil, domain.ErrInvalidSurvey
 	}
 	if survey.TargetGroup != nil {

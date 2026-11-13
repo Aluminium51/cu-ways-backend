@@ -28,6 +28,13 @@ func (r *ReviewRepository) CreateForCreatorJob(ctx context.Context, creatorID, j
 		if job.JobStatus != domain.JobStatusCompleted {
 			return domain.ErrJobNotCompleted
 		}
+		var selfHire bool
+		if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM offers WHERE offer_id = ? AND job_id = ? AND user_id = ?)", job.AcceptedOfferID, jobID, creatorID).Scan(&selfHire).Error; err != nil {
+			return err
+		}
+		if selfHire {
+			return domain.ErrSelfHiring
+		}
 		review.JobID = jobID
 		result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "job_id"}}, DoNothing: true}).Create(review)
 		if result.Error != nil {
@@ -68,7 +75,7 @@ func (r *ReviewRepository) verifiedMarketerReviews(ctx context.Context, marketer
 		Joins("JOIN jobs AS job ON job.job_id = review.job_id").
 		Joins("JOIN offers AS accepted_offer ON accepted_offer.job_id = job.job_id AND accepted_offer.offer_id = job.accepted_offer_id").
 		Where("job.job_status = ?", domain.JobStatusCompleted).
-		Where("accepted_offer.user_id = ?", marketerID).
+		Where("accepted_offer.user_id = ? AND accepted_offer.user_id <> job.user_id", marketerID).
 		Where("review.rating BETWEEN 1 AND 5")
 }
 

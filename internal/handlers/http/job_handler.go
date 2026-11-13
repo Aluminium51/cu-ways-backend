@@ -487,6 +487,8 @@ func mapJobError(err error) error {
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this job or survey", err)
 	case errors.Is(err, domain.ErrJobNotFound), errors.Is(err, domain.ErrSurveyNotFound), errors.Is(err, domain.ErrJobSurveyNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "resource_not_found", "job or survey was not found", err)
+	case errors.Is(err, domain.ErrSelfHiring):
+		return response.NewAppError(fiber.StatusConflict, "self_hiring", err.Error(), err)
 	case errors.Is(err, domain.ErrJobNotPending):
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job has already hired a marketer", err)
 	case errors.Is(err, domain.ErrJobAlreadyCancelled):

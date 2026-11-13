@@ -114,12 +114,12 @@ func TestUserHandlerUpdateCanClearLineID(t *testing.T) {
 	}
 }
 
-func TestUserHandlerUpdateRejectsClearingPhone(t *testing.T) {
+func TestUserHandlerUpdateAllowsClearingPhone(t *testing.T) {
 	called := false
 	service := &fakeUserService{
 		updateFn: func(context.Context, services.Actor, int32, services.UpdateUserInput) (*domain.User, error) {
 			called = true
-			return nil, nil
+			return &domain.User{UserID: 1}, nil
 		},
 	}
 	claims := &ports.TokenClaims{Subject: "1", Values: map[string]any{}}
@@ -133,11 +133,11 @@ func TestUserHandlerUpdateRejectsClearingPhone(t *testing.T) {
 	}
 	defer closeResponseBody(t, res.Body)
 
-	if res.StatusCode != fiber.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 when clearing the phone, got %d", res.StatusCode)
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200 when clearing the phone, got %d", res.StatusCode)
 	}
-	if called {
-		t.Fatal("an invalid request must not reach the service")
+	if !called {
+		t.Fatal("clearing the phone must reach the service")
 	}
 }
 

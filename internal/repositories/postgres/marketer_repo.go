@@ -80,6 +80,7 @@ JOIN offers AS accepted_offer
 LEFT JOIN reviews AS review
   ON review.job_id = job.job_id
 WHERE job.job_status = ?
+  AND accepted_offer.user_id <> job.user_id
   AND accepted_offer.user_id = ?`, domain.JobStatusCompleted, userID).Scan(&performance).Error; err != nil {
 		return nil, err
 	}
@@ -144,21 +145,31 @@ func escapeLikePattern(value string) string {
 }
 
 func (r *MarketerProfileRepository) Search(ctx context.Context, query ports.MarketerSearchQuery) (ports.MarketerPage, error) {
-	servicePrices := r.db.WithContext(ctx).
-		Table("services").
-		Select("user_id, MIN(price) AS lowest_price").
-		Where("deleted_at IS NULL")
+	db := r.db.WithContext(ctx)
+	services := db.Table("services AS svc").
+		Joins("JOIN users AS account ON account.user_id = svc.user_id").
+		Joins("JOIN marketers AS profile ON profile.user_id = svc.user_id").
+		Where("svc.deleted_at IS NULL")
 	if query.MinPrice != nil {
-		servicePrices = servicePrices.Where("price >= ?", *query.MinPrice)
+		services = services.Where("svc.price >= ?", *query.MinPrice)
 	}
 	if query.MaxPrice != nil {
-		servicePrices = servicePrices.Where("price <= ?", *query.MaxPrice)
+		services = services.Where("svc.price <= ?", *query.MaxPrice)
 	}
-	servicePrices = servicePrices.Group("user_id")
+	var nameOrBio string
+	if query.Keyword != "" {
+		nameOrBio = "%" + escapeLikePattern(strings.ToLower(query.Keyword)) + "%"
+		services = services.Where(`(
+			LOWER(account.name) LIKE ? ESCAPE '\' OR LOWER(profile.bio) LIKE ? ESCAPE '\'
+			OR LOWER(svc.service_type) LIKE ? ESCAPE '\' OR LOWER(svc.scope_text) LIKE ? ESCAPE '\'
+		)`, nameOrBio, nameOrBio, nameOrBio, nameOrBio)
+	}
+	servicePrices := services.Session(&gorm.Session{}).
+		Select("svc.user_id, MIN(svc.price) AS lowest_price").Group("svc.user_id")
 
 	ratings := r.db.WithContext(ctx).Table("offers AS o").
 		Select("o.user_id AS marketer_id, AVG(r.rating)::float8 AS average_rating, COUNT(r.review_id) AS review_count").
-		Joins("JOIN jobs AS j ON j.job_id = o.job_id AND j.accepted_offer_id = o.offer_id AND j.job_status = ?", domain.JobStatusCompleted).
+		Joins("JOIN jobs AS j ON j.job_id = o.job_id AND j.accepted_offer_id = o.offer_id AND o.user_id <> j.user_id AND j.job_status = ?", domain.JobStatusCompleted).
 		Joins("JOIN reviews AS r ON r.job_id = j.job_id AND r.rating BETWEEN 1 AND 5").
 		Group("o.user_id")
 
@@ -198,25 +209,8 @@ GROUP BY mc_filter.user_id
 HAVING COUNT(DISTINCT co_filter.slug) = ?
 )`, query.CampusSlugs, len(query.CampusSlugs))
 	}
-	if query.Keyword != "" {
-		// US-013 AC2: a marketer matches when the keyword is a case-insensitive
-		// partial match for the marketer's name, bio, or any of their (non
-		// soft-deleted) service listings' type or scope text. Matching against
-		// services via EXISTS keeps one row per marketer even when several of
-		// their services match (US-013 AC3 de-duplication).
-		escaped := escapeLikePattern(strings.ToLower(query.Keyword))
-		pattern := "%" + escaped + "%"
-		base = base.Where(`(
-LOWER(u.name) LIKE ? ESCAPE '\'
-OR LOWER(m.bio) LIKE ? ESCAPE '\'
-OR EXISTS (
-SELECT 1
-FROM services AS s_kw
-WHERE s_kw.user_id = m.user_id
-  AND s_kw.deleted_at IS NULL
-  AND (LOWER(s_kw.service_type) LIKE ? ESCAPE '\' OR LOWER(s_kw.scope_text) LIKE ? ESCAPE '\')
-)
-)`, pattern, pattern, pattern, pattern)
+	if nameOrBio != "" {
+		base = base.Where(`(LOWER(u.name) LIKE ? ESCAPE '\' OR LOWER(m.bio) LIKE ? ESCAPE '\' OR sp.user_id IS NOT NULL)`, nameOrBio, nameOrBio)
 	}
 
 	var total int64
@@ -240,13 +234,13 @@ rt.average_rating,
 COALESCE(rt.review_count, 0) AS review_count`)
 	switch query.Sort {
 	case "price_desc":
-		selectQuery = selectQuery.Order("sp.lowest_price IS NULL ASC, sp.lowest_price DESC, rt.average_rating IS NULL ASC, rt.average_rating DESC, u.name ASC, m.user_id ASC")
+		selectQuery = selectQuery.Order("sp.lowest_price IS NULL ASC, sp.lowest_price DESC, u.name ASC, m.user_id ASC")
 	case "rating_asc":
-		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating ASC, sp.lowest_price IS NULL ASC, sp.lowest_price ASC, u.name ASC, m.user_id ASC")
+		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating ASC, u.name ASC, m.user_id ASC")
 	case "rating_desc":
-		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating DESC, sp.lowest_price IS NULL ASC, sp.lowest_price ASC, u.name ASC, m.user_id ASC")
+		selectQuery = selectQuery.Order("rt.average_rating IS NULL ASC, rt.average_rating DESC, u.name ASC, m.user_id ASC")
 	default:
-		selectQuery = selectQuery.Order("sp.lowest_price IS NULL ASC, sp.lowest_price ASC, rt.average_rating IS NULL ASC, rt.average_rating DESC, u.name ASC, m.user_id ASC")
+		selectQuery = selectQuery.Order("sp.lowest_price IS NULL ASC, sp.lowest_price ASC, u.name ASC, m.user_id ASC")
 	}
 	type row struct {
 		UserID             int32
@@ -268,11 +262,34 @@ COALESCE(rt.review_count, 0) AS review_count`)
 		return ports.MarketerPage{}, err
 	}
 
+	if len(rows) == 0 {
+		return ports.MarketerPage{Items: []domain.MarketerSearchResult{}, Page: query.Page, PageSize: query.PageSize, Total: total}, nil
+	}
+	ids := make([]int32, 0, len(rows))
+	for _, item := range rows {
+		ids = append(ids, item.UserID)
+	}
+	expertise, err := marketerExpertise(db, ids)
+	if err != nil {
+		return ports.MarketerPage{}, err
+	}
+	campuses, err := marketerCampuses(db, ids)
+	if err != nil {
+		return ports.MarketerPage{}, err
+	}
+	var listings []domain.Service
+	if err := services.Select("svc.*").Where("svc.user_id IN ?", ids).Order("svc.service_id").Find(&listings).Error; err != nil {
+		return ports.MarketerPage{}, err
+	}
+	matching := make(map[int32][]domain.Service, len(ids))
+	for _, listing := range listings {
+		matching[listing.UserID] = append(matching[listing.UserID], listing)
+	}
+
 	items := make([]domain.MarketerSearchResult, 0, len(rows))
 	for _, item := range rows {
-		profile, err := r.FindProfile(ctx, item.UserID)
-		if err != nil {
-			return ports.MarketerPage{}, err
+		profile := domain.Marketer{
+			UserID: item.UserID, Expertise: expertise[item.UserID], Campuses: campuses[item.UserID], Services: matching[item.UserID],
 		}
 		profile.User = &domain.User{
 			UserID:    item.UserID,
@@ -287,7 +304,7 @@ COALESCE(rt.review_count, 0) AS review_count`)
 		profile.AvailabilityStatus = item.AvailabilityStatus
 		profile.AvailabilityText = item.AvailabilityText
 		items = append(items, domain.MarketerSearchResult{
-			Marketer:      *profile,
+			Marketer:      profile,
 			LowestPrice:   item.LowestPrice,
 			AverageRating: item.AverageRating,
 			ReviewCount:   item.ReviewCount,

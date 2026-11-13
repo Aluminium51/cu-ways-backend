@@ -104,6 +104,9 @@ func TestSwaggerWorkflow(t *testing.T) {
 	jobBody["survey_ids"] = []int32{survey.SurveyID}
 	job := swaggerData[httpapi.JobResponse](t, app, http.MethodPost, jobPath, creator.AccessToken, jobBody, 201)
 	jobURL := fmt.Sprintf("%s/%d", jobPath, job.JobID)
+	swaggerRequest(t, app, http.MethodGet, "/api/v1/admin/jobs", creator.AccessToken, nil, 403)
+	swaggerRequest(t, app, http.MethodPost, jobURL+"/requests", creator.AccessToken,
+		map[string]any{"marketer_ids": []int32{creator.User.UserID}}, 409)
 
 	swaggerData[httpapi.BriefResponse](t, app, http.MethodPost, jobURL+"/briefs", creator.AccessToken, example(jobPath+"/{id}/briefs", ""), 201)
 	invite := example(jobPath+"/{id}/requests", "")
@@ -116,6 +119,13 @@ func TestSwaggerWorkflow(t *testing.T) {
 	swaggerData[httpapi.JobRequestResponse](t, app, http.MethodPost, requestURL+"/accept", marketer.AccessToken, nil, 200)
 	offer := swaggerData[httpapi.OfferResponse](t, app, http.MethodPost, requestURL+"/offers", marketer.AccessToken, example("/api/v1/me/job-requests/{id}/offers", ""), 201)
 	swaggerData[httpapi.AcceptOfferResponse](t, app, http.MethodPost, fmt.Sprintf("%s/offers/%d/accept", jobURL, offer.OfferID), creator.AccessToken, nil, 200)
+	marketerView := swaggerData[httpapi.JobSettlementResponse](t, app, http.MethodGet, jobURL+"/payments", marketer.AccessToken, nil, 200)
+	if marketerView.Contact == nil || marketerView.Contact.Email != creator.User.Email {
+		t.Fatal("expected the hired marketer to see the creator's contact")
+	}
+	swaggerRequest(t, app, http.MethodPatch, fmt.Sprintf("%s/%d", surveyPath, survey.SurveyID),
+		creator.AccessToken, map[string]any{"title": "Changed after hiring"}, 409)
+	swaggerRequest(t, app, http.MethodPost, jobURL+"/briefs", creator.AccessToken, map[string]any{"url": "https://example.test/late-brief"}, 409)
 	swaggerData[httpapi.StartJobResponse](t, app, http.MethodPost, jobURL+"/start", marketer.AccessToken, nil, 200)
 
 	payment := swaggerData[httpapi.PaymentResponse](t, app, http.MethodPost, jobURL+"/payments", creator.AccessToken, example(jobPath+"/{id}/payments", ""), 201)
@@ -127,6 +137,7 @@ func TestSwaggerWorkflow(t *testing.T) {
 		t.Fatal("expected completion to require proof even after payment")
 	}
 	swaggerData[httpapi.ProofResponse](t, app, http.MethodPost, jobURL+"/proofs", marketer.AccessToken, example(jobPath+"/{id}/proofs", ""), 201)
+	swaggerRequest(t, app, http.MethodPost, jobURL+"/complete", creator.AccessToken, map[string]any{"accepted_offer_id": offer.OfferID + 1}, 422)
 	completed := swaggerData[httpapi.JobSettlementResponse](t, app, http.MethodPost, jobURL+"/complete", creator.AccessToken, nil, 200)
 	if completed.JobStatus != "Completed" || completed.CompletedAt == nil || completed.PayoutStatus == nil || *completed.PayoutStatus != "Released" {
 		t.Fatal("expected completed job with recorded simulated payout")
@@ -151,6 +162,13 @@ func TestSwaggerWorkflow(t *testing.T) {
 	if len(history.Items) != 1 || history.Items[0].JobID != job.JobID || history.Items[0].AcceptedPrice != offer.OfferedPrice ||
 		history.Items[0].HasReview == nil || !*history.Items[0].HasReview {
 		t.Fatal("expected the completed and reviewed job in the Creator's transactions")
+	}
+
+	if err := db.GORM().Exec("UPDATE users SET deleted_at = NOW() WHERE user_id = ?", marketer.User.UserID).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{jobURL + "/payments", jobURL + "/proofs", "/api/v1/me/transactions?role=marketer"} {
+		swaggerRequest(t, app, http.MethodGet, path, marketer.AccessToken, nil, 401)
 	}
 }
 

@@ -29,6 +29,12 @@ func readJobSettlement(db *gorm.DB, userID, jobID int32) (*domain.JobSettlement,
 	result := db.Table("jobs AS j").
 		Select(`j.job_id, COALESCE(j.title, '') AS job_title, j.job_status, j.completed_at,
 j.user_id AS creator_id, cu.name AS creator_name, o.user_id AS marketer_id, mu.name AS marketer_name,
+CASE WHEN cu.deleted_at IS NULL THEN cu.email ELSE '' END AS creator_contact_email,
+CASE WHEN cu.deleted_at IS NULL THEN cu.phone END AS creator_contact_phone,
+CASE WHEN cu.deleted_at IS NULL THEN cu.line_id END AS creator_contact_line_id,
+CASE WHEN mu.deleted_at IS NULL THEN COALESCE(mu.email, '') ELSE '' END AS marketer_contact_email,
+CASE WHEN mu.deleted_at IS NULL THEN mu.phone END AS marketer_contact_phone,
+CASE WHEN mu.deleted_at IS NULL THEN mu.line_id END AS marketer_contact_line_id,
 o.offered_price AS accepted_price, o.offer_status,
 p.payment_id AS paid_payment_id, p.job_id AS paid_job_id, p.amount AS paid_amount,
 p.method AS paid_method, p.payment_status AS paid_payment_status, p.created_at AS paid_created_at, p.paid_at AS paid_paid_at`).
