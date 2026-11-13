@@ -48,6 +48,7 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "services_require_authentication", path: "/api/v1/me/services", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "statistics_require_authentication", path: "/api/v1/me/statistics", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "search_requires_authentication", path: "/api/v1/marketers", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "marketer_reviews_require_authentication", path: "/api/v1/marketers/1/reviews", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "survey_requires_authentication", path: "/api/v1/surveys/1", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "creator_surveys_require_authentication", path: "/api/v1/me/surveys", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "creator_jobs_require_authentication", path: "/api/v1/me/jobs", status: 401, envelope: "error", errorCode: "unauthorized"},
@@ -67,6 +68,15 @@ func TestWorkflowSmoke(t *testing.T) {
 		{name: "offer_withdrawal_requires_authentication", method: "POST", path: "/api/v1/me/offers/1/withdraw", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "job_offers_require_authentication", path: "/api/v1/jobs/1/offers", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "offer_acceptance_requires_authentication", method: "POST", path: "/api/v1/jobs/1/offers/1/accept", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_start_requires_authentication", method: "POST", path: "/api/v1/jobs/1/start", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "job_cancel_requires_authentication", method: "POST", path: "/api/v1/jobs/1/cancel", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "payment_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/payments", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "payment_read_requires_authentication", method: "GET", path: "/api/v1/jobs/1/payments", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "completion_requires_authentication", method: "POST", path: "/api/v1/jobs/1/complete", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "proof_creation_requires_authentication", method: "POST", path: "/api/v1/jobs/1/proofs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "proof_list_requires_authentication", method: "GET", path: "/api/v1/jobs/1/proofs", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "review_submission_requires_authentication", method: "POST", path: "/api/v1/jobs/1/reviews", status: 401, envelope: "error", errorCode: "unauthorized"},
+		{name: "transactions_require_authentication", method: "GET", path: "/api/v1/me/transactions", status: 401, envelope: "error", errorCode: "unauthorized"},
 		{name: "unknown_route", path: "/__workflow_smoke_missing", status: 404, envelope: "error", errorCode: "not_found"},
 	}
 

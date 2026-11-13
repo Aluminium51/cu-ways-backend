@@ -26,17 +26,121 @@ type Job struct {
 	AcceptedOfferID   *int32           `gorm:"column:accepted_offer_id;uniqueIndex"`
 	JobStatus         JobStatus        `gorm:"column:job_status;type:varchar(20);not null"`
 	CreatedAt         time.Time        `gorm:"column:created_at;type:timestamp;not null"`
+	CancelledAt       *time.Time       `gorm:"column:cancelled_at;type:timestamp"`
+	CancelReason      *string          `gorm:"column:cancel_reason;type:varchar(300)"`
 
 	Creator       *Creator     `gorm:"foreignKey:UserID;references:UserID"`
 	AcceptedOffer *Offer       `gorm:"foreignKey:JobID,AcceptedOfferID;references:JobID,OfferID"`
 	Offers        []Offer      `gorm:"foreignKey:JobID;references:JobID"`
 	Surveys       []Survey     `gorm:"many2many:is_used_in;joinForeignKey:JobID;joinReferences:SurveyID"`
 	Attachments   []Attachment `gorm:"foreignKey:JobID;references:JobID"`
-	Payment       *Payment     `gorm:"foreignKey:JobID;references:JobID"`
+	Payments      []Payment    `gorm:"foreignKey:JobID;references:JobID"`
 	Review        *Review      `gorm:"foreignKey:JobID;references:JobID"`
 }
 
 func (Job) TableName() string { return "jobs" }
+
+// AcceptOffer hires the Marketer behind offer. Only a Pending offer on a
+// Pending job without an accepted offer can be accepted. On success the job is
+// Accepted with accepted_offer_id set and the offer is Accepted; rejecting
+// competing offers is left to the caller.
+func (j *Job) AcceptOffer(offer *Offer) error {
+	if j.JobStatus != JobStatusPending || j.AcceptedOfferID != nil {
+		return ErrJobNotPending
+	}
+	if offer.JobID != j.JobID {
+		return ErrOfferNotFound
+	}
+	if j.UserID == offer.UserID && j.UserID > 0 {
+		return ErrSelfHiring
+	}
+	if offer.OfferStatus != OfferStatusPending {
+		return ErrOfferNotPending
+	}
+	offerID := offer.OfferID
+	j.JobStatus = JobStatusAccepted
+	j.AcceptedOfferID = &offerID
+	offer.OfferStatus = OfferStatusAccepted
+	return nil
+}
+
+// Start moves an Accepted job to In Progress for the Marketer who owns its
+// accepted offer. Ownership is checked before status so other Marketers cannot
+// learn the job's state: a job without an accepted offer, or whose accepted
+// offer belongs to someone else, returns ErrJobForbidden. An accepted offer
+// that is no longer Accepted returns ErrAcceptedOfferMismatch, and a job that
+// is not Accepted returns ErrJobNotAccepted.
+func (j *Job) Start(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusAccepted {
+		return ErrJobNotAccepted
+	}
+	j.JobStatus = JobStatusInProgress
+	return nil
+}
+
+// CanAddProof reports whether marketerID may add a Proof attachment. It uses
+// the same hire checks as Start, in the same order, and then requires the job
+// to be In Progress (ErrJobNotInProgress).
+func (j *Job) CanAddProof(marketerID int32, accepted *Offer) error {
+	if err := j.checkHiredMarketer(marketerID, accepted); err != nil {
+		return err
+	}
+	if j.JobStatus != JobStatusInProgress {
+		return ErrJobNotInProgress
+	}
+	return nil
+}
+
+// CanViewProof reports whether userID may read the job's Proof attachments:
+// its Creator, or the Marketer hired through a still-Accepted offer. Anyone
+// else gets ErrJobForbidden.
+func (j *Job) CanViewProof(userID int32, accepted *Offer) error {
+	if j.UserID == userID {
+		return nil
+	}
+	if j.checkHiredMarketer(userID, accepted) != nil {
+		return ErrJobForbidden
+	}
+	return nil
+}
+
+// checkHiredMarketer returns ErrJobForbidden unless marketerID owns the job's
+// accepted offer, and ErrAcceptedOfferMismatch when that offer is no longer
+// Accepted.
+func (j *Job) checkHiredMarketer(marketerID int32, accepted *Offer) error {
+	if j.AcceptedOfferID == nil || accepted == nil || accepted.OfferID != *j.AcceptedOfferID || accepted.UserID != marketerID {
+		return ErrJobForbidden
+	}
+	if accepted.OfferStatus != OfferStatusAccepted {
+		return ErrAcceptedOfferMismatch
+	}
+	return nil
+}
+
+// MaxJobCancelReasonLength limits the optional cancellation note.
+const MaxJobCancelReasonLength = 300
+
+// Cancel closes an unpaid job before completion and records when and why.
+// Closing its job requests and rejecting its Pending offers is left to the
+// caller.
+func (j *Job) Cancel(hasPaidPayment bool, reason *string, at time.Time) error {
+	if j.JobStatus == JobStatusCancelled {
+		return ErrJobAlreadyCancelled
+	}
+	if j.JobStatus != JobStatusPending && j.JobStatus != JobStatusAccepted && j.JobStatus != JobStatusInProgress {
+		return ErrJobNotCancellable
+	}
+	if hasPaidPayment {
+		return ErrJobHasPaidPayment
+	}
+	j.JobStatus = JobStatusCancelled
+	j.CancelledAt = &at
+	j.CancelReason = reason
+	return nil
+}
 
 // CreatorJobSummary contains the small set of job fields returned to its owner.
 type CreatorJobSummary struct {
@@ -49,6 +153,8 @@ type CreatorJobSummary struct {
 	JobID             int32              `gorm:"column:job_id"`
 	JobStatus         JobStatus          `gorm:"column:job_status"`
 	CreatedAt         time.Time          `gorm:"column:created_at"`
+	CancelledAt       *time.Time         `gorm:"column:cancelled_at"`
+	CancelReason      *string            `gorm:"column:cancel_reason"`
 	Surveys           []JobSurveySummary `gorm:"-"`
 }
 

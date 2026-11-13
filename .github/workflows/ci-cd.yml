@@ -119,9 +119,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/cuways_test?sslmode=disable
         run: |
-          go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3 \
-            -path ./migrations \
-            -database "$DATABASE_URL" up
+          go run ./cmd/migrate
+          go run ./cmd/migrate
 
       - name: Run tests with coverage
         env:
@@ -145,6 +144,7 @@ jobs:
       - name: Check build targets
         run: |
           go build -v -o /dev/null ./cmd/api
+          go build -v -o /dev/null ./cmd/migrate
           go build -v -o /dev/null ./cmd/seed-admin
           go build -v -o /dev/null ./cmd/seed-mock-users
           go build -v -o /dev/null ./cmd/smoke

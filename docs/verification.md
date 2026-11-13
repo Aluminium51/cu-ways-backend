@@ -60,6 +60,19 @@ The example credentials describe a disposable fixture, not application credentia
 
 CI provisions PostgreSQL 16 with a dedicated `cuways_test` database, applies versioned migrations using `DATABASE_URL`, and then uses `TEST_DATABASE_URL` for the tests. The application and production configuration continue to use `DATABASE_URL`.
 
+## Local fixtures
+
+Run the seed commands from the backend repository after applying migrations to a local database. Both commands require `APP_ENV=development` or `APP_ENV=test`.
+
+| Command | Configuration and result |
+| --- | --- |
+| `make seed-admin` | Set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in your local environment or `.env`. Set `SEED_ADMIN_NAME` if you want a custom name. The command creates an administrator or promotes an existing active account without replacing its password. |
+| `make seed-mock-users` | Set `MOCK_USER_PASSWORD` in your local environment or `.env`. The command creates 20 repeatable Creator and Marketer fixtures with profiles, services, and completed jobs with reviews for search and filter testing. |
+
+To test marketer search, sign in as `mock.creator-only.01@example.test` or `mock.both.01@example.test`. To test marketer-owned routes, sign in as `mock.marketer-only.01@example.test` or `mock.both.01@example.test`.
+
+The mock seed can be run again against its generated fixtures. It includes 6 Creator-only accounts, 6 Marketer-only accounts, and 8 with both memberships. Marketer fixtures include expertise, campus coverage, varied service prices, an archived service, and completed jobs with reviews. Admin seeding never reactivates a soft-deleted account.
+
 ## Architecture checks
 
 ```powershell

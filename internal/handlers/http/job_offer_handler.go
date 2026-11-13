@@ -45,7 +45,7 @@ func (h *JobOfferHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
@@ -84,11 +84,11 @@ func (h *JobOfferHandler) Accept(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	jobID, err := parseUserID(c.Params("id"))
+	jobID, err := parsePathID(c.Params("id"), "job")
 	if err != nil {
 		return validationError(err)
 	}
-	offerID, err := parseUserID(c.Params("offerId"))
+	offerID, err := parsePathID(c.Params("offerId"), "offer")
 	if err != nil {
 		return validationError(err)
 	}
@@ -109,7 +109,7 @@ func (h *JobOfferHandler) Accept(c *fiber.Ctx) error {
 func toJobOfferComparisonResponse(item *ports.JobOfferComparison) JobOfferComparisonResponse {
 	return JobOfferComparisonResponse{
 		OfferResponse: toOfferResponse(&item.Offer),
-		Marketer:      toMarketerProfileResponse(&item.Marketer),
+		Marketer:      toMarketerProfileResponse(&item.Marketer, false),
 		Rating: MarketerRatingResponse{
 			AverageRating: item.Rating.AverageRating,
 			ReviewCount:   item.Rating.ReviewCount,
@@ -127,8 +127,12 @@ func mapJobOfferError(err error) error {
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this job", err)
 	case errors.Is(err, domain.ErrJobNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "job_not_found", "job was not found", err)
+	case errors.Is(err, domain.ErrMarketerNotFound):
+		return response.NewAppError(fiber.StatusConflict, "marketer_unavailable", "This marketer account is inactive.", err)
 	case errors.Is(err, domain.ErrOfferNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "offer_not_found", "offer was not found for this job", err)
+	case errors.Is(err, domain.ErrSelfHiring):
+		return response.NewAppError(fiber.StatusConflict, "self_hiring", err.Error(), err)
 	case errors.Is(err, domain.ErrJobNotPending):
 		return response.NewAppError(fiber.StatusConflict, "job_not_pending", "this job already has an accepted offer or is closed", err)
 	case errors.Is(err, domain.ErrOfferNotPending):

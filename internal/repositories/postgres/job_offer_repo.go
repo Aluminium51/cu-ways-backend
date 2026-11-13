@@ -82,7 +82,7 @@ func (r *JobOfferRepository) AcceptOffer(ctx context.Context, creatorID, jobID, 
 		if err != nil {
 			return err
 		}
-		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
+		if job.JobStatus != domain.JobStatusPending {
 			return domain.ErrJobNotPending
 		}
 		var offer domain.Offer
@@ -94,8 +94,22 @@ func (r *JobOfferRepository) AcceptOffer(ctx context.Context, creatorID, jobID, 
 			}
 			return err
 		}
-		if offer.OfferStatus != domain.OfferStatusPending {
-			return domain.ErrOfferNotPending
+		var activeMarketer bool
+		if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = ? AND deleted_at IS NULL)", offer.UserID).Scan(&activeMarketer).Error; err != nil {
+			return err
+		}
+		if !activeMarketer {
+			return domain.ErrMarketerNotFound
+		}
+		// Serialize hiring with updates to the linked survey metadata.
+		var surveys []domain.Survey
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).
+			Where("survey_id IN (SELECT survey_id FROM is_used_in WHERE job_id = ?)", jobID).
+			Order("survey_id").Find(&surveys).Error; err != nil {
+			return err
+		}
+		if err := job.AcceptOffer(&offer); err != nil {
+			return err
 		}
 
 		// The job is locked FOR UPDATE above. Offer submission locks the job
@@ -119,12 +133,14 @@ RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferSta
 			Scan(&rejected).Error; err != nil {
 			return err
 		}
+		// Offers are synced before the job so trg_guard_job_accepted_offer sees
+		// the finished hire when accepted_offer_id is written.
 		if err := tx.Model(&domain.Offer{}).Where("offer_id = ?", offerID).
-			Update("offer_status", domain.OfferStatusAccepted).Error; err != nil {
+			Update("offer_status", offer.OfferStatus).Error; err != nil {
 			return err
 		}
 		if err := tx.Model(&domain.Job{}).Where("job_id = ?", jobID).
-			Updates(map[string]any{"job_status": domain.JobStatusAccepted, "accepted_offer_id": offerID}).Error; err != nil {
+			Updates(map[string]any{"job_status": job.JobStatus, "accepted_offer_id": job.AcceptedOfferID}).Error; err != nil {
 			return err
 		}
 		slices.Sort(closed)
@@ -136,9 +152,6 @@ RETURNING offer_id`, domain.OfferStatusRejected, jobID, offerID, domain.OfferSta
 			rejected = []int32{}
 		}
 
-		job.JobStatus = domain.JobStatusAccepted
-		job.AcceptedOfferID = &offer.OfferID
-		offer.OfferStatus = domain.OfferStatusAccepted
 		result = ports.OfferAcceptance{Job: *job, Offer: offer, RejectedOfferIDs: rejected, ClosedJobRequestIDs: closed}
 		return nil
 	})
@@ -211,6 +224,7 @@ JOIN offers AS accepted_offer
 LEFT JOIN reviews AS review
   ON review.job_id = job.job_id
 WHERE job.job_status = ?
+  AND accepted_offer.user_id <> job.user_id
   AND accepted_offer.user_id IN ?
 GROUP BY accepted_offer.user_id`, domain.JobStatusCompleted, marketerIDs).Scan(&rows).Error; err != nil {
 		return nil, err

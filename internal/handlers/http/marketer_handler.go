@@ -92,7 +92,7 @@ func (h *MarketerHandler) GetProfile(c *fiber.Ctx) error {
 	if err != nil {
 		return mapMarketerError(err)
 	}
-	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile))
+	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile, true))
 }
 
 func (h *MarketerHandler) GetDetail(c *fiber.Ctx) error {
@@ -114,7 +114,7 @@ func (h *MarketerHandler) GetDetail(c *fiber.Ctx) error {
 	}
 	return response.Success(c, fiber.StatusOK, MarketerDetailResponse{
 		ReviewCount:        detail.ReviewCount,
-		Profile:            toMarketerProfileResponse(&detail.Marketer),
+		Profile:            toMarketerProfileResponse(&detail.Marketer, actor.IsAdmin || actor.UserID == marketerID),
 		Services:           serviceResponses,
 		TotalCompletedJobs: detail.TotalCompletedJobs,
 		AverageRating:      detail.AverageRating,
@@ -149,7 +149,7 @@ func (h *MarketerHandler) SaveProfile(c *fiber.Ctx) error {
 	if err != nil {
 		return mapMarketerError(err)
 	}
-	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile))
+	return response.Success(c, fiber.StatusOK, toMarketerProfileResponse(profile, true))
 }
 
 func (h *MarketerHandler) Search(c *fiber.Ctx) error {
@@ -172,7 +172,7 @@ func (h *MarketerHandler) Search(c *fiber.Ctx) error {
 			servicesResponse = append(servicesResponse, toServiceResponse(&item.Marketer.Services[index]))
 		}
 		items = append(items, MarketerSearchItem{
-			Profile:       toMarketerProfileResponse(&item.Marketer),
+			Profile:       toMarketerProfileResponse(&item.Marketer, actor.IsAdmin || actor.UserID == item.Marketer.UserID),
 			LowestPrice:   item.LowestPrice,
 			AverageRating: item.AverageRating,
 			ReviewCount:   item.ReviewCount,
@@ -253,7 +253,7 @@ func parsePageValues(rawPage, rawPageSize string, defaultPage, defaultPageSize, 
 	return page, pageSize, nil
 }
 
-func toMarketerProfileResponse(profile *domain.Marketer) MarketerProfileResponse {
+func toMarketerProfileResponse(profile *domain.Marketer, includeContact bool) MarketerProfileResponse {
 	result := MarketerProfileResponse{
 		UserID:             profile.UserID,
 		Bio:                profile.Bio,
@@ -265,9 +265,11 @@ func toMarketerProfileResponse(profile *domain.Marketer) MarketerProfileResponse
 	}
 	if profile.User != nil {
 		result.Name = profile.User.Name
-		result.Email = profile.User.Email
-		result.Phone = profile.User.Phone
-		result.LineID = profile.User.LineID
+		if includeContact {
+			result.Email = profile.User.Email
+			result.Phone = profile.User.Phone
+			result.LineID = profile.User.LineID
+		}
 		result.CreatedAt = profile.User.CreatedAt
 	}
 	for _, option := range profile.Expertise {

@@ -31,6 +31,10 @@ type fakeJobService struct {
 	surveys      []domain.Survey
 	requests     []domain.JobRequest
 	sentRequests []domain.SentJobRequest
+	cancelCalls  int
+	cancelJobID  int32
+	cancelInput  services.CancelJobInput
+	cancelErr    error
 }
 
 func (f *fakeJobService) ListSurveys(context.Context, services.Actor) ([]domain.Survey, error) {
@@ -81,6 +85,20 @@ func (f *fakeJobService) CreateRequests(_ context.Context, _ services.Actor, job
 	return f.requests, nil
 }
 
+func (f *fakeJobService) Cancel(_ context.Context, _ services.Actor, jobID int32, input services.CancelJobInput) (*ports.JobCancellation, error) {
+	f.cancelCalls++
+	f.cancelJobID, f.cancelInput = jobID, input
+	if f.cancelErr != nil {
+		return nil, f.cancelErr
+	}
+	cancelledAt := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
+	return &ports.JobCancellation{
+		Job:                 domain.Job{JobID: jobID, JobStatus: domain.JobStatusCancelled, CancelledAt: &cancelledAt, CancelReason: input.Reason},
+		ClosedJobRequestIDs: []int32{3, 5},
+		RejectedOfferIDs:    []int32{},
+	}, nil
+}
+
 func jobHandlerApp(service *fakeJobService) *fiber.App {
 	app := fiber.New(fiber.Config{ErrorHandler: response.ErrorHandler(zerolog.Nop())})
 	app.Use(func(c *fiber.Ctx) error {
@@ -94,6 +112,7 @@ func jobHandlerApp(service *fakeJobService) *fiber.App {
 	app.Get("/jobs/:id", handler.GetJob)
 	app.Get("/jobs/:id/requests", handler.ListJobRequests)
 	app.Post("/jobs/:id/briefs", handler.AddBrief)
+	app.Post("/jobs/:id/cancel", handler.Cancel)
 	return app
 }
 
@@ -313,5 +332,85 @@ func TestMapJobErrorReportsHiredJobAsConflict(t *testing.T) {
 	var appErr *response.AppError
 	if !errors.As(mapJobError(domain.ErrJobNotPending), &appErr) || appErr.Status != fiber.StatusConflict || appErr.Code != "job_not_pending" {
 		t.Fatalf("expected 409 job_not_pending, got %+v", appErr)
+	}
+}
+
+func TestJobHandlerCancelsJobWithOptionalReason(t *testing.T) {
+	reason := "Survey no longer needed"
+	for _, tt := range []struct {
+		name       string
+		body       string
+		wantReason *string
+	}{
+		{"empty_body", "", nil},
+		{"empty_object", `{}`, nil},
+		{"with_reason", `{"cancel_reason":"Survey no longer needed"}`, &reason},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &fakeJobService{}
+			res, err := jobHandlerApp(service).Test(httptest.NewRequest("POST", "/jobs/12/cancel", strings.NewReader(tt.body)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeResponseBody(t, res.Body)
+			if res.StatusCode != fiber.StatusOK {
+				t.Fatalf("expected 200, got %d", res.StatusCode)
+			}
+			if service.cancelCalls != 1 || service.cancelJobID != 12 {
+				t.Fatalf("unexpected service call: %+v", service)
+			}
+			if (tt.wantReason == nil) != (service.cancelInput.Reason == nil) || (tt.wantReason != nil && *tt.wantReason != *service.cancelInput.Reason) {
+				t.Fatalf("expected reason %v, got %v", tt.wantReason, service.cancelInput.Reason)
+			}
+			var envelope struct {
+				Data CancelJobResponse `json:"data"`
+			}
+			if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+				t.Fatal(err)
+			}
+			data := envelope.Data
+			if data.JobID != 12 || data.JobStatus != domain.JobStatusCancelled || data.CancelledAt == nil || len(data.ClosedJobRequestIDs) != 2 || data.RejectedOfferIDs == nil {
+				t.Fatalf("unexpected cancellation response: %+v", data)
+			}
+		})
+	}
+}
+
+func TestJobHandlerRejectsInvalidCancelRequestsBeforeCallingService(t *testing.T) {
+	for _, tt := range []struct{ path, body string }{
+		{"/jobs/0/cancel", ""},
+		{"/jobs/abc/cancel", ""},
+		{"/jobs/12/cancel", `{"cancel_reason":"x","job_status":"Pending"}`},
+		{"/jobs/12/cancel", `{"cancel_reason":`},
+	} {
+		service := &fakeJobService{}
+		res, err := jobHandlerApp(service).Test(httptest.NewRequest("POST", tt.path, strings.NewReader(tt.body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeResponseBody(t, res.Body)
+		if res.StatusCode != fiber.StatusUnprocessableEntity || service.cancelCalls != 0 {
+			t.Fatalf("%s %s: expected 422 before service, got status=%d calls=%d", tt.path, tt.body, res.StatusCode, service.cancelCalls)
+		}
+	}
+}
+
+func TestMapJobErrorReportsCancellationErrors(t *testing.T) {
+	for _, tt := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{domain.ErrJobAlreadyCancelled, fiber.StatusConflict, "job_already_cancelled"},
+		{domain.ErrJobNotCancellable, fiber.StatusConflict, "job_not_cancellable"},
+		{domain.ErrJobHasPaidPayment, fiber.StatusConflict, "job_has_paid_payment"},
+		{domain.ErrInvalidCancelReason, fiber.StatusUnprocessableEntity, "invalid_cancel_reason"},
+		{domain.ErrJobForbidden, fiber.StatusForbidden, "forbidden"},
+		{domain.ErrJobNotFound, fiber.StatusNotFound, "resource_not_found"},
+	} {
+		var appErr *response.AppError
+		if !errors.As(mapJobError(tt.err), &appErr) || appErr.Status != tt.status || appErr.Code != tt.code {
+			t.Fatalf("%v: expected %d %s, got %+v", tt.err, tt.status, tt.code, appErr)
+		}
 	}
 }

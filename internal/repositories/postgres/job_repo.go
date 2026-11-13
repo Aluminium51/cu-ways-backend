@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
@@ -91,10 +92,12 @@ func toCreatorJobSummary(job domain.Job) domain.CreatorJobSummary {
 		PendingOfferCount: job.PendingOfferCount,
 		Title:             job.Title, Description: job.Description, Budget: job.Budget,
 		Deadline: job.Deadline, EffectiveDeadline: domain.EffectiveJobDeadline(job.Deadline, job.Surveys),
-		JobID:     job.JobID,
-		JobStatus: job.JobStatus,
-		CreatedAt: job.CreatedAt,
-		Surveys:   make([]domain.JobSurveySummary, 0, len(job.Surveys)),
+		JobID:        job.JobID,
+		JobStatus:    job.JobStatus,
+		CreatedAt:    job.CreatedAt,
+		CancelledAt:  job.CancelledAt,
+		CancelReason: job.CancelReason,
+		Surveys:      make([]domain.JobSurveySummary, 0, len(job.Surveys)),
 	}
 	for _, survey := range job.Surveys {
 		summary.Surveys = append(summary.Surveys, domain.JobSurveySummary{SurveyID: survey.SurveyID, Title: survey.Title})
@@ -174,8 +177,12 @@ func (r *JobRepository) CreateWithSurveys(ctx context.Context, job *domain.Job, 
 
 func (r *JobRepository) AddSurvey(ctx context.Context, creatorID, jobID, surveyID int32) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		var survey domain.Survey
 		if err := tx.Where("survey_id = ?", surveyID).First(&survey).Error; err != nil {
@@ -201,8 +208,12 @@ func (r *JobRepository) AddSurvey(ctx context.Context, creatorID, jobID, surveyI
 
 func (r *JobRepository) RemoveSurvey(ctx context.Context, creatorID, jobID, surveyID int32) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		var links int64
 		if err := tx.Table("is_used_in").Where("job_id = ?", jobID).Count(&links).Error; err != nil {
@@ -225,8 +236,12 @@ func (r *JobRepository) RemoveSurvey(ctx context.Context, creatorID, jobID, surv
 
 func (r *JobRepository) CreateBrief(ctx context.Context, creatorID, jobID int32, attachment *domain.Attachment) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := findOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		attachment.JobID = jobID
 		return tx.Create(attachment).Error
@@ -257,6 +272,9 @@ func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int
 		// check with offer acceptance.
 		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
 			return domain.ErrJobNotPending
+		}
+		if slices.Contains(marketerIDs, creatorID) {
+			return domain.ErrSelfHiring
 		}
 		var marketerIDsFound []int32
 		if err := tx.Table("marketers").
@@ -300,6 +318,63 @@ func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int
 	return requests, nil
 }
 
+func (r *JobRepository) Cancel(ctx context.Context, creatorID, jobID int32, reason *string, cancelledAt time.Time) (*ports.JobCancellation, error) {
+	var result ports.JobCancellation
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The job lock serializes cancellation with offer submission and
+		// acceptance, which lock the same row before changing offers.
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
+			return err
+		}
+		var paid int64
+		if err := tx.Model(&domain.Payment{}).
+			Where("job_id = ? AND payment_status = ?", jobID, domain.PaymentStatusPaid).
+			Count(&paid).Error; err != nil {
+			return err
+		}
+		if err := job.Cancel(paid > 0, reason, cancelledAt); err != nil {
+			return err
+		}
+
+		var closed []int32
+		if err := tx.Raw(`
+UPDATE job_requests SET request_status = ?
+WHERE job_id = ? AND request_status IN ?
+RETURNING job_request_id`, domain.JobRequestStatusClosed, jobID,
+			[]domain.JobRequestStatus{domain.JobRequestStatusPending, domain.JobRequestStatusAccepted}).
+			Scan(&closed).Error; err != nil {
+			return err
+		}
+		var rejected []int32
+		if err := tx.Raw(`
+UPDATE offers SET offer_status = ?
+WHERE job_id = ? AND offer_status = ?
+RETURNING offer_id`, domain.OfferStatusRejected, jobID, domain.OfferStatusPending).
+			Scan(&rejected).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&domain.Job{}).Where("job_id = ?", jobID).
+			Updates(map[string]any{"job_status": job.JobStatus, "cancelled_at": job.CancelledAt, "cancel_reason": job.CancelReason}).Error; err != nil {
+			return err
+		}
+		slices.Sort(closed)
+		slices.Sort(rejected)
+		if closed == nil {
+			closed = []int32{}
+		}
+		if rejected == nil {
+			rejected = []int32{}
+		}
+		result = ports.JobCancellation{Job: *job, ClosedJobRequestIDs: closed, RejectedOfferIDs: rejected}
+		return nil
+	})
+	if err != nil {
+		return nil, mapJobRepositoryError(err)
+	}
+	return &result, nil
+}
+
 func surveysForCreator(tx *gorm.DB, creatorID int32, surveyIDs []int32) ([]domain.Survey, error) {
 	var surveys []domain.Survey
 	if err := tx.Where("survey_id IN ?", surveyIDs).Order("survey_id ASC").Find(&surveys).Error; err != nil {
@@ -330,7 +405,8 @@ func findOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
 	return &job, nil
 }
 
-func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
+// lockJob locks the job FOR UPDATE until the transaction ends.
+func lockJob(tx *gorm.DB, jobID int32) (*domain.Job, error) {
 	var job domain.Job
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("job_id = ?", jobID).First(&job).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -338,10 +414,32 @@ func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
 		}
 		return nil, err
 	}
+	return &job, nil
+}
+
+// findAcceptedOffer loads the job's accepted offer, or returns nil when the
+// job has not hired anyone. The (job_id, accepted_offer_id) foreign key
+// guarantees the offer exists and belongs to this job.
+func findAcceptedOffer(tx *gorm.DB, job *domain.Job) (*domain.Offer, error) {
+	if job.AcceptedOfferID == nil {
+		return nil, nil
+	}
+	var offer domain.Offer
+	if err := tx.Where("offer_id = ? AND job_id = ?", *job.AcceptedOfferID, job.JobID).First(&offer).Error; err != nil {
+		return nil, err
+	}
+	return &offer, nil
+}
+
+func lockOwnedJob(tx *gorm.DB, creatorID, jobID int32) (*domain.Job, error) {
+	job, err := lockJob(tx, jobID)
+	if err != nil {
+		return nil, err
+	}
 	if job.UserID != creatorID {
 		return nil, domain.ErrJobForbidden
 	}
-	return &job, nil
+	return job, nil
 }
 
 func mapJobRepositoryError(err error) error {

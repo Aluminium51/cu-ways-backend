@@ -242,8 +242,8 @@ func TestSurveyHandlerRejectsUnknownCreateFields(t *testing.T) {
 	}
 	defer closeResponseBody(t, res.Body)
 
-	if res.StatusCode != fiber.StatusUnprocessableEntity {
-		t.Fatalf("expected 422, got %d", res.StatusCode)
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", res.StatusCode)
 	}
 	if service.createCalls != 0 {
 		t.Fatalf("expected create service not to be called, got %d calls", service.createCalls)
