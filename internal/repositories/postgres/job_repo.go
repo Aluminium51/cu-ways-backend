@@ -177,8 +177,12 @@ func (r *JobRepository) CreateWithSurveys(ctx context.Context, job *domain.Job, 
 
 func (r *JobRepository) AddSurvey(ctx context.Context, creatorID, jobID, surveyID int32) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		var survey domain.Survey
 		if err := tx.Where("survey_id = ?", surveyID).First(&survey).Error; err != nil {
@@ -204,8 +208,12 @@ func (r *JobRepository) AddSurvey(ctx context.Context, creatorID, jobID, surveyI
 
 func (r *JobRepository) RemoveSurvey(ctx context.Context, creatorID, jobID, surveyID int32) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		var links int64
 		if err := tx.Table("is_used_in").Where("job_id = ?", jobID).Count(&links).Error; err != nil {
@@ -228,8 +236,12 @@ func (r *JobRepository) RemoveSurvey(ctx context.Context, creatorID, jobID, surv
 
 func (r *JobRepository) CreateBrief(ctx context.Context, creatorID, jobID int32, attachment *domain.Attachment) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := findOwnedJob(tx, creatorID, jobID); err != nil {
+		job, err := lockOwnedJob(tx, creatorID, jobID)
+		if err != nil {
 			return err
+		}
+		if job.JobStatus != domain.JobStatusPending {
+			return domain.ErrJobNotPending
 		}
 		attachment.JobID = jobID
 		return tx.Create(attachment).Error
@@ -260,6 +272,9 @@ func (r *JobRepository) CreateRequests(ctx context.Context, creatorID, jobID int
 		// check with offer acceptance.
 		if job.JobStatus != domain.JobStatusPending || job.AcceptedOfferID != nil {
 			return domain.ErrJobNotPending
+		}
+		if slices.Contains(marketerIDs, creatorID) {
+			return domain.ErrSelfHiring
 		}
 		var marketerIDsFound []int32
 		if err := tx.Table("marketers").

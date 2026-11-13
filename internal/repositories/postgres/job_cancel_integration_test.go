@@ -98,11 +98,8 @@ func TestJobRepositoryCancelRefusesInvalidCancellations(t *testing.T) {
 	if _, err := NewJobOfferRepository(db).AcceptOffer(ctx, other.creatorID, other.jobID, other.hiredOffer.OfferID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Cancel(ctx, other.creatorID, other.jobID, nil, now); !errors.Is(err, domain.ErrJobNotCancellable) {
-		t.Fatalf("expected an accepted job to refuse cancellation, got %v", err)
-	}
-	if status, _ := jobStatusOf(t, db, other.jobID); status != domain.JobStatusAccepted {
-		t.Fatalf("a refused cancellation changed the job to %s", status)
+	if result, err := repo.Cancel(ctx, other.creatorID, other.jobID, nil, now); err != nil || result.Job.JobStatus != domain.JobStatusCancelled || result.Job.AcceptedOfferID == nil {
+		t.Fatalf("expected unpaid accepted job to cancel and retain its accepted offer, got %+v, %v", result, err)
 	}
 
 	if _, err := repo.Cancel(ctx, f.creatorID, f.jobID, nil, now); err != nil {

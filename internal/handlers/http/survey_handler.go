@@ -109,7 +109,7 @@ func (h *SurveyHandler) Create(c *fiber.Ctx) error {
 	}
 	var dto CreateSurveyDTO
 	if err := decodeStrictJSON(c, &dto); err != nil {
-		return validationError(err)
+		return response.NewAppError(fiber.StatusBadRequest, "invalid_survey_fields", "send only supported survey metadata fields", err)
 	}
 	if err := utils.Validate(dto); err != nil {
 		return validationError(err)
@@ -246,6 +246,8 @@ func mapSurveyError(err error) error {
 		return response.NewAppError(fiber.StatusNotFound, "survey_not_found", "survey not found", err)
 	case errors.Is(err, domain.ErrSurveyForbidden):
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this survey", err)
+	case errors.Is(err, domain.ErrSurveyLocked):
+		return response.NewAppError(fiber.StatusConflict, "survey_locked", "This survey is part of a hired job. Create a new survey record for changes.", err)
 	case errors.Is(err, domain.ErrSurveyInUse):
 		return response.NewAppError(fiber.StatusConflict, "survey_in_use", "survey is referenced by a job and cannot be deleted", err)
 	case errors.Is(err, domain.ErrInvalidSurvey), errors.Is(err, domain.ErrNoSurveyChanges):

@@ -75,14 +75,31 @@ func (r *SurveyRepository) Update(ctx context.Context, surveyID int32, patch por
 	if len(updates) == 0 {
 		return nil, domain.ErrNoSurveyChanges
 	}
-	result := r.db.WithContext(ctx).Model(&domain.Survey{}).Where("survey_id = ?", surveyID).Updates(updates)
-	if err := result.Error; err != nil {
+	var survey domain.Survey
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("survey_id = ?", surveyID).First(&survey).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrSurveyNotFound
+			}
+			return err
+		}
+		var locked bool
+		if err := tx.Raw(`SELECT EXISTS (
+			SELECT 1 FROM is_used_in AS link JOIN jobs AS job ON job.job_id = link.job_id
+			WHERE link.survey_id = ? AND job.accepted_offer_id IS NOT NULL
+		)`, surveyID).Scan(&locked).Error; err != nil {
+			return err
+		}
+		if locked {
+			return domain.ErrSurveyLocked
+		}
+		return tx.Model(&survey).Clauses(clause.Returning{}).Updates(updates).Error
+	})
+	if err != nil {
 		return nil, err
 	}
-	if result.RowsAffected == 0 {
-		return nil, domain.ErrSurveyNotFound
-	}
-	return r.FindByID(ctx, surveyID)
+	return &survey, nil
 }
 
 func (r *SurveyRepository) Delete(ctx context.Context, surveyID int32) error {

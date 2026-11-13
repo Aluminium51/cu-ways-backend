@@ -28,7 +28,7 @@ type RegisterDTO struct {
 	Name            string                      `json:"name" validate:"required,max=100"`
 	Email           string                      `json:"email" validate:"required,email,max=255"`
 	Password        string                      `json:"password" validate:"required,min=8,max=128"`
-	Phone           *string                     `json:"phone" validate:"required,max=20"`
+	Phone           *string                     `json:"phone" validate:"omitempty,max=20"`
 	LineID          *string                     `json:"line_id" validate:"omitempty,max=50"`
 	MarketerProfile *RegisterMarketerProfileDTO `json:"marketer_profile"`
 }

@@ -76,12 +76,12 @@ Handlers call services, and repositories implement the persistence ports used by
 ### Accounts and marketer discovery
 
 - Registration creates a `user` account and its Creator membership in one transaction. A registration with a marketer profile also enables the Marketer workflow. The JWT `role` distinguishes ordinary users and administrators. Creator and Marketer permissions come from memberships and ownership checks. Passwords are stored as Argon2id hashes, and access tokens expire after one hour.
-- Registration requires a unique 10-digit phone number. Users are soft-deleted and excluded from normal reads. Updates apply only the supplied fields. A client can clear `line_id` with `null` and can replace an existing phone number.
+- An optional 10-digit phone number must be unique when provided. Users are soft-deleted and excluded from normal reads. Updates apply only the supplied fields. A client can clear `line_id` with `null` and can replace or clear an existing phone number.
 - Marketers manage their own profiles and services. The expertise and campus values come from curated catalogs. Search matches the Marketer's name, bio, and service text, combines selected filters, and excludes archived services. A Marketer appears once even when several services match. Missing prices and ratings sort last. Profile details show completed jobs, qualifying review count, and average rating.
 
 ### Job lifecycle and ownership
 
-The normal job status sequence is `Pending` → `Accepted` → `In Progress` → `Completed`. A Creator can also cancel a `Pending` job.
+The normal job status sequence is `Pending` → `Accepted` → `In Progress` → `Completed`. A Creator can also cancel an unpaid job before completion.
 
 | Step | Rules |
 | --- | --- |
@@ -89,7 +89,7 @@ The normal job status sequence is `Pending` → `Accepted` → `In Progress` →
 | Send invitations | Brief changes add a new attachment and preserve history. Invitation batches are atomic. A `Pending` or `Accepted` invitation blocks a second active invitation to the same Marketer for that job. Hiring closes invitations to other Marketers. |
 | Respond and submit an offer | Only the recipient can respond to a `Pending` invitation. Accepting the invitation signals interest and enables offer submission while the job is `Pending`. Each invitation can have one active (`Pending` or `Accepted`) offer. An owning Marketer can withdraw a `Pending` offer, then submit a replacement if the job and invitation still qualify. |
 | Hire and start | The owning Creator accepts one `Pending` offer. In the same transaction the job becomes `Accepted`, other `Pending` offers become `Rejected`, and other active invitations become `Closed`. The hired Marketer starts the job and moves it to `In Progress`. |
-| Cancel | The owning Creator may cancel a `Pending` job without a `Paid` payment. Cancellation closes active invitations, rejects pending offers, and records a server timestamp and any supplied reason. |
+| Cancel | The owning Creator may cancel a `Pending`, `Accepted`, or `In Progress` job without a `Paid` payment. Cancellation closes active invitations, rejects pending offers, and records a server timestamp and any supplied reason. |
 
 The effective delivery deadline is the earliest date set on the job or its linked surveys. If none is set, it is `null`. Offers use the Asia/Bangkok calendar and must be dated from today through that deadline. Invitations show the newest Brief and the sum of the linked surveys' desired responses when available. Creator job summaries count pending offers and exclude withdrawn and rejected offers from that count.
 

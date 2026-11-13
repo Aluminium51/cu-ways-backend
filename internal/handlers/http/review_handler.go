@@ -103,6 +103,8 @@ func mapReviewError(err error) error {
 		return response.NewAppError(fiber.StatusForbidden, "forbidden", "you do not have access to this job", err)
 	case errors.Is(err, domain.ErrJobNotFound):
 		return response.NewAppError(fiber.StatusNotFound, "job_not_found", "job was not found", err)
+	case errors.Is(err, domain.ErrSelfHiring):
+		return response.NewAppError(fiber.StatusConflict, "self_hiring", err.Error(), err)
 	case errors.Is(err, domain.ErrJobNotCompleted):
 		return response.NewAppError(fiber.StatusConflict, "job_not_completed", "only completed jobs can be reviewed", err)
 	case errors.Is(err, domain.ErrReviewAlreadyExists):

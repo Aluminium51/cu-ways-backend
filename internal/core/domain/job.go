@@ -51,6 +51,9 @@ func (j *Job) AcceptOffer(offer *Offer) error {
 	if offer.JobID != j.JobID {
 		return ErrOfferNotFound
 	}
+	if j.UserID == offer.UserID && j.UserID > 0 {
+		return ErrSelfHiring
+	}
 	if offer.OfferStatus != OfferStatusPending {
 		return ErrOfferNotPending
 	}
@@ -120,17 +123,14 @@ func (j *Job) checkHiredMarketer(marketerID int32, accepted *Offer) error {
 // MaxJobCancelReasonLength limits the optional cancellation note.
 const MaxJobCancelReasonLength = 300
 
-// Cancel closes a Pending job the Creator no longer needs, recording when and
-// optionally why. Only Pending jobs can be cancelled: a job already Cancelled
-// returns ErrJobAlreadyCancelled, and any other status returns
-// ErrJobNotCancellable. A job with a Paid payment returns ErrJobHasPaidPayment.
+// Cancel closes an unpaid job before completion and records when and why.
 // Closing its job requests and rejecting its Pending offers is left to the
 // caller.
 func (j *Job) Cancel(hasPaidPayment bool, reason *string, at time.Time) error {
 	if j.JobStatus == JobStatusCancelled {
 		return ErrJobAlreadyCancelled
 	}
-	if j.JobStatus != JobStatusPending {
+	if j.JobStatus != JobStatusPending && j.JobStatus != JobStatusAccepted && j.JobStatus != JobStatusInProgress {
 		return ErrJobNotCancellable
 	}
 	if hasPaidPayment {

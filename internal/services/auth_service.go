@@ -70,9 +70,6 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 	if err := validatePassword(input.Password); err != nil {
 		return nil, err
 	}
-	if input.Phone == nil {
-		return nil, domain.ErrInvalidUser
-	}
 	phone, err := normalizePhone(input.Phone)
 	if err != nil {
 		return nil, err
