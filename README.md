@@ -54,7 +54,10 @@ For optional database browsing, start pgAdmin with `docker compose up -d pgadmin
 ## API documentation
 
 - [Swagger UI](http://localhost:8081/docs/swagger) and [Scalar](http://localhost:8081/docs) provide interactive API documentation. Both use the [OpenAPI specification](docs/openapi.yaml).
+- See the [REST API resource diagram](docs/architecture.md#rest-api-resource-diagram) for the UML boxes, key fields, and HTTP operations.
+- See the [backend API overview](docs/architecture.md#backend-api-overview) for a UML component diagram of the API groups and backend layers.
 - Follow the [job workflow guide](docs/job-workflow.md) to try the API as a Creator and a Marketer.
+- See the [job completion API design](docs/job-completion-design.md) for the UML sequence diagram and the Sprint 3 coverage and Swagger demo.
 
 API responses use a `status` and `data` or `error` envelope. Use the `X-Request-ID` response header to correlate a request with backend logs.
 
