@@ -65,7 +65,11 @@ func respondWithSettlement(c *fiber.Ctx, load func(context.Context, services.Act
 		JobID: record.JobID, JobTitle: record.JobTitle, JobStatus: record.JobStatus,
 		Creator:       TransactionParty{UserID: record.CreatorID, Name: record.CreatorName},
 		Marketer:      TransactionParty{UserID: record.MarketerID, Name: record.MarketerName},
-		AcceptedPrice: record.AcceptedPrice.StringFixed(2), CompletedAt: record.CompletedAt,
+		AcceptedPrice: record.AcceptedPrice.StringFixed(2),
+	}
+	if record.CompletedAt != nil {
+		completedAt := record.CompletedAt.UTC()
+		result.CompletedAt = &completedAt
 	}
 	contact := record.MarketerContact
 	if actor.UserID == record.MarketerID {
