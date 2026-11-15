@@ -18,6 +18,16 @@ Use the [OpenAPI contract](openapi.yaml) or Swagger UI at `/docs/swagger` for in
 
 The resource view groups the application and health operations in [OpenAPI](openapi.yaml). Each box shows selected request or response fields and the HTTP operations for that resource. The arrows show relationships between resources. Open the SVG at full size to zoom in, or edit the [PlantUML source](diagrams/backend-api-resources.puml) and regenerate it with `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-resources.puml` from the backend root.
 
+### Diagram 3: CU Ways REST API Profile
+
+[![CU Ways REST API Profile showing the application, path arrows, resources, and JSON representations](diagrams/backend-api-rest-profile.svg)](diagrams/backend-api-rest-profile.svg)
+
+This diagram models the CU Ways backend's HTTP contract using the course's *UML Profile for REST API Design*. The `«Application»` element identifies the API and defines the base path `/api/v1`. The `«Path»` arrows show how URI segments lead to a `«Resource»`, which lists its HTTP operations, query parameters, and documented status codes. Dashed `«use»` arrows connect each resource to the `«Representation»` boxes for its JSON requests and responses. The health and readiness endpoints are mounted at the server root.
+
+For example, following `/jobs`, `/{id}`, and `/proofs` from the application gives `POST /api/v1/jobs/{id}/proofs`. The operation accepts a `CreateProofRequest` body and returns HTTP `201 Created` with a `ProofResponse`. Its path, method, status, and JSON representations can be traced to the corresponding Go/Fiber route and [OpenAPI contract](openapi.yaml). Asterisks in the diagram mark status codes that use the shared `ErrorResponse` schema.
+
+[Open the full SVG](diagrams/backend-api-rest-profile.svg) to zoom in on any of the three groups. To regenerate the image, run `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-rest-profile.puml` from the backend root using the [PlantUML source](diagrams/backend-api-rest-profile.puml).
+
 ## Project structure
 
 The repository combines the standard Go project layout with Hexagonal Architecture (Ports and Adapters). The tree below is representative; feature-specific files should be added only when a real use case requires them.
