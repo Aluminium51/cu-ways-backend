@@ -10,7 +10,7 @@ For the system's roles, job state transitions, and data rules, see [Project cont
 
 Requirements
 
-- Go 1.26 or later
+- Go 1.26.11 or later
 - Docker with Docker Compose v2
 - GNU Make
 
