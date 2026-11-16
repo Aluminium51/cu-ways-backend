@@ -6,27 +6,33 @@ This document defines the boundaries and dependency rules for the CU Ways backen
 
 ## Backend API overview
 
-![UML component diagram showing the API groups and how Next.js, the Go/Fiber backend, and PostgreSQL fit together](diagrams/backend-api.svg)
+The three figures show different views of CU Ways. Figure 1 describes the logical subsystem boundaries, Figure 2 shows which components provide and require interfaces, and Figure 3 describes the HTTP contract. The notation follows *All Design for SE*, pages 4–5, 69–71, and 159.
 
-The diagram groups operations by purpose. Application routes use `/api/v1`. Registration and login are public and rate limited. Protected routes check the bearer token and active account before the feature applies its access rules, such as Creator ownership, an accepted Marketer offer, or the admin role. The public `/healthz` checks the API process, and `/readyz` checks database connectivity.
+### Figure 1: CU Ways Subsystem Diagram
 
-Use the [OpenAPI contract](openapi.yaml) or Swagger UI at `/docs/swagger` for individual methods, paths, payloads, and errors. The [job completion sequence diagram](job-completion-design.md#uml-sequence-diagram) shows how one request moves through these components. The [PlantUML source](diagrams/backend-api.puml) can be rendered with `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api.puml` from the backend root.
+![Subsystem diagram showing the web interface, API entry point, backend feature areas, and data access](diagrams/cu-ways-subsystem-diagram.svg)
 
-### REST API resource diagram
+The Go backend groups related responsibilities into logical `«subsystem»` elements. Each dashed arrow points from the subsystem that depends on a feature or data access capability to the element it uses. These backend subsystems are part of one Go application. [PlantUML source](diagrams/cu-ways-subsystem-diagram.puml)
 
-[![UML class diagram of the CU Ways REST resources, key fields, and HTTP operations](diagrams/backend-api-resources.svg)](diagrams/backend-api-resources.svg)
+### Figure 2: CU Ways Component Diagram
 
-The resource view groups the application and health operations in [OpenAPI](openapi.yaml). Each box shows selected request or response fields and the HTTP operations for that resource. The arrows show relationships between resources. Open the SVG at full size to zoom in, or edit the [PlantUML source](diagrams/backend-api-resources.puml) and regenerate it with `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-resources.puml` from the backend root.
+![Component diagram with ball-and-socket connections for REST, use cases, repository ports, and PostgreSQL](diagrams/cu-ways-component-diagram.svg)
+
+The ball represents the interface provided by a component, and the socket represents the matching interface required by its consumer. For example, the Next.js frontend requires the REST interface provided by the Fiber HTTP adapter. The application services require repository ports implemented by the PostgreSQL adapters. The [job completion sequence diagram](job-completion-design.md#uml-sequence-diagram) traces an example request through these layers. [PlantUML source](diagrams/cu-ways-component-diagram.puml)
 
 ### Diagram 3: CU Ways REST API Profile
 
 [![CU Ways REST API Profile showing the application, path arrows, resources, and JSON representations](diagrams/backend-api-rest-profile.svg)](diagrams/backend-api-rest-profile.svg)
 
-This diagram models the CU Ways backend's HTTP contract using the course's *UML Profile for REST API Design*. The `«Application»` element identifies the API and defines the base path `/api/v1`. The `«Path»` arrows show how URI segments lead to a `«Resource»`, which lists its HTTP operations, query parameters, and documented status codes. Dashed `«use»` arrows connect each resource to the `«Representation»` boxes for its JSON requests and responses. The health and readiness endpoints are mounted at the server root.
+This UML API diagram models the CU Ways backend's HTTP contract using the course's *UML Profile for REST API Design*. The `«Application»` element identifies the API and defines the base path `/api/v1`. The `«Path»` arrows show how URI segments lead to a `«Resource»`, which lists its HTTP operations, query parameters, and documented status codes. Dashed `«use»` arrows connect each resource to the `«Representation»` boxes for its JSON requests and responses. The health and readiness endpoints are mounted at the server root.
 
 For example, following `/jobs`, `/{id}`, and `/proofs` from the application gives `POST /api/v1/jobs/{id}/proofs`. The operation accepts a `CreateProofRequest` body and returns HTTP `201 Created` with a `ProofResponse`. Its path, method, status, and JSON representations can be traced to the corresponding Go/Fiber route and [OpenAPI contract](openapi.yaml). Asterisks in the diagram mark status codes that use the shared `ErrorResponse` schema.
 
 [Open the full SVG](diagrams/backend-api-rest-profile.svg) to zoom in on any of the three groups. To regenerate the image, run `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-rest-profile.puml` from the backend root using the [PlantUML source](diagrams/backend-api-rest-profile.puml).
+
+### REST API resource diagram
+
+The [REST API resource map](diagrams/backend-api-resources.svg) provides a compact index of endpoints and fields. The [backend layer overview](diagrams/backend-api.svg) shows the flow from Next.js through Go/Fiber to PostgreSQL. For full method, path, payload, and error details, see the [OpenAPI contract](openapi.yaml) or Swagger UI at `/docs/swagger`.
 
 ## Project structure
 
