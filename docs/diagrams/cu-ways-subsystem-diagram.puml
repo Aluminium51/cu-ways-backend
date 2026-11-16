@@ -1,0 +1,50 @@
+@startuml
+title CU Ways Subsystem Diagram
+top to bottom direction
+
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontColor #17263A
+skinparam TitleFontSize 22
+skinparam ArrowColor #516783
+skinparam componentBackgroundColor #EEF5FC
+skinparam componentBorderColor #527096
+skinparam packageBackgroundColor #F8FAFD
+skinparam packageBorderColor #A0B3C9
+skinparam databaseBackgroundColor #E8F5EF
+skinparam databaseBorderColor #3C7966
+
+component "Web Interface\nNext.js pages and actions" as Web <<subsystem>>
+
+package "CU Ways Go Backend" {
+  component "API Entry\nRouting and middleware" as Entry <<subsystem>>
+  component "Accounts and Access\nRegistration, login, and profiles" as Accounts <<subsystem>>
+  component "Marketer Directory\nDiscovery, services, and ratings" as Directory <<subsystem>>
+  component "Surveys and Job Management\nSurveys, invitations, offers, and jobs" as Work <<subsystem>>
+  component "Delivery and Settlement\nProof, payments, and completion\nReviews and transaction history" as Delivery <<subsystem>>
+  component "Admin Reporting\nJob reports and flagged marketers" as Reports <<subsystem>>
+  component "Data Access\nRepository adapters and transactions" as Storage <<subsystem>>
+
+  Entry ..> Accounts
+  Entry ..> Directory
+  Entry ..> Work
+  Entry ..> Delivery
+  Entry ..> Reports
+
+  Accounts ..> Storage
+  Directory ..> Storage
+  Work ..> Storage
+  Delivery ..> Storage
+  Reports ..> Storage
+}
+
+database "PostgreSQL" as PostgreSQL
+Web ..> Entry : HTTP requests
+Storage ..> PostgreSQL : Reads and writes
+
+legend bottom
+  Dashed arrows point from the subsystem that depends on another element to the element it uses.
+  The backend subsystem boundaries are logical. They run in the same Go API.
+endlegend
+@enduml

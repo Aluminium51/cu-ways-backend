@@ -1,0 +1,39 @@
+@startuml
+title CU Ways Component Diagram
+top to bottom direction
+
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontColor #17263A
+skinparam TitleFontSize 22
+skinparam ArrowColor #516783
+skinparam ranksep 18
+skinparam componentBackgroundColor #EEF5FC
+skinparam componentBorderColor #527096
+skinparam packageBackgroundColor #F8FAFD
+skinparam packageBorderColor #A0B3C9
+skinparam databaseBackgroundColor #E8F5EF
+skinparam databaseBorderColor #3C7966
+
+component "Next.js Frontend\nServer Actions and route handlers" as Web <<component>>
+
+package "CU Ways Go Backend" {
+  component "Fiber HTTP Adapter\nRouting, JWT, and active-user checks" as HTTP <<component>>
+  component "Application Services\nUse cases and access rules" as App <<component>>
+  component "PostgreSQL Repositories\nQueries and transactions" as Repositories <<component>>
+
+  HTTP --(0-- App : Application use cases
+  App --(0-- Repositories : Repository ports
+}
+
+database "PostgreSQL" as PostgreSQL
+
+Web --(0-- HTTP : REST API over HTTP
+Repositories --(0-- PostgreSQL : PostgreSQL connection
+
+legend bottom
+  Ball: provided interface. Socket: required interface.
+  Each connector joins a consumer to the provider of the named interface.
+endlegend
+@enduml
