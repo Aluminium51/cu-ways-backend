@@ -167,6 +167,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many authentication requests (rate_limited).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/auth/login:
     post:
       operationId: login
@@ -203,6 +209,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many authentication requests (rate_limited).
           content:
             application/json:
               schema:
@@ -1986,6 +1998,12 @@ paths:
           description: Job not found.
         '409':
           description: Job has no accepted offer.
+        '422':
+          description: Invalid job ID (validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createJobPayment
       summary: Record a Creator-confirmed payment for a Job
@@ -2090,7 +2108,7 @@ paths:
     post:
       operationId: completeJob
       summary: Complete a paid job with proof as its owning Creator
-      description: Sets the completion time and records simulated payout release. Repeating completion returns the saved state.
+      description: The owning Creator completes an In Progress job with an accepted offer, a Paid payment matching the accepted price, and a Proof attachment. Send this request without a body. The server sets the completion time in UTC and reports a simulated payout release. Repeating completion returns the saved state and its original completed_at.
       tags: [Jobs]
       security:
         - bearerAuth: []
@@ -2116,7 +2134,17 @@ paths:
         '404':
           description: Job not found.
         '409':
-          description: Job, accepted offer, Paid payment, or proof does not meet completion requirements.
+          description: The job is not in progress (job_not_in_progress), has no accepted offer (accepted_offer_required), lacks a matching Paid payment (completion_payment_required), or lacks a Proof attachment (completion_proof_required).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid job ID or unexpected request body (validation_error).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/me/transactions:
     get:
       operationId: listMyTransactions

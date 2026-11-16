@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Aluminium51/cu-way-backend/internal/core/domain"
 	"github.com/Aluminium51/cu-way-backend/internal/core/ports"
@@ -94,5 +95,35 @@ func TestJobSettlementHandlerReturnsNullPayoutStatusForCancelledJob(t *testing.T
 	}
 	if res.StatusCode != 200 || string(envelope.Data["payout_status"]) != "null" || len(envelope.Data["payment"]) == 0 || string(envelope.Data["payment"]) == "null" {
 		t.Fatalf("unexpected payment response: status %d, data %+v", res.StatusCode, envelope.Data)
+	}
+}
+
+func TestJobSettlementHandlerSerializesCompletionTimeInUTC(t *testing.T) {
+	completedAt := time.Date(2026, time.November, 7, 15, 0, 0, 0, time.FixedZone("UTC+7", 7*60*60))
+	record := &domain.JobSettlement{JobID: 12, JobStatus: domain.JobStatusCompleted, CompletedAt: &completedAt}
+	app := jobSettlementHandlerApp(fakeJobSettlementService{record: record})
+
+	for _, route := range []struct{ method, path string }{
+		{"GET", "/jobs/12/payments"},
+		{"POST", "/jobs/12/complete"},
+	} {
+		t.Run(route.method, func(t *testing.T) {
+			res, err := app.Test(httptest.NewRequest(route.method, route.path, nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeResponseBody(t, res.Body)
+			var envelope struct {
+				Data struct {
+					CompletedAt string `json:"completed_at"`
+				}
+			}
+			if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil {
+				t.Fatal(err)
+			}
+			if res.StatusCode != 200 || envelope.Data.CompletedAt != "2026-11-07T08:00:00Z" {
+				t.Fatalf("got HTTP %d with completed_at %q, want HTTP 200 with UTC time", res.StatusCode, envelope.Data.CompletedAt)
+			}
+		})
 	}
 }

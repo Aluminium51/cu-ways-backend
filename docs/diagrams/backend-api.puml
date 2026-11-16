@@ -1,0 +1,66 @@
+@startuml
+title CU Ways Backend API
+top to bottom direction
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontColor #17263A
+skinparam ArrowColor #506680
+skinparam componentStyle uml2
+skinparam ranksep 36
+skinparam component {
+  BackgroundColor #EEF5FC
+  BorderColor #527096
+}
+skinparam package {
+  BackgroundColor #F8FAFD
+  BorderColor #A0B3C9
+}
+skinparam note {
+  BackgroundColor #FFFFFF
+  BorderColor #A0B3C9
+}
+skinparam database {
+  BackgroundColor #E8F5EF
+  BorderColor #3C7966
+}
+
+actor "Creator / Marketer / Admin" as User
+component "Next.js frontend\nServer Actions and route handlers" as Web
+
+package "Go / Fiber backend" {
+  component "HTTP routing and middleware\nRequest IDs, JWT, active-user checks" as Router
+  component "HTTP handlers\nValidate input and map responses" as Handlers
+  component "Application services\nPermissions and use cases" as Services
+  component "Domain\nBusiness rules and state transitions" as Domain
+  component "Repository ports\nPersistence interfaces" as Ports
+  component "PostgreSQL repositories\nQueries and transactions" as Repositories
+
+  note right of Handlers
+    **API groups**
+    **System** — health and readiness
+    **Authentication** — registration and login
+    **Users and admin** — accounts and reports
+    **Marketers** — discovery, profiles, services,
+    verified reviews, and statistics
+    **Surveys** — survey metadata
+    **Jobs and offers** — job setup, briefs, invitations,
+    offer submission, hiring, starting, and cancellation
+    **Delivery and payments** — proof, payment confirmation,
+    completion, reviews, and transaction history
+  end note
+
+  Router --> Handlers : Dispatch
+  Handlers --> Services : Call use case
+  Services -left-> Domain : Apply rules
+  Services ..> Ports : Use
+  Ports <|.. Repositories : Implements
+}
+
+database "PostgreSQL\nVersioned SQL migrations" as DB
+
+User --> Web : Browser
+Web --> Router : HTTP JSON
+Repositories --> DB : SQL
+@enduml

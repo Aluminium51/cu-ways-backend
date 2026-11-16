@@ -1,0 +1,679 @@
+@startuml
+title CU Ways REST API Profile
+left to right direction
+hide circle
+hide empty members
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontColor #15283B
+skinparam defaultFontSize 14
+skinparam TitleFontSize 24
+skinparam ArrowColor #52677B
+skinparam classAttributeIconSize 0
+skinparam ranksep 28
+skinparam nodesep 14
+skinparam class {
+  BackgroundColor<<Application>> #E0E9F5
+  BorderColor<<Application>> #496582
+  BackgroundColor<<Resource>> #E4F4F3
+  BorderColor<<Resource>> #217780
+  BackgroundColor<<Representation>> #FCEDF4
+  BorderColor<<Representation>> #994064
+}
+skinparam package {
+  BackgroundColor #F8FAFD
+  BorderColor #9CB3C7
+  FontStyle bold
+}
+
+class "CU Ways API" as API <<Application>> {
+  {field} { basePath = "/api/v1" }
+}
+package "System, accounts and discovery" {
+  class "Health" as R1 <<Resource>> {
+    + GET() : 200
+  }
+  class "SuccessResponse" as R1Body1 <<Representation>> {
+    {field} status : string
+    {field} data : object
+  }
+  R1 .[#994064].> R1Body1 : «use» GET 200
+
+  class "Readiness" as R2 <<Resource>> {
+    + GET() : 200 | 503*
+  }
+  class "SuccessResponse" as R2Body1 <<Representation>> {
+    {field} status : string
+    {field} data : object
+  }
+  R2 .[#994064].> R2Body1 : «use» GET 200
+
+  class "Registration" as R3 <<Resource>> {
+    + POST(body: RegisterRequest) : 201 | 409* | 422* | 429* | 500*
+  }
+  class "RegisterRequest" as R3Body1 <<Representation>> {
+    {field} name : string
+    {field} email : email
+    {field} password : password
+    {field} phone : string
+    {field} line_id : string
+    {field} marketer_profile : RegisterMarketerProfile
+  }
+  R3 .[#994064].> R3Body1 : «use» POST request
+  class "AuthResponse" as R3Body2 <<Representation>> {
+    {field} status : string
+    {field} data.access_token : string
+    {field} data.token_type : string
+    {field} data.expires_in : int64
+    {field} data.user : AuthenticatedUser
+  }
+  R3 .[#994064].> R3Body2 : «use» POST 201
+
+  class "Login" as R4 <<Resource>> {
+    + POST(body: LoginRequest) : 200 | 401* | 422* | 429* | 500*
+  }
+  class "LoginRequest" as R4Body1 <<Representation>> {
+    {field} email : email
+    {field} password : password
+  }
+  R4 .[#994064].> R4Body1 : «use» POST request
+  class "AuthResponse" as R4Body2 <<Representation>> {
+    {field} status : string
+    {field} data.access_token : string
+    {field} data.token_type : string
+    {field} data.expires_in : int64
+    {field} data.user : AuthenticatedUser
+  }
+  R4 .[#994064].> R4Body2 : «use» POST 200
+
+  class "Users" as R5 <<Resource>> {
+    + GET(page, page_size) : 200 | 401* | 403* | 422* | 500*
+  }
+  class "UserListResponse" as R5Body1 <<Representation>> {
+    {field} status : string
+    {field} data.items : User[]
+    {field} data.page : int32
+    {field} data.page_size : int32
+    {field} data.total : int64
+  }
+  R5 .[#994064].> R5Body1 : «use» GET 200
+
+  class "User" as R6 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404* | 422* | 500*
+    + PUT(body: UpdateUserRequest) : 200 | 401* | 403* | 404* | 409* | 422* | 500*
+    + DELETE() : 200 | 401* | 403* | 404* | 422* | 500*
+  }
+  class "UserResponse" as R6Body1 <<Representation>> {
+    {field} status : string
+    {field} data : User
+  }
+  R6 .[#994064].> R6Body1 : «use» GET 200 / PUT 200
+  class "UpdateUserRequest" as R6Body2 <<Representation>> {
+    {field} name : string
+    {field} email : email
+    {field} phone : string
+    {field} line_id : string
+  }
+  R6 .[#994064].> R6Body2 : «use» PUT request
+  class "DeleteUserResponse" as R6Body3 <<Representation>> {
+    {field} status : string
+    {field} data.user_id : int32
+    {field} data.deleted : boolean
+  }
+  R6 .[#994064].> R6Body3 : «use» DELETE 200
+
+  class "Marketers" as R7 <<Resource>> {
+    + GET(page, page_size, keyword, min_price, max_price, expertise, campus, min_rating, min_experience_years, availability_status, sort) : 200 | 401* | 403* | 422*
+  }
+  class "MarketerSearchResponse" as R7Body1 <<Representation>> {
+    {field} status : string
+    {field} data.items : MarketerSearchItem[]
+    {field} data.page : integer
+    {field} data.page_size : integer
+    {field} data.total : int64
+  }
+  R7 .[#994064].> R7Body1 : «use» GET 200
+
+  class "Marketer" as R8 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404*
+  }
+  class "MarketerDetailResponse" as R8Body1 <<Representation>> {
+    {field} status : string
+    {field} data.profile : MarketerProfile
+    {field} data.services : Service[]
+    {field} data.review_count : int64
+    {field} data.total_completed_jobs : int64
+    {field} data.average_rating : double
+  }
+  R8 .[#994064].> R8Body1 : «use» GET 200
+
+  class "Verified reviews" as R9 <<Resource>> {
+    + GET(page, page_size) : 200 | 401* | 403* | 404* | 422*
+  }
+  class "MarketerReviewsResponse" as R9Body1 <<Representation>> {
+    {field} status : string
+    {field} data.items : object[]
+    {field} data.average_rating : double
+    {field} data.review_count : int64
+    {field} data.page : int32
+    {field} data.page_size : int32
+    {field} data.total : int64
+  }
+  R9 .[#994064].> R9Body1 : «use» GET 200
+
+  class "My marketer profile" as R10 <<Resource>> {
+    + GET() : 200 | 401* | 404*
+    + PATCH(body: MarketerProfileRequest) : 200 | 401* | 422*
+  }
+  class "MarketerProfileResponse" as R10Body1 <<Representation>> {
+    {field} status : string
+    {field} data : MarketerProfile
+  }
+  R10 .[#994064].> R10Body1 : «use» GET 200 / PATCH 200
+  class "MarketerProfileRequest" as R10Body2 <<Representation>> {
+    {field} bio : string
+    {field} experience_years : integer
+    {field} availability_status : string
+    {field} availability_text : string
+    {field} expertise : string[]
+    {field} campuses : string[]
+  }
+  R10 .[#994064].> R10Body2 : «use» PATCH request
+
+  class "My services" as R11 <<Resource>> {
+    + GET() : 200 | 401* | 403*
+    + POST(body: CreateServiceRequest) : 201 | 401* | 403* | 422*
+  }
+  class "ServiceListResponse" as R11Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Service[]
+  }
+  R11 .[#994064].> R11Body1 : «use» GET 200
+  class "CreateServiceRequest" as R11Body2 <<Representation>> {
+    {field} service_type : string
+    {field} scope_text : string
+    {field} price : string
+  }
+  R11 .[#994064].> R11Body2 : «use» POST request
+  class "ServiceResponse" as R11Body3 <<Representation>> {
+    {field} status : string
+    {field} data : Service
+  }
+  R11 .[#994064].> R11Body3 : «use» POST 201
+
+  class "My service" as R12 <<Resource>> {
+    + PATCH(body: UpdateServiceRequest) : 200 | 401* | 403* | 404* | 422*
+    + DELETE() : 200 | 401* | 403* | 404*
+  }
+  class "UpdateServiceRequest" as R12Body1 <<Representation>> {
+    {field} service_type : string
+    {field} scope_text : string
+    {field} price : string
+  }
+  R12 .[#994064].> R12Body1 : «use» PATCH request
+  class "ServiceResponse" as R12Body2 <<Representation>> {
+    {field} status : string
+    {field} data : Service
+  }
+  R12 .[#994064].> R12Body2 : «use» PATCH 200
+  class "DeleteServiceResponse" as R12Body3 <<Representation>> {
+    {field} status : string
+    {field} data.service_id : int32
+    {field} data.deleted : boolean
+  }
+  R12 .[#994064].> R12Body3 : «use» DELETE 200
+
+  class "My statistics" as R13 <<Resource>> {
+    + GET() : 200 | 401* | 403*
+  }
+  class "MarketerStatisticsResponse" as R13Body1 <<Representation>> {
+    {field} status : string
+    {field} data.total_completed_jobs : int64
+    {field} data.average_rating : double
+    {field} data.total_earnings : string
+  }
+  R13 .[#994064].> R13Body1 : «use» GET 200
+
+  class "Admin jobs" as R14 <<Resource>> {
+    + GET(page, page_size, status) : 200 | 401 | 403 | 422
+  }
+  class "ListAdminJobsResponse" as R14Body1 <<Representation>> {
+    {field} status : string
+    {field} data : AdminJobPage
+  }
+  R14 .[#994064].> R14Body1 : «use» GET 200
+
+  class "Flagged marketers" as R15 <<Resource>> {
+    + GET(page, page_size) : 200 | 401 | 403 | 422
+  }
+  class "ListFlaggedMarketersResponse" as R15Body1 <<Representation>> {
+    {field} status : string
+    {field} data : FlaggedMarketerPage
+  }
+  R15 .[#994064].> R15Body1 : «use» GET 200
+
+}
+
+package "Surveys, jobs and hiring" {
+  class "Surveys" as R16 <<Resource>> {
+    + POST(body: CreateSurveyRequest) : 201 | 401* | 422*
+  }
+  class "CreateSurveyRequest" as R16Body1 <<Representation>> {
+    {field} title : string
+    {field} description : string
+    {field} survey_link : string
+    {field} target_group : string
+    {field} desired_responses : integer
+    {field} deadline : date-time
+  }
+  R16 .[#994064].> R16Body1 : «use» POST request
+  class "SurveyResponse" as R16Body2 <<Representation>> {
+    {field} status : string
+    {field} data : Survey
+  }
+  R16 .[#994064].> R16Body2 : «use» POST 201
+
+  class "Survey" as R17 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404*
+    + PATCH(body: UpdateSurveyRequest) : 200 | 401* | 403* | 404* | 422*
+    + DELETE() : 200 | 401* | 403* | 404* | 409*
+  }
+  class "SurveyResponse" as R17Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Survey
+  }
+  R17 .[#994064].> R17Body1 : «use» GET 200 / PATCH 200
+  class "UpdateSurveyRequest" as R17Body2 <<Representation>> {
+    {field} title : string
+    {field} description : string
+    {field} survey_link : string
+    {field} target_group : string
+    {field} desired_responses : integer
+    {field} deadline : date-time
+  }
+  R17 .[#994064].> R17Body2 : «use» PATCH request
+  class "DeleteSurveyResponse" as R17Body3 <<Representation>> {
+    {field} status : string
+    {field} data.survey_id : int32
+    {field} data.deleted : boolean
+  }
+  R17 .[#994064].> R17Body3 : «use» DELETE 200
+
+  class "My surveys" as R18 <<Resource>> {
+    + GET() : 200 | 401* | 403*
+  }
+  class "SurveyListResponse" as R18Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Survey[]
+  }
+  R18 .[#994064].> R18Body1 : «use» GET 200
+
+  class "Jobs" as R19 <<Resource>> {
+    + POST(body: CreateJobRequest) : 201 | 401* | 403* | 404* | 422*
+  }
+  class "CreateJobRequest" as R19Body1 <<Representation>> {
+    {field} title : string
+    {field} description : string
+    {field} budget : string
+    {field} deadline : date
+    {field} survey_ids : int32[]
+  }
+  R19 .[#994064].> R19Body1 : «use» POST request
+  class "JobResponse" as R19Body2 <<Representation>> {
+    {field} status : string
+    {field} data : Job
+  }
+  R19 .[#994064].> R19Body2 : «use» POST 201
+
+  class "Job" as R20 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404* | 422*
+    + PATCH(body: UpdateJobDetailsRequest) : 200 | 401 | 403 | 404 | 409 | 422
+  }
+  class "CreatorJobSummaryResponse" as R20Body1 <<Representation>> {
+    {field} status : string
+    {field} data : CreatorJobSummary
+  }
+  R20 .[#994064].> R20Body1 : «use» GET 200 / PATCH 200
+  class "UpdateJobDetailsRequest" as R20Body2 <<Representation>> {
+    {field} survey_ids : int32[]
+    {field} title : string
+    {field} description : string
+    {field} budget : string
+    {field} deadline : date
+  }
+  R20 .[#994064].> R20Body2 : «use» PATCH request
+
+  class "My jobs" as R21 <<Resource>> {
+    + GET() : 200 | 401* | 403*
+  }
+  class "CreatorJobSummaryListResponse" as R21Body1 <<Representation>> {
+    {field} status : string
+    {field} data : CreatorJobSummary[]
+  }
+  R21 .[#994064].> R21Body1 : «use» GET 200
+
+  class "Job survey link" as R22 <<Resource>> {
+    + POST() : 200 | 401* | 403* | 404* | 409*
+    + DELETE() : 200 | 401* | 403* | 404* | 409*
+  }
+  class "JobLinkResponse" as R22Body1 <<Representation>> {
+    {field} status : string
+    {field} data.job_id : int32
+    {field} data.survey_id : int32
+    {field} data.linked : boolean
+  }
+  R22 .[#994064].> R22Body1 : «use» POST 200 / DELETE 200
+
+  class "Job briefs" as R23 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404*
+    + POST(body: CreateBriefRequest) : 201 | 401* | 403* | 404* | 422*
+  }
+  class "BriefListResponse" as R23Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Brief[]
+  }
+  R23 .[#994064].> R23Body1 : «use» GET 200
+  class "CreateBriefRequest" as R23Body2 <<Representation>> {
+    {field} url : uri
+  }
+  R23 .[#994064].> R23Body2 : «use» POST request
+  class "BriefResponse" as R23Body3 <<Representation>> {
+    {field} status : string
+    {field} data : Brief
+  }
+  R23 .[#994064].> R23Body3 : «use» POST 201
+
+  class "Job invitations" as R24 <<Resource>> {
+    + POST(body: CreateJobRequestsRequest) : 201 | 401* | 403* | 404* | 409* | 422*
+    + GET() : 200 | 401* | 403* | 404* | 422*
+  }
+  class "CreateJobRequestsRequest" as R24Body1 <<Representation>> {
+    {field} marketer_ids : int32[]
+  }
+  R24 .[#994064].> R24Body1 : «use» POST request
+  class "JobRequestListResponse" as R24Body2 <<Representation>> {
+    {field} status : string
+    {field} data : JobRequest[]
+  }
+  R24 .[#994064].> R24Body2 : «use» POST 201
+  class "SentJobRequestListResponse" as R24Body3 <<Representation>> {
+    {field} status : string
+    {field} data : SentJobRequest[]
+  }
+  R24 .[#994064].> R24Body3 : «use» GET 200
+
+  class "Job offers" as R25 <<Resource>> {
+    + GET(status) : 200 | 401* | 403* | 404* | 422*
+  }
+  class "JobOfferComparisonListResponse" as R25Body1 <<Representation>> {
+    {field} status : string
+    {field} data : JobOfferComparison[]
+  }
+  R25 .[#994064].> R25Body1 : «use» GET 200
+
+  class "Offer acceptance" as R26 <<Resource>> {
+    + POST() : 200 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "AcceptOfferResponse" as R26Body1 <<Representation>> {
+    {field} status : string
+    {field} data.job_id : int32
+    {field} data.job_status : string
+    {field} data.accepted_offer_id : int32
+    {field} data.offer : Offer
+    {field} data.rejected_offer_ids : int32[]
+    {field} data.closed_job_request_ids : int32[]
+  }
+  R26 .[#994064].> R26Body1 : «use» POST 200
+
+  class "Job start" as R27 <<Resource>> {
+    + POST() : 200 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "StartJobResponse" as R27Body1 <<Representation>> {
+    {field} status : string
+    {field} data.job_id : int32
+    {field} data.job_status : string
+    {field} data.accepted_offer_id : int32
+    {field} data.offer : Offer
+  }
+  R27 .[#994064].> R27Body1 : «use» POST 200
+
+  class "Job cancellation" as R28 <<Resource>> {
+    + POST(body?: CancelJobRequest) : 200 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "CancelJobRequest" as R28Body1 <<Representation>> {
+    {field} cancel_reason : string
+  }
+  R28 .[#994064].> R28Body1 : «use» POST request
+  class "CancelJobResponse" as R28Body2 <<Representation>> {
+    {field} status : string
+    {field} data.job_id : int32
+    {field} data.job_status : string
+    {field} data.cancelled_at : date-time
+    {field} data.cancel_reason : string
+    {field} data.closed_job_request_ids : int32[]
+    {field} data.rejected_offer_ids : int32[]
+  }
+  R28 .[#994064].> R28Body2 : «use» POST 200
+
+  class "My job requests" as R29 <<Resource>> {
+    + GET(status) : 200 | 401* | 403* | 422*
+  }
+  class "MarketerJobRequestListResponse" as R29Body1 <<Representation>> {
+    {field} status : string
+    {field} data : MarketerJobRequest[]
+  }
+  R29 .[#994064].> R29Body1 : «use» GET 200
+
+  class "Invitation acceptance" as R30 <<Resource>> {
+    + POST() : 200 | 401* | 403* | 404* | 409*
+  }
+  class "JobRequestResponse" as R30Body1 <<Representation>> {
+    {field} status : string
+    {field} data : JobRequest
+  }
+  R30 .[#994064].> R30Body1 : «use» POST 200
+
+  class "Invitation decline" as R31 <<Resource>> {
+    + POST(body?: DeclineJobRequestRequest) : 200 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "DeclineJobRequestRequest" as R31Body1 <<Representation>> {
+    {field} reason : string
+    {field} note : string
+  }
+  R31 .[#994064].> R31Body1 : «use» POST request
+  class "JobRequestResponse" as R31Body2 <<Representation>> {
+    {field} status : string
+    {field} data : JobRequest
+  }
+  R31 .[#994064].> R31Body2 : «use» POST 200
+
+  class "My request offers" as R32 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404*
+    + POST(body: SubmitOfferRequest) : 201 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "OfferListResponse" as R32Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Offer[]
+  }
+  R32 .[#994064].> R32Body1 : «use» GET 200
+  class "SubmitOfferRequest" as R32Body2 <<Representation>> {
+    {field} offered_price : string
+    {field} delivery_date : date
+    {field} message : string
+  }
+  R32 .[#994064].> R32Body2 : «use» POST request
+  class "OfferResponse" as R32Body3 <<Representation>> {
+    {field} status : string
+    {field} data : Offer
+  }
+  R32 .[#994064].> R32Body3 : «use» POST 201
+
+  class "Offer withdrawal" as R33 <<Resource>> {
+    + POST() : 200 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "OfferResponse" as R33Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Offer
+  }
+  R33 .[#994064].> R33Body1 : «use» POST 200
+
+}
+
+package "Delivery, settlement and reviews" {
+  class "Delivery proofs" as R34 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404* | 422*
+    + POST(body: CreateProofRequest) : 201 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "ProofListResponse" as R34Body1 <<Representation>> {
+    {field} status : string
+    {field} data : Proof[]
+  }
+  R34 .[#994064].> R34Body1 : «use» GET 200
+  class "CreateProofRequest" as R34Body2 <<Representation>> {
+    {field} url : uri
+    {field} attachment_type : string
+  }
+  R34 .[#994064].> R34Body2 : «use» POST request
+  class "ProofResponse" as R34Body3 <<Representation>> {
+    {field} status : string
+    {field} data : Proof
+  }
+  R34 .[#994064].> R34Body3 : «use» POST 201
+
+  class "Job payments" as R35 <<Resource>> {
+    + GET() : 200 | 401 | 403 | 404 | 409 | 422*
+    + POST(body: CreatePaymentRequest) : 201 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "JobSettlementEnvelope" as R35Body1 <<Representation>> {
+    {field} status : string
+    {field} data : JobSettlement
+  }
+  R35 .[#994064].> R35Body1 : «use» GET 200
+  class "CreatePaymentRequest" as R35Body2 <<Representation>> {
+    {field} method : string
+    {field} amount : string
+  }
+  R35 .[#994064].> R35Body2 : «use» POST request
+  class "PaymentResponse" as R35Body3 <<Representation>> {
+    {field} status : string
+    {field} data.payment_id : int32
+    {field} data.job_id : int32
+    {field} data.method : string
+    {field} data.amount : string
+    {field} data.payment_status : string
+    {field} data.created_at : date-time
+    {field} data.paid_at : date-time
+  }
+  R35 .[#994064].> R35Body3 : «use» POST 201
+
+  class "Current payment" as R36 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404* | 422*
+  }
+  class "CurrentPaymentResponse" as R36Body1 <<Representation>> {
+    {field} status : string
+    {field} data.payment : ActivePayment
+  }
+  R36 .[#994064].> R36Body1 : «use» GET 200
+
+  class "Job completion" as R37 <<Resource>> {
+    + POST() : 200 | 401 | 403 | 404 | 409* | 422*
+  }
+  class "JobSettlementEnvelope" as R37Body1 <<Representation>> {
+    {field} status : string
+    {field} data : JobSettlement
+  }
+  R37 .[#994064].> R37Body1 : «use» POST 200
+
+  class "Job reviews" as R38 <<Resource>> {
+    + POST(body: SubmitJobReviewRequest) : 201 | 401* | 403* | 404* | 409* | 422*
+  }
+  class "SubmitJobReviewRequest" as R38Body1 <<Representation>> {
+    {field} rating : int32
+    {field} comment : string
+  }
+  R38 .[#994064].> R38Body1 : «use» POST request
+  class "ReviewResponse" as R38Body2 <<Representation>> {
+    {field} status : string
+    {field} data.review_id : int32
+    {field} data.job_id : int32
+    {field} data.rating : int32
+    {field} data.comment : string
+    {field} data.created_at : date-time
+  }
+  R38 .[#994064].> R38Body2 : «use» POST 201
+
+  class "Current review" as R39 <<Resource>> {
+    + GET() : 200 | 401* | 403* | 404* | 422*
+  }
+  class "CurrentReviewResponse" as R39Body1 <<Representation>> {
+    {field} status : string
+    {field} data.review : JobReview
+  }
+  R39 .[#994064].> R39Body1 : «use» GET 200
+
+  class "Transaction history" as R40 <<Resource>> {
+    + GET(role, keyword, page, page_size) : 200 | 401* | 422*
+  }
+  class "TransactionListEnvelope" as R40Body1 <<Representation>> {
+    {field} status : string
+    {field} data : TransactionListResponse
+  }
+  R40 .[#994064].> R40Body1 : «use» GET 200
+
+}
+
+API .[#9A600D].> R1 : «Path» /healthz\n{ server root }
+API .[#9A600D].> R2 : «Path» /readyz\n{ server root }
+API .[#9A600D].> R3 : «Path» /auth/register
+API .[#9A600D].> R4 : «Path» /auth/login
+API .[#9A600D].> R5 : «Path» /users
+R5 .[#9A600D].> R6 : «Path» /{id}
+API .[#9A600D].> R7 : «Path» /marketers
+R7 .[#9A600D].> R8 : «Path» /{id}
+R8 .[#9A600D].> R9 : «Path» /reviews
+API .[#9A600D].> R10 : «Path» /me/marketer-profile
+API .[#9A600D].> R11 : «Path» /me/services
+R11 .[#9A600D].> R12 : «Path» /{id}
+API .[#9A600D].> R13 : «Path» /me/statistics
+API .[#9A600D].> R14 : «Path» /admin/jobs
+API .[#9A600D].> R15 : «Path» /admin/flagged-marketers
+API .[#9A600D].> R16 : «Path» /surveys
+R16 .[#9A600D].> R17 : «Path» /{id}
+API .[#9A600D].> R18 : «Path» /me/surveys
+API .[#9A600D].> R19 : «Path» /jobs
+R19 .[#9A600D].> R20 : «Path» /{id}
+API .[#9A600D].> R21 : «Path» /me/jobs
+R20 .[#9A600D].> R22 : «Path» /surveys/{surveyId}
+R20 .[#9A600D].> R23 : «Path» /briefs
+R20 .[#9A600D].> R24 : «Path» /requests
+R20 .[#9A600D].> R25 : «Path» /offers
+R25 .[#9A600D].> R26 : «Path» /{offerId}/accept
+R20 .[#9A600D].> R27 : «Path» /start
+R20 .[#9A600D].> R28 : «Path» /cancel
+API .[#9A600D].> R29 : «Path» /me/job-requests
+R29 .[#9A600D].> R30 : «Path» /{id}/accept
+R29 .[#9A600D].> R31 : «Path» /{id}/decline
+R29 .[#9A600D].> R32 : «Path» /{id}/offers
+API .[#9A600D].> R33 : «Path» /me/offers/{id}/withdraw
+R20 .[#9A600D].> R34 : «Path» /proofs
+R20 .[#9A600D].> R35 : «Path» /payments
+R35 .[#9A600D].> R36 : «Path» /current
+R20 .[#9A600D].> R37 : «Path» /complete
+R20 .[#9A600D].> R38 : «Path» /reviews
+R38 .[#9A600D].> R39 : «Path» /current
+API .[#9A600D].> R40 : «Path» /me/transactions
+
+class "ErrorResponse" as SharedError <<Representation>> {
+  {field} status : string
+  {field} error : APIError
+}
+API .[#994064].> SharedError : «use» status codes marked *
+
+legend bottom
+  Follow «Path» arrows from CU Ways API and prepend /api/v1, except for the two server-root paths.
+  The operation arguments show query parameters and JSON request bodies. Path parameters are on the arrows.
+  «use» connects the resource to its JSON bodies. * identifies the shared ErrorResponse schema.
+  Representation fields are shown at the body or envelope level. OpenAPI defines nested schemas and constraints.
+endlegend
+@enduml

@@ -1,0 +1,199 @@
+@startuml
+title CU Ways Backend API · REST resources
+top to bottom direction
+hide circle
+hide empty members
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontColor #17263A
+skinparam ArrowColor #506680
+skinparam TitleFontSize 20
+skinparam classAttributeIconSize 0
+skinparam ranksep 28
+skinparam nodesep 24
+skinparam class {
+  BackgroundColor #E4F7F2
+  BorderColor #46796F
+  BackgroundColor<<API>> #D9E8FC
+  BorderColor<<API>> #527096
+}
+skinparam package {
+  BackgroundColor #F8FAFD
+  BorderColor #A0B3C9
+  FontStyle bold
+}
+
+class "CU Ways API" as API <<API>> {
+  Base path: /api/v1
+  Protected operations: Bearer JWT
+}
+
+package "System, accounts and discovery" as Accounts {
+  class "Health and readiness" as System <<resource>> {
+    GET /healthz
+    GET /readyz
+  }
+
+  class "Authentication" as Auth <<resource>> {
+    Request: email, password
+    Response: access_token, user
+    --
+    POST /auth/register
+    POST /auth/login
+  }
+
+  class "Users" as Users <<resource>> {
+    user_id, name, email, phone, line_id
+    --
+    GET /users
+    GET /users/{id}
+    PUT /users/{id}
+    DELETE /users/{id}
+  }
+
+  class "Marketers" as Marketers <<resource>> {
+    user_id, bio, expertise, campuses
+    --
+    GET /marketers
+    GET /marketers/{id}
+    GET /marketers/{id}/reviews
+    GET /me/marketer-profile
+    PATCH /me/marketer-profile
+    GET /me/statistics
+  }
+
+  class "Services" as Services <<resource>> {
+    service_id, service_type, scope_text, price
+    --
+    GET /me/services
+    POST /me/services
+    PATCH /me/services/{id}
+    DELETE /me/services/{id}
+  }
+
+  class "Admin reports" as Admin <<resource>> {
+    page, page_size, total, items
+    --
+    GET /admin/jobs
+    GET /admin/flagged-marketers
+  }
+
+  System -[hidden]down-> Auth
+  Auth -[hidden]down-> Users
+  Users -[hidden]down-> Marketers
+  Marketers -down-> Services : lists
+  Services -[hidden]down-> Admin
+}
+
+package "Surveys, jobs and hiring" as Hiring {
+  class "Surveys" as Surveys <<resource>> {
+    survey_id, title, survey_link, deadline
+    --
+    POST /surveys
+    GET /surveys/{id}
+    PATCH /surveys/{id}
+    DELETE /surveys/{id}
+    GET /me/surveys
+  }
+
+  class "Jobs" as Jobs <<resource>> {
+    job_id, job_status, survey_ids
+    accepted_offer_id
+    --
+    POST /jobs
+    GET /me/jobs
+    GET /jobs/{id}
+    PATCH /jobs/{id}
+    POST /jobs/{id}/surveys/{surveyId}
+    DELETE /jobs/{id}/surveys/{surveyId}
+    GET /jobs/{id}/briefs
+    POST /jobs/{id}/briefs
+    POST /jobs/{id}/start
+    POST /jobs/{id}/cancel
+  }
+
+  class "Job requests" as Requests <<resource>> {
+    job_request_id, job_id, marketer_id
+    request_status
+    --
+    GET /jobs/{id}/requests
+    POST /jobs/{id}/requests
+    GET /me/job-requests
+    POST /me/job-requests/{id}/accept
+    POST /me/job-requests/{id}/decline
+  }
+
+  class "Offers" as Offers <<resource>> {
+    offer_id, job_request_id, offered_price
+    delivery_date, offer_status
+    --
+    GET /jobs/{id}/offers
+    POST /jobs/{id}/offers/{offerId}/accept
+    GET /me/job-requests/{id}/offers
+    POST /me/job-requests/{id}/offers
+    POST /me/offers/{id}/withdraw
+  }
+
+  Surveys <-down- Jobs : links
+  Jobs -down-> Requests : invites
+  Requests -down-> Offers : receives
+}
+
+package "Delivery, settlement and reviews" as Delivery {
+  class "Delivery proof" as Proof <<resource>> {
+    attachment_id, job_id, attachment_type
+    url, upload_at
+    --
+    GET /jobs/{id}/proofs
+    POST /jobs/{id}/proofs
+  }
+
+  class "Job payments" as Payments <<resource>> {
+    payment_id, job_id, method, amount
+    payment_status, paid_at
+    --
+    GET /jobs/{id}/payments
+    POST /jobs/{id}/payments
+    GET /jobs/{id}/payments/current
+  }
+
+  class "Job completion" as Completion <<resource>> {
+    job_id, job_status, completed_at, payout_status
+    --
+    POST /jobs/{id}/complete
+  }
+
+  class "Job reviews" as Reviews <<resource>> {
+    review_id, job_id, rating, comment, created_at
+    --
+    POST /jobs/{id}/reviews
+    GET /jobs/{id}/reviews/current
+  }
+
+  class "Transaction history" as History <<resource>> {
+    job_id, creator, marketer, accepted_price
+    payment_method, paid_at, completed_at
+    --
+    GET /me/transactions
+  }
+
+  Proof -[hidden]down-> Payments
+  Proof <-[dashed]down- Completion : requires Proof
+  Payments <-down- Completion : checks Paid record
+  Completion -down-> Reviews : allows review
+  Reviews -[hidden]down-> History
+}
+
+API -down-> Accounts
+API -down-> Hiring
+API -down-> Delivery
+Accounts -[hidden]right-> Hiring
+Hiring -[hidden]right-> Delivery
+
+legend bottom
+  Resource boxes list selected contract fields and HTTP operations.
+  Prepend /api/v1 to application paths. /healthz and /readyz are root paths.
+endlegend
+@enduml

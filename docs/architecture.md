@@ -4,6 +4,30 @@
 
 This document defines the boundaries and dependency rules for the CU Ways backend. It is intended for maintainers and developers adding domain features such as users, surveys, jobs, offers, payments, and reviews.
 
+## Backend API overview
+
+![UML component diagram showing the API groups and how Next.js, the Go/Fiber backend, and PostgreSQL fit together](diagrams/backend-api.svg)
+
+The diagram groups operations by purpose. Application routes use `/api/v1`. Registration and login are public and rate limited. Protected routes check the bearer token and active account before the feature applies its access rules, such as Creator ownership, an accepted Marketer offer, or the admin role. The public `/healthz` checks the API process, and `/readyz` checks database connectivity.
+
+Use the [OpenAPI contract](openapi.yaml) or Swagger UI at `/docs/swagger` for individual methods, paths, payloads, and errors. The [job completion sequence diagram](job-completion-design.md#uml-sequence-diagram) shows how one request moves through these components. The [PlantUML source](diagrams/backend-api.puml) can be rendered with `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api.puml` from the backend root.
+
+### REST API resource diagram
+
+[![UML class diagram of the CU Ways REST resources, key fields, and HTTP operations](diagrams/backend-api-resources.svg)](diagrams/backend-api-resources.svg)
+
+The resource view groups the application and health operations in [OpenAPI](openapi.yaml). Each box shows selected request or response fields and the HTTP operations for that resource. The arrows show relationships between resources. Open the SVG at full size to zoom in, or edit the [PlantUML source](diagrams/backend-api-resources.puml) and regenerate it with `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-resources.puml` from the backend root.
+
+### Diagram 3: CU Ways REST API Profile
+
+[![CU Ways REST API Profile showing the application, path arrows, resources, and JSON representations](diagrams/backend-api-rest-profile.svg)](diagrams/backend-api-rest-profile.svg)
+
+This diagram models the CU Ways backend's HTTP contract using the course's *UML Profile for REST API Design*. The `«Application»` element identifies the API and defines the base path `/api/v1`. The `«Path»` arrows show how URI segments lead to a `«Resource»`, which lists its HTTP operations, query parameters, and documented status codes. Dashed `«use»` arrows connect each resource to the `«Representation»` boxes for its JSON requests and responses. The health and readiness endpoints are mounted at the server root.
+
+For example, following `/jobs`, `/{id}`, and `/proofs` from the application gives `POST /api/v1/jobs/{id}/proofs`. The operation accepts a `CreateProofRequest` body and returns HTTP `201 Created` with a `ProofResponse`. Its path, method, status, and JSON representations can be traced to the corresponding Go/Fiber route and [OpenAPI contract](openapi.yaml). Asterisks in the diagram mark status codes that use the shared `ErrorResponse` schema.
+
+[Open the full SVG](diagrams/backend-api-rest-profile.svg) to zoom in on any of the three groups. To regenerate the image, run `java -jar plantuml.jar -charset UTF-8 -tsvg docs/diagrams/backend-api-rest-profile.puml` from the backend root using the [PlantUML source](diagrams/backend-api-rest-profile.puml).
+
 ## Project structure
 
 The repository combines the standard Go project layout with Hexagonal Architecture (Ports and Adapters). The tree below is representative; feature-specific files should be added only when a real use case requires them.
@@ -440,4 +464,4 @@ go list ./...
 
 ## Current status
 
-The current live endpoints include `/healthz`, `/readyz`, `/docs`, `/docs/openapi.yaml`, User CRUD, authentication, marketer profile/service/search, survey metadata, Creator job setup (survey linking, Brief history, and invitations), Marketer job request responses, offer submission, offer comparison, offer acceptance, offer withdrawal, and starting a hired job. Payment, review, and refresh-token workflows remain future work.
+See the [backend API overview](#backend-api-overview) for the implemented API groups. The job workflow supports recording a Creator's payment confirmation, submitting proof, completing a job, and submitting and reading reviews. Payment records represent simulated settlement. Refresh-token workflows remain future work.

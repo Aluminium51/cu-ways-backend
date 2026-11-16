@@ -142,6 +142,10 @@ func TestSwaggerWorkflow(t *testing.T) {
 	if completed.JobStatus != "Completed" || completed.CompletedAt == nil || completed.PayoutStatus == nil || *completed.PayoutStatus != "Released" {
 		t.Fatal("expected completed job with recorded simulated payout")
 	}
+	repeated := swaggerData[httpapi.JobSettlementResponse](t, app, http.MethodPost, jobURL+"/complete", creator.AccessToken, nil, 200)
+	if repeated.JobStatus != "Completed" || repeated.CompletedAt == nil || !repeated.CompletedAt.Equal(*completed.CompletedAt) {
+		t.Fatal("expected repeated completion to return the original completion time")
+	}
 
 	review := swaggerData[httpapi.ReviewResponse](t, app, http.MethodPost, jobURL+"/reviews", creator.AccessToken, example(jobPath+"/{id}/reviews", ""), 201)
 	saved := swaggerData[httpapi.CurrentReviewResponse](t, app, http.MethodGet, jobURL+"/reviews/current", creator.AccessToken, nil, 200)
