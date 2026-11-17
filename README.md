@@ -8,11 +8,7 @@ For the system's roles, job state transitions, and data rules, see [Project cont
 
 ## Quick start
 
-Requirements
-
-- Go 1.26.11 or later
-- Docker with Docker Compose v2
-- GNU Make
+Requires Docker with the Docker Compose plugin.
 
 Clone the backend repository.
 
@@ -20,6 +16,23 @@ Clone the backend repository.
 git clone https://github.com/Aluminium51/cu-ways-backend
 cd cu-ways-backend
 ```
+
+From the backend checkout, start PostgreSQL, apply migrations, and start the Go API with Docker Compose:
+
+```sh
+docker compose up -d --build api
+docker compose logs migrate
+```
+
+Compose waits for PostgreSQL to be healthy, runs `/migrate` once, and starts the API only after migration succeeds. The migration container exits with code 0 on success. The API is available at `http://localhost:8081` by default. Open [`/readyz`](http://localhost:8081/readyz) to check readiness. If port 8081 is in use, set `API_PORT` in your local `.env` and point the frontend's `BACKEND_API_URL` at that host port.
+
+For the separate Next.js app, clone [the frontend repository](https://github.com/Champy2005/cu-ways-frontend) and follow its quick start. Its default backend URL works with the Compose API. Start pgAdmin with `docker compose up -d pgadmin` if you need it. Stop the stack with `docker compose down`. PostgreSQL data stays in the named volume.
+
+Compose uses the `postgres` service hostname and derives its connection URL from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. If your local credentials contain characters that need URL escaping, set `COMPOSE_DATABASE_URL` with a URL-encoded connection string targeting `postgres:5432`.
+
+### Run the Go API on the host
+
+Requires Go 1.26.11 or later and GNU Make.
 
 Create a local `.env` from the example if you do not have one. The defaults are for local development. See the available settings in [`.env.example`](.env.example).
 
